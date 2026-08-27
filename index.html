@@ -556,12 +556,288 @@ var SVAR = {
   "D-DAY":"--s-dday",
   "Overdue":"--s-overdue"
 };
+
+/* ============ i18n ============ */
+/* th = the app's original copy, verbatim (so lang:"th" is a strict no-op vs
+   pre-i18n behavior). en is a parallel translation. "หัวข้อ" (section) is
+   called "Project" in English, "งาน" (task) is "Task", per house terminology. */
+var I18N = {
+  th: {
+    customers_tab:"ลูกค้า", team_btn:"ทีม",
+    gcal_btn_title:"ส่งกำหนดส่ง (DUE DATE) เข้า Google Calendar อัตโนมัติ",
+    ics_btn_title:"ดาวน์โหลดกำหนดส่ง (DUE DATE) เป็นไฟล์ .ics เพื่อนำเข้าปฏิทิน",
+    csv_btn_title:"ดาวน์โหลดบอร์ดนี้เป็นไฟล์ CSV",
+    lang_toggle_title:"เปลี่ยนภาษา",
+    save_saved:"บันทึกแล้ว · ซิงก์เรียลไทม์", save_saving:"กำลังบันทึก…", save_unsaved:"ยังไม่บันทึก",
+    save_error:"บันทึกไม่สำเร็จ", save_connecting:"กำลังเชื่อมต่อ…", save_unconfigured:"ยังไม่ได้ตั้งค่า Firebase",
+    goal_sales:"ยอดขาย 2026", goal_participants:"ผู้เข้าร่วมสะสม 2026", goal_workshops:"Workshop/Camp สะสม 2026",
+    unit_baht:" บาท", unit_people:" คน", unit_times:" ครั้ง",
+    goals_edit_btn:"แก้เป้าหมาย", goals_edit_title:"แก้เป้าหมายปี 2026",
+    goal_sales_base_label:"ยอดขายเริ่มต้น (บาท)", goal_part_base_label:"ผู้เข้าร่วมเริ่มต้น (คน)",
+    goal_work_base_label:"Workshop/Camp เริ่มต้น (ครั้ง)",
+    goals_base_hint:"ตัวเลขเริ่มต้น = ยอดที่นับรวมมาก่อนหน้าระบบนี้ จะถูกบวกกับยอดที่มาจากงาน D-DAY ในแต่ละหัวข้อ (ที่ครบกำหนดปี 2026) โดยอัตโนมัติ",
+    goal_sales_target_label:"เป้ายอดขาย (บาท)", goal_part_target_label:"เป้าผู้เข้าร่วมสะสม (คน)",
+    goal_work_target_label:"เป้า Workshop/Camp สะสม (ครั้ง)",
+    goals_entry_hint:"กรอกยอดขาย/ผู้เข้าร่วม/จำนวน workshop ของแต่ละงานได้ในหน้าต่างแก้ไขงาน ตอนตั้งสถานะเป็น D-DAY",
+    cancel:"ยกเลิก", save_btn:"บันทึก", delete:"ลบ", edit:"แก้ไข", close:"ปิด", modal_close_aria:"ปิด",
+    cust_empty_title:"ยังไม่มีข้อมูลลูกค้า",
+    cust_empty_body:'เพิ่มลูกค้าแล้วไปผูกกับหัวข้องานในบอร์ดต่างๆ ได้ที่ปุ่ม "แก้ชื่อ" ของแต่ละหัวข้อ',
+    cust_add_btn:"+ เพิ่มลูกค้า", cust_contact_label:"ช่องทางติดต่อ",
+    cust_jobs_stat:"งานที่เคยจ้าง", cust_revenue_stat:"ยอดจ้างสะสม (บาท)",
+    cust_no_jobs:"ยังไม่มีหัวข้องานผูกกับลูกค้านี้",
+    cust_add_title:"เพิ่มลูกค้าใหม่", cust_edit_title:"แก้ไขข้อมูลลูกค้า",
+    cust_name_label:"ชื่อลูกค้า", cust_name_ph:"เช่น โรงเรียน... / บริษัท...",
+    cust_org_label:"สังกัด (โรงเรียน/มหาวิทยาลัย/องค์กร)", cust_contact_field_label:"ช่องทางการติดต่อ",
+    cust_contact_ph:"เบอร์โทร, อีเมล, Line ฯลฯ",
+    cust_form_hint:'จำนวนงานที่เคยจ้าง และยอดจ้างสะสม คำนวณอัตโนมัติจากหัวข้อที่ผูกกับลูกค้านี้ในบอร์ดต่างๆ (รวมยอดขายที่กรอกไว้ในแต่ละงาน) — ไปผูกได้ที่ปุ่ม "แก้ชื่อ" ของหัวข้อ',
+    cust_delete_this:"ลบลูกค้านี้", cust_add_submit:"เพิ่มลูกค้า",
+    cust_delete_title:"ลบลูกค้า",
+    cust_delete_body:"ลบ <b>{name}</b>?{jobsline}",
+    cust_delete_jobsline:" หัวข้องาน {n} รายการที่ผูกอยู่จะถูกถอดออกจากลูกค้านี้ (ไม่ได้ลบงาน)",
+    undo_hint:"การลบย้อนกลับไม่ได้",
+    status_all:"ทั้งหมด", zoom_compact:"กระชับ", zoom_normal:"ปกติ", zoom_wide:"กว้าง",
+    show_all_cols:"แสดงทุกคอลัมน์", collapse_cols:"ย่อคอลัมน์", today_btn:"วันนี้",
+    add_project_btn:"+ หัวข้อ", add_task_btn:"+ เพิ่มงาน",
+    board_empty_title:"ยังไม่มีหัวข้องานในบอร์ดนี้",
+    board_empty_body:"เริ่มจากสร้างหัวข้อ (เช่น Selling product to school) แล้วค่อยเพิ่มงานเข้าไปข้างใน",
+    create_first_project:"+ สร้างหัวข้อแรก",
+    expand_project:"ขยายหัวข้อ", collapse_project:"ย่อหัวข้อ", expand_short:"ขยาย", collapse_short:"ย่อ",
+    move_project_up:"ย้ายหัวข้อขึ้น", move_project_down:"ย้ายหัวข้อลง",
+    tpl_open_title:"เพิ่มงานจาก Workflow Template",
+    sort_select_title:"จัดเรียงงานในหัวข้อนี้ตามวันที่", sort_placeholder:"จัดเรียง...",
+    sort_by_start:"เรียงตาม Start date", sort_by_due:"เรียงตาม Due date",
+    rename_btn:"แก้ชื่อ", add_task_to:"+ เพิ่มงานใน {name}",
+    proposal_title:"งาน Proposal", open_link_title:"เปิดลิงก์: {link}",
+    move_up:"ย้ายขึ้น", move_down:"ย้ายลง", edit_title_aria:"แก้ไข {title}",
+    footer_legend_note:"DUE = START + DURATION − 1 · แถบทึบ = กำลังทำ/เสร็จ · แถบเส้นประ = ยังไม่เริ่ม/ยกเลิก",
+    task_edit_title:"แก้ไขงาน", task_add_title:"เพิ่มงานใหม่",
+    pick_all_btn:"ALL · ทั้งทีม", title_ph:"ชื่องาน เช่น ส่งอีเมลเสนอโครงการ",
+    remark_ph:"หมายเหตุหรือรายละเอียดเพิ่มเติม", link_label:"ลิงก์งาน", link_ph:"เช่น ลิงก์ Canva หรือไฟล์งาน",
+    is_proposal_label:"เป็นงาน Proposal (ต้องทำใบเสนอโครงการ)",
+    prop_client_label:"ลูกค้า/โรงเรียน", prop_contact_label:"ผู้ติดต่อ", prop_topic_label:"หัวข้อ/ชื่อค่าย",
+    prop_part_label:"จำนวนผู้เข้าร่วม", prop_notes_label:"รายละเอียดเพิ่มเติม",
+    prop_notes_ph:"เช่น รูปแบบกิจกรรม งบประมาณ ข้อกำหนดพิเศษ",
+    prop_brief_btn:"คัดลอกสรุปเพื่อขอ Proposal จาก Claude",
+    prop_brief_hint:"คัดลอกสรุปนี้ไปวางแชทกับ Claude เพื่อให้ช่วยร่าง Proposal (ใช้ skill soulscity-proposal) แล้วนำลิงก์เอกสารที่ได้มาใส่ในช่อง Link ด้านบน",
+    pic_hint:"เลือกได้หลายคน — เลือกครบทุกคนจะแสดงเป็น ALL",
+    section_label:"หัวข้อ", optional_hint:"(ไม่บังคับ)",
+    d2sales_label:"ยอดขาย (บาท)", d2part_label:"ผู้เข้าร่วม (คน)", d2work_label:"นับเป็น Workshop (ครั้ง)",
+    d2027_hint:"งาน D-DAY ที่ครบกำหนดในปี 2026 จะถูกรวมเข้าแถบเป้าหมายปี 2026 ด้านบนของบอร์ดอัตโนมัติจากตัวเลขนี้",
+    delete_task_btn:"ลบงานนี้", add_to_calendar_btn:"เพิ่มลงปฏิทิน", add_task_submit:"เพิ่มงาน",
+    copied_txt:"คัดลอกแล้ว ✓", copy_prompt_fallback:"คัดลอกข้อความนี้ (Cmd/Ctrl+C แล้ว Enter):",
+    brief_task:"ขอ Proposal สำหรับงาน: ", brief_client:"ลูกค้า/โรงเรียน: ", brief_contact:"ผู้ติดต่อ: ",
+    brief_topic:"หัวข้อ/ชื่อค่าย: ", brief_part:"จำนวนผู้เข้าร่วม: ", brief_daterange:"ช่วงวันที่: ",
+    brief_to:" ถึง ", brief_notes:"รายละเอียดเพิ่มเติม: ",
+    tpl_everyone:"ทุกคน", tpl_modal_title:"เลือกงานจาก Workflow Template — {name}",
+    tpl_select_all:"เลือกทั้งหมด", tpl_clear_all:"ล้างทั้งหมด",
+    tpl_start_label:"วันที่เริ่ม (งานแรกที่เลือก)",
+    tpl_seq_hint:"งานที่เลือกจะถูกเพิ่มเรียงต่อกันทีละ 1 วัน เริ่มจากวันที่นี้ — ไปปรับวันที่/ระยะเวลา/มอบหมายคนของแต่ละงานทีหลังได้ตามปกติ",
+    tpl_warn:"ยังไม่ได้เลือกงานเลย ติ๊กอย่างน้อย 1 รายการก่อนกดเพิ่ม", tpl_add_submit:"เพิ่มงานที่เลือก",
+    tpl_count:"เลือกอยู่ {n} / {total}",
+    auto_title:"อัตโนมัติ", no_customer_opt:"— ไม่มีลูกค้า —",
+    project_rename_title:"แก้ชื่อหัวข้อ", project_add_title:"เพิ่มหัวข้อใหม่",
+    project_title_label:"ชื่อหัวข้อ", project_title_ph:"เช่น Selling product to school",
+    project_title_hint:"หัวข้อใช้จัดกลุ่มงานตามโปรเจกต์หรือสายงาน เหมือนใน Gantt sheet เดิม",
+    color_label:"สี (Google Calendar)",
+    color_hint:"ใช้เป็นสี event ตอนส่งงานในหัวข้อนี้เข้า Google Calendar — เลือก Auto ให้ระบบสุ่มสีคงที่ให้เอง",
+    cust_optional_label:"ลูกค้า (ถ้ามี)",
+    cust_optional_hint:"ไม่บังคับ — ถ้าเลือกไว้ หัวข้อนี้จะไปโชว์ในหน้าลูกค้าด้วย",
+    add_project_submit:"เพิ่มหัวข้อ",
+    project_delete_title:"ลบหัวข้อ", project_delete_body:"ลบ <b>{title}</b> และงาน {n} รายการข้างในทั้งหมด?",
+    project_delete_submit:"ลบทั้งหัวข้อ",
+    nickname_aria:"ชื่อเล่น", color_aria:"สี", email_ph:"อีเมลสำหรับเชิญเข้าปฏิทิน", email_aria:"อีเมล",
+    team_title:"ทีม ({n} คน)", team_field_label:"Code / ชื่อเล่น / สี / อีเมล",
+    team_hint:"Code คือตัวย่อที่แสดงบนแถว PIC — เปลี่ยนแล้วงานเดิมจะถูกอัปเดตให้ตาม · อีเมลใช้สำหรับเชิญเป็น guest ตอนส่งงานเข้า Google Calendar",
+    gcal_checking:"กำลังตรวจสอบการเชื่อมต่อ…",
+    gcal_not_configured_t:"ยังไม่ได้ตั้งค่า Google Calendar",
+    gcal_not_configured_d:"ใส่ GOOGLE_CLIENT_ID ที่หัวไฟล์ HTML ก่อน (ดูคอมเมนต์ในไฟล์)",
+    gcal_connect_body:"เชื่อมต่อ Google Calendar ด้วยบัญชีของคุณ เพื่อเลือกปฏิทินและส่งกำหนดส่งเข้าไปอัตโนมัติ",
+    gcal_connect_hint:"ครั้งแรกจะมีหน้าต่างของ Google เด้งขึ้นมาให้อนุญาตสิทธิ์",
+    gcal_connect_btn:"เชื่อมต่อ Google Calendar", gcal_connecting:"กำลังเชื่อมต่อ…",
+    gcal_connect_fail_t:"เชื่อมต่อไม่สำเร็จ", gcal_connect_fail_d:"หน้าต่างอนุญาตสิทธิ์ถูกปิดหรือถูกปฏิเสธ",
+    retry_btn:"ลองอีกครั้ง", gcal_reading_cals:"กำลังอ่านรายชื่อปฏิทิน…",
+    gcal_read_fail_t:"อ่านรายชื่อปฏิทินไม่สำเร็จ", unknown_reason:"ไม่ทราบสาเหตุ",
+    gcal_no_cal_t:"ไม่พบปฏิทินที่แก้ไขได้",
+    gcal_no_cal_d:"ตรวจสอบว่าบัญชีที่ล็อกอินมีสิทธิ์แก้ไขปฏิทินอย่างน้อย 1 ปฏิทิน",
+    gcal_meanwhile:"ระหว่างนี้ยังดาวน์โหลดไฟล์ .ics แล้วนำเข้าเองได้", download_ics_btn:"ดาวน์โหลด .ics",
+    gcal_send_count:"ส่งงาน <b>{n}</b> รายการเข้า Google Calendar เป็น all-day event",
+    gcal_dday_rule:"ยิงทั้งช่วง <b>START → DUE</b> และจองเวลาเป็น Busy",
+    gcal_normal_rule:"→ ยิงเฉพาะวัน <b>DUE DATE</b> วันเดียว ไม่จองเวลา",
+    gcal_done_rule:"→ <b>เก็บไว้ในปฏิทิน</b> เปลี่ยนชื่อเป็น [DONE] และปิดแจ้งเตือน",
+    gcal_cancel_rule:"→ ไม่ยิง และถ้าเคยยิงไปแล้วจะถูกลบออกจากปฏิทินให้อัตโนมัติ",
+    gcal_target_cal_label:"ปฏิทินปลายทาง", gcal_scope_label:"ขอบเขต",
+    gcal_scope_all:"ทุกบอร์ด ({n} บอร์ด)", gcal_scope_board:"เฉพาะบอร์ดที่เปิดอยู่",
+    gcal_reminder_label:"แจ้งเตือน",
+    lead_0:"ในวันครบกำหนด (เช้า)", lead_1d:"ล่วงหน้า 1 วัน", lead_2d:"ล่วงหน้า 2 วัน",
+    lead_3d:"ล่วงหน้า 3 วัน", lead_1w:"ล่วงหน้า 1 สัปดาห์",
+    gcal_attendees_label:"ผู้ร่วมงาน",
+    gcal_invite_label:"เชิญ PIC ของแต่ละงานเป็น guest ({have}/{total} คนมีอีเมลแล้ว)",
+    gcal_invite_hint:'ใส่อีเมลที่เหลือได้ที่ปุ่ม "ทีม"',
+    gcal_resync_hint:"เคยส่งไปแล้ว {n} รายการ — กดส่งอีกครั้งจะอัปเดตของเดิม ไม่สร้างซ้ำ",
+    gcal_first_sync_hint:"ส่งซ้ำได้เรื่อยๆ ระบบจำ event ที่สร้างไว้ในเบราว์เซอร์นี้ แล้วอัปเดตของเดิมแทนการสร้างใหม่",
+    send_to_calendar_btn:"ส่งเข้าปฏิทิน", gcal_syncing:"กำลังซิงก์กับ Google Calendar…", sending_btn:"กำลังส่ง…",
+    gcal_send_fail_t:"ส่งไม่สำเร็จ",
+    gcal_created:"สร้างใหม่", gcal_updated:"อัปเดต", gcal_removed:"ลบออก (Cancel)", gcal_invited:"เชิญ PIC เป็น guest",
+    gcal_nothing_changed:"ไม่มีอะไรต้องเปลี่ยน", gcal_sync_success:"ซิงก์กับปฏิทิน <b>{cal}</b> เรียบร้อย",
+    gcal_fail_count_t:"ส่งไม่สำเร็จ {n} รายการ", gcal_fail_more:" และอีก {n} รายการ",
+    gcal_fail_check:" · เช็กในปฏิทินก่อนกดส่งซ้ำ",
+    gcal_resend_hint:"แก้บอร์ดแล้วกดส่งใหม่ได้เรื่อยๆ — event เดิมจะถูกอัปเดต ไม่สร้างซ้ำ",
+    open_gcal_link:"เปิด Google Calendar", done_btn:"เสร็จแล้ว",
+    gis_not_ready:"Google Identity Services ยังไม่พร้อม", permission_denied:"ไม่ได้รับสิทธิ์",
+    connection_cancelled:"การเชื่อมต่อถูกยกเลิก",
+    days_suffix:" วัน", due_tomorrow_prefix:"พรุ่งนี้ครบกำหนด: "
+  },
+  en: {
+    customers_tab:"Customers", team_btn:"Team",
+    gcal_btn_title:"Automatically send due dates to Google Calendar",
+    ics_btn_title:"Download due dates as an .ics file to import into your calendar",
+    csv_btn_title:"Download this board as a CSV file",
+    lang_toggle_title:"Switch language",
+    save_saved:"Saved · Synced in real time", save_saving:"Saving…", save_unsaved:"Unsaved",
+    save_error:"Save failed", save_connecting:"Connecting…", save_unconfigured:"Firebase not configured",
+    goal_sales:"Sales 2026", goal_participants:"Total Participants 2026", goal_workshops:"Total Workshops/Camps 2026",
+    unit_baht:" THB", unit_people:" people", unit_times:" times",
+    goals_edit_btn:"Edit Goals", goals_edit_title:"Edit 2026 Goals",
+    goal_sales_base_label:"Starting Sales (THB)", goal_part_base_label:"Starting Participants (people)",
+    goal_work_base_label:"Starting Workshops/Camps (times)",
+    goals_base_hint:"Starting number = totals counted before this system; automatically added to the amounts from D-DAY tasks in each project due in 2026.",
+    goal_sales_target_label:"Sales Target (THB)", goal_part_target_label:"Total Participants Target (people)",
+    goal_work_target_label:"Total Workshops/Camps Target (times)",
+    goals_entry_hint:"Enter each task's sales/participants/workshop count in the task edit window when setting its status to D-DAY.",
+    cancel:"Cancel", save_btn:"Save", delete:"Delete", edit:"Edit", close:"Close", modal_close_aria:"Close",
+    cust_empty_title:"No customers yet",
+    cust_empty_body:'Add a customer, then link it to a project on any board using that project\'s "Rename" button.',
+    cust_add_btn:"+ Add Customer", cust_contact_label:"Contact",
+    cust_jobs_stat:"Projects Hired", cust_revenue_stat:"Total Revenue (THB)",
+    cust_no_jobs:"No projects linked to this customer yet",
+    cust_add_title:"Add New Customer", cust_edit_title:"Edit Customer Info",
+    cust_name_label:"Customer Name", cust_name_ph:"e.g. School... / Company...",
+    cust_org_label:"Affiliation (School/University/Organization)", cust_contact_field_label:"Contact Channel",
+    cust_contact_ph:"Phone, email, Line, etc.",
+    cust_form_hint:'Projects hired and total revenue are calculated automatically from the projects linked to this customer across all boards (summing the sales entered on each task) — link them from a project\'s "Rename" button.',
+    cust_delete_this:"Delete This Customer", cust_add_submit:"Add Customer",
+    cust_delete_title:"Delete Customer",
+    cust_delete_body:"Delete <b>{name}</b>?{jobsline}",
+    cust_delete_jobsline:" {n} linked project(s) will be unlinked from this customer (the projects themselves will not be deleted).",
+    undo_hint:"This cannot be undone.",
+    status_all:"All", zoom_compact:"Compact", zoom_normal:"Normal", zoom_wide:"Wide",
+    show_all_cols:"Show All Columns", collapse_cols:"Collapse Columns", today_btn:"Today",
+    add_project_btn:"+ Project", add_task_btn:"+ Add Task",
+    board_empty_title:"No projects in this board yet",
+    board_empty_body:"Start by creating a project (e.g. Selling product to school), then add tasks inside it.",
+    create_first_project:"+ Create First Project",
+    expand_project:"Expand Project", collapse_project:"Collapse Project", expand_short:"Expand", collapse_short:"Collapse",
+    move_project_up:"Move Project Up", move_project_down:"Move Project Down",
+    tpl_open_title:"Add Tasks From Workflow Template",
+    sort_select_title:"Sort this project's tasks by date", sort_placeholder:"Sort...",
+    sort_by_start:"Sort by Start date", sort_by_due:"Sort by Due date",
+    rename_btn:"Rename", add_task_to:"+ Add task to {name}",
+    proposal_title:"Proposal Task", open_link_title:"Open link: {link}",
+    move_up:"Move Up", move_down:"Move Down", edit_title_aria:"Edit {title}",
+    footer_legend_note:"DUE = START + DURATION − 1 · Solid bar = in progress/done · Dashed bar = not started/cancelled",
+    task_edit_title:"Edit Task", task_add_title:"Add New Task",
+    pick_all_btn:"ALL · Whole Team", title_ph:"Task name, e.g. Send project proposal email",
+    remark_ph:"Notes or additional details", link_label:"Task Link", link_ph:"e.g. Canva link or file",
+    is_proposal_label:"This is a Proposal task (requires a project proposal document)",
+    prop_client_label:"Customer/School", prop_contact_label:"Contact Person", prop_topic_label:"Topic/Camp Name",
+    prop_part_label:"Number of Participants", prop_notes_label:"Additional Details",
+    prop_notes_ph:"e.g. activity format, budget, special requirements",
+    prop_brief_btn:"Copy Summary to Request a Proposal from Claude",
+    prop_brief_hint:"Copy this summary into a chat with Claude to help draft the Proposal (uses the soulscity-proposal skill), then paste the resulting document link into the Link field above.",
+    pic_hint:"You can select multiple people — selecting everyone shows as ALL",
+    section_label:"Project", optional_hint:"(optional)",
+    d2sales_label:"Sales (THB)", d2part_label:"Participants (people)", d2work_label:"Counts as Workshop (times)",
+    d2027_hint:"D-DAY tasks due in 2026 are automatically included in the 2026 goals bar at the top of the board using this number.",
+    delete_task_btn:"Delete This Task", add_to_calendar_btn:"Add to Calendar", add_task_submit:"Add Task",
+    copied_txt:"Copied ✓", copy_prompt_fallback:"Copy this text (Cmd/Ctrl+C then Enter):",
+    brief_task:"Requesting a Proposal for task: ", brief_client:"Customer/School: ", brief_contact:"Contact: ",
+    brief_topic:"Topic/Camp name: ", brief_part:"Number of participants: ", brief_daterange:"Date range: ",
+    brief_to:" to ", brief_notes:"Additional details: ",
+    tpl_everyone:"Everyone", tpl_modal_title:"Select Tasks from Workflow Template — {name}",
+    tpl_select_all:"Select All", tpl_clear_all:"Clear All",
+    tpl_start_label:"Start Date (first selected task)",
+    tpl_seq_hint:"Selected tasks will be added one day apart starting from this date — you can adjust each task's date/duration/assignee afterward as usual.",
+    tpl_warn:"No tasks selected yet — check at least one before adding.", tpl_add_submit:"Add Selected Tasks",
+    tpl_count:"{n} / {total} selected",
+    auto_title:"Automatic", no_customer_opt:"— No customer —",
+    project_rename_title:"Rename Project", project_add_title:"Add New Project",
+    project_title_label:"Project Title", project_title_ph:"e.g. Selling product to school",
+    project_title_hint:"Projects group tasks by project or work stream, like the original Gantt sheet.",
+    color_label:"Color (Google Calendar)",
+    color_hint:"Used as the event color when sending this project's tasks to Google Calendar — choose Auto to let the system pick a consistent color for you.",
+    cust_optional_label:"Customer (optional)",
+    cust_optional_hint:"Optional — if selected, this project will also show up on the customer page.",
+    add_project_submit:"Add Project",
+    project_delete_title:"Delete Project", project_delete_body:"Delete <b>{title}</b> and all {n} tasks inside it?",
+    project_delete_submit:"Delete Entire Project",
+    nickname_aria:"Nickname", color_aria:"Color", email_ph:"Email for calendar invites", email_aria:"Email",
+    team_title:"Team ({n} people)", team_field_label:"Code / Nickname / Color / Email",
+    team_hint:"Code is the short label shown on the PIC row — changing it updates existing tasks to match. · Email is used to invite guests when sending tasks to Google Calendar.",
+    gcal_checking:"Checking connection…",
+    gcal_not_configured_t:"Google Calendar not configured",
+    gcal_not_configured_d:"Set GOOGLE_CLIENT_ID at the top of the HTML file first (see the comment in the file).",
+    gcal_connect_body:"Connect Google Calendar with your account to choose a calendar and automatically send due dates to it.",
+    gcal_connect_hint:"The first time, a Google window will pop up asking for permission.",
+    gcal_connect_btn:"Connect Google Calendar", gcal_connecting:"Connecting…",
+    gcal_connect_fail_t:"Connection failed", gcal_connect_fail_d:"The permission window was closed or denied.",
+    retry_btn:"Try Again", gcal_reading_cals:"Reading calendar list…",
+    gcal_read_fail_t:"Failed to read calendar list", unknown_reason:"Unknown reason",
+    gcal_no_cal_t:"No editable calendar found",
+    gcal_no_cal_d:"Check that the logged-in account has edit access to at least one calendar.",
+    gcal_meanwhile:"In the meantime, you can still download the .ics file and import it manually.",
+    download_ics_btn:"Download .ics",
+    gcal_send_count:"Send <b>{n}</b> tasks to Google Calendar as all-day events",
+    gcal_dday_rule:"spans the full <b>START → DUE</b> range and blocks the time as Busy",
+    gcal_normal_rule:"→ fires only on the <b>DUE DATE</b>, single day, no time blocked",
+    gcal_done_rule:"→ <b>kept on the calendar</b>, renamed to [DONE], reminders turned off",
+    gcal_cancel_rule:"→ not sent, and if sent before it's automatically removed from the calendar",
+    gcal_target_cal_label:"Destination Calendar", gcal_scope_label:"Scope",
+    gcal_scope_all:"All Boards ({n} boards)", gcal_scope_board:"Current Board Only",
+    gcal_reminder_label:"Reminder",
+    lead_0:"On the due date (morning)", lead_1d:"1 day before", lead_2d:"2 days before",
+    lead_3d:"3 days before", lead_1w:"1 week before",
+    gcal_attendees_label:"Attendees",
+    gcal_invite_label:"Invite each task's PIC as a guest ({have}/{total} people have an email)",
+    gcal_invite_hint:'Add the remaining emails from the "Team" button',
+    gcal_resync_hint:"Already sent {n} item(s) before — sending again will update the existing ones, not duplicate them.",
+    gcal_first_sync_hint:"You can send repeatedly — the system remembers events created from this browser and updates them instead of creating duplicates.",
+    send_to_calendar_btn:"Send to Calendar", gcal_syncing:"Syncing with Google Calendar…", sending_btn:"Sending…",
+    gcal_send_fail_t:"Send failed",
+    gcal_created:"Created", gcal_updated:"Updated", gcal_removed:"Removed (Cancel)", gcal_invited:"Invited PIC as guest",
+    gcal_nothing_changed:"Nothing to change", gcal_sync_success:"Synced with calendar <b>{cal}</b> successfully",
+    gcal_fail_count_t:"Failed to send {n} item(s)", gcal_fail_more:" and {n} more",
+    gcal_fail_check:" · Check the calendar before resending",
+    gcal_resend_hint:"Edit the board and resend anytime — existing events will be updated, not duplicated.",
+    open_gcal_link:"Open Google Calendar", done_btn:"Done",
+    gis_not_ready:"Google Identity Services not ready", permission_denied:"Permission not granted",
+    connection_cancelled:"Connection was cancelled",
+    days_suffix:" days", due_tomorrow_prefix:"Due tomorrow: "
+  }
+};
+/* named tr() rather than t() — this codebase's convention uses `t` as the
+   loop/param name for "current task" almost everywhere, so a global t()
+   would get silently shadowed (and crash as "t is not a function") in any
+   of those scopes. tr() avoids the collision entirely. */
+function tr(key, vars){
+  var s = (I18N[view.lang] && I18N[view.lang][key]) || I18N.th[key] || key;
+  if(vars) Object.keys(vars).forEach(function(k){ s = s.split("{"+k+"}").join(vars[k]); });
+  return s;
+}
+
 var COLS_FULL = "72px 232px 152px 104px 78px 44px 78px 78px";
 var COLS_SLIM = "72px 288px 106px 78px";
 function colsDef(){ return view.compact ? COLS_SLIM : COLS_FULL; }
 function leftW(){ return view.compact ? 544 : 838; }
-var MON = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
-var MONS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+var MON_BY_LANG = {
+  th: ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"],
+  en: ["January","February","March","April","May","June","July","August","September","October","November","December"]
+};
+var MONS_BY_LANG = {
+  th: ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."],
+  en: ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"]
+};
+function MON(){ return MON_BY_LANG[view.lang] || MON_BY_LANG.th; }
+function MONS(){ return MONS_BY_LANG[view.lang] || MONS_BY_LANG.th; }
 
 /* ============ date helpers (UTC-safe) ============ */
 function ymd(d){
@@ -637,7 +913,7 @@ var saveState = "connecting";
 /* Per-viewer view state — which board is open, zoom, compact columns.
    Kept in this browser only, so browsing never publishes a new version
    and never collides with a teammate's edits. */
-var view = {activeBoard:null, dayW:24, compact:false, collapsed:{}};
+var view = {activeBoard:null, dayW:24, compact:false, collapsed:{}, lang:"th"};
 var VIEW_KEY = "sst-gantt-view";
 function loadView(){
   try{
@@ -768,8 +1044,8 @@ function setSave(s){
   var el = document.getElementById("savechip");
   if(!el) return;
   var txt = {
-    saved:"บันทึกแล้ว · ซิงก์เรียลไทม์", saving:"กำลังบันทึก…", unsaved:"ยังไม่บันทึก",
-    error:"บันทึกไม่สำเร็จ", connecting:"กำลังเชื่อมต่อ…", unconfigured:"ยังไม่ได้ตั้งค่า Firebase"
+    saved:tr("save_saved"), saving:tr("save_saving"), unsaved:tr("save_unsaved"),
+    error:tr("save_error"), connecting:tr("save_connecting"), unconfigured:tr("save_unconfigured")
   }[s] || s;
   el.setAttribute("data-s", s);
   el.querySelector("span").textContent = txt;
@@ -826,6 +1102,7 @@ function visible(t){
 /* ============ render ============ */
 function render(){
   if(applyAutoStatuses()) touch();
+  document.documentElement.lang = view.lang;
   document.documentElement.style.setProperty("--cols", colsDef());
   document.documentElement.style.setProperty("--leftW", leftW()+"px");
   var app = document.getElementById("app");
@@ -875,7 +1152,7 @@ function topbar(activeId){
       esc(x.name)+' <i>'+n+'</i></button>';
   }).join("") +
     '<button class="tab" role="tab" data-board="customers" aria-selected="'+(activeId==="customers")+'">'+
-      'ลูกค้า <i>'+state.customers.length+'</i></button>';
+      esc(tr("customers_tab"))+' <i>'+state.customers.length+'</i></button>';
   var isBoard = activeId !== "customers";
   return '<div class="topbar">'+
     '<div class="brand"><div class="mark">SSt</div><div>'+
@@ -884,12 +1161,13 @@ function topbar(activeId){
     '<div class="tabs" role="tablist">'+tabs+'</div>'+
     '<div class="topright">'+
       '<a class="btn sm" id="btn-cilogo" target="_blank" rel="noopener noreferrer" href="'+esc(CI_LOGO_URL)+'">CI&amp;Logo</a>'+
-      '<button class="btn sm" id="btn-team">ทีม</button>'+
-      (isBoard?'<button class="btn sm" id="btn-gcal" title="ส่งกำหนดส่ง (DUE DATE) เข้า Google Calendar อัตโนมัติ">'+
+      '<button class="btn sm" id="btn-lang" title="'+esc(tr("lang_toggle_title"))+'">'+(view.lang==="en"?"EN":"TH")+'</button>'+
+      '<button class="btn sm" id="btn-team">'+esc(tr("team_btn"))+'</button>'+
+      (isBoard?'<button class="btn sm" id="btn-gcal" title="'+esc(tr("gcal_btn_title"))+'">'+
         (gcalConnected()?'<i class="gdot" aria-hidden="true"></i>':'')+'Google Calendar</button>':'')+
-      (isBoard?'<button class="btn sm" id="btn-ics" title="ดาวน์โหลดกำหนดส่ง (DUE DATE) เป็นไฟล์ .ics เพื่อนำเข้าปฏิทิน">.ics</button>':'')+
-      (isBoard?'<button class="btn sm" id="btn-csv" title="ดาวน์โหลดบอร์ดนี้เป็นไฟล์ CSV">CSV</button>':'')+
-      '<div class="savechip" id="savechip" data-s="'+saveState+'"><i class="savedot"></i><span>บันทึกแล้ว</span></div>'+
+      (isBoard?'<button class="btn sm" id="btn-ics" title="'+esc(tr("ics_btn_title"))+'">.ics</button>':'')+
+      (isBoard?'<button class="btn sm" id="btn-csv" title="'+esc(tr("csv_btn_title"))+'">CSV</button>':'')+
+      '<div class="savechip" id="savechip" data-s="'+saveState+'"><i class="savedot"></i><span>'+esc(tr("save_saved"))+'</span></div>'+
     '</div>'+
   '</div>';
 }
@@ -929,26 +1207,26 @@ function goalsPanel(){
   var actualWorkshops = (g.workshopsBase||0) + sums.workshops;
   return '<div class="goals">'+
     '<div class="goalsrow">'+
-      goalBar("ยอดขาย 2026", actualSales, g.salesTarget, " บาท") +
-      goalBar("ผู้เข้าร่วมสะสม 2026", actualParticipants, g.participantsTarget, " คน") +
-      goalBar("Workshop/Camp สะสม 2026", actualWorkshops, g.workshopsTarget, " ครั้ง") +
+      goalBar(tr("goal_sales"), actualSales, g.salesTarget, tr("unit_baht")) +
+      goalBar(tr("goal_participants"), actualParticipants, g.participantsTarget, tr("unit_people")) +
+      goalBar(tr("goal_workshops"), actualWorkshops, g.workshopsTarget, tr("unit_times")) +
     '</div>'+
-    (readOnly?"":'<button class="btn sm" id="btn-goals-edit" style="flex:0 0 auto">แก้เป้าหมาย</button>')+
+    (readOnly?"":'<button class="btn sm" id="btn-goals-edit" style="flex:0 0 auto">'+esc(tr("goals_edit_btn"))+'</button>')+
   '</div>';
 }
 function openGoalsEdit(){
   var g = state.goals2027;
-  modal("แก้เป้าหมายปี 2026",
-    '<div class="field"><label>ยอดขายเริ่มต้น (บาท)</label><input type="number" min="0" id="f-goal-salesbase" value="'+(g.salesBase||0)+'"></div>'+
-    '<div class="field"><label>ผู้เข้าร่วมเริ่มต้น (คน)</label><input type="number" min="0" id="f-goal-partbase" value="'+(g.participantsBase||0)+'"></div>'+
-    '<div class="field"><label>Workshop/Camp เริ่มต้น (ครั้ง)</label><input type="number" min="0" id="f-goal-workbase" value="'+(g.workshopsBase||0)+'"></div>'+
-    '<span class="hint">ตัวเลขเริ่มต้น = ยอดที่นับรวมมาก่อนหน้าระบบนี้ จะถูกบวกกับยอดที่มาจากงาน D-DAY ในแต่ละหัวข้อ (ที่ครบกำหนดปี 2026) โดยอัตโนมัติ</span>'+
-    '<div class="field"><label>เป้ายอดขาย (บาท)</label><input type="number" min="0" id="f-goal-sales" value="'+(g.salesTarget||0)+'"></div>'+
-    '<div class="field"><label>เป้าผู้เข้าร่วมสะสม (คน)</label><input type="number" min="0" id="f-goal-part" value="'+(g.participantsTarget||0)+'"></div>'+
-    '<div class="field"><label>เป้า Workshop/Camp สะสม (ครั้ง)</label><input type="number" min="0" id="f-goal-work" value="'+(g.workshopsTarget||0)+'"></div>'+
-    '<span class="hint">กรอกยอดขาย/ผู้เข้าร่วม/จำนวน workshop ของแต่ละงานได้ในหน้าต่างแก้ไขงาน ตอนตั้งสถานะเป็น D-DAY</span>',
-    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
-    '<button class="btn primary" id="m-ok">บันทึก</button>'
+  modal(tr("goals_edit_title"),
+    '<div class="field"><label>'+esc(tr("goal_sales_base_label"))+'</label><input type="number" min="0" id="f-goal-salesbase" value="'+(g.salesBase||0)+'"></div>'+
+    '<div class="field"><label>'+esc(tr("goal_part_base_label"))+'</label><input type="number" min="0" id="f-goal-partbase" value="'+(g.participantsBase||0)+'"></div>'+
+    '<div class="field"><label>'+esc(tr("goal_work_base_label"))+'</label><input type="number" min="0" id="f-goal-workbase" value="'+(g.workshopsBase||0)+'"></div>'+
+    '<span class="hint">'+esc(tr("goals_base_hint"))+'</span>'+
+    '<div class="field"><label>'+esc(tr("goal_sales_target_label"))+'</label><input type="number" min="0" id="f-goal-sales" value="'+(g.salesTarget||0)+'"></div>'+
+    '<div class="field"><label>'+esc(tr("goal_part_target_label"))+'</label><input type="number" min="0" id="f-goal-part" value="'+(g.participantsTarget||0)+'"></div>'+
+    '<div class="field"><label>'+esc(tr("goal_work_target_label"))+'</label><input type="number" min="0" id="f-goal-work" value="'+(g.workshopsTarget||0)+'"></div>'+
+    '<span class="hint">'+esc(tr("goals_entry_hint"))+'</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn primary" id="m-ok">'+esc(tr("save_btn"))+'</button>'
   );
   document.getElementById("m-cancel").onclick = closeModal;
   document.getElementById("m-ok").onclick = function(){
@@ -1002,9 +1280,9 @@ function customerRevenue(customerId){
 }
 function customersView(){
   if(!state.customers.length){
-    return '<div class="viewport" id="viewport"><div class="emptyboard"><h3>ยังไม่มีข้อมูลลูกค้า</h3>'+
-      '<p>เพิ่มลูกค้าแล้วไปผูกกับหัวข้องานในบอร์ดต่างๆ ได้ที่ปุ่ม "แก้ชื่อ" ของแต่ละหัวข้อ</p>'+
-      (readOnly?"":'<button class="btn primary" id="btn-cust-add-empty">+ เพิ่มลูกค้า</button>')+'</div></div>';
+    return '<div class="viewport" id="viewport"><div class="emptyboard"><h3>'+esc(tr("cust_empty_title"))+'</h3>'+
+      '<p>'+esc(tr("cust_empty_body"))+'</p>'+
+      (readOnly?"":'<button class="btn primary" id="btn-cust-add-empty">'+esc(tr("cust_add_btn"))+'</button>')+'</div></div>';
   }
   var cards = state.customers.map(function(c){
     var jobs = customerSections(c.id);
@@ -1014,23 +1292,23 @@ function customersView(){
           return '<span class="custjobpill">'+esc(j.board.name)+' › '+esc(j.section.title)+
             (range?' <span class="custjobdate">('+esc(range)+')</span>':'')+'</span>';
         }).join("")+'</div>'
-      : '<span class="hint">ยังไม่มีหัวข้องานผูกกับลูกค้านี้</span>';
+      : '<span class="hint">'+esc(tr("cust_no_jobs"))+'</span>';
     return '<div class="custcard" data-cust="'+esc(c.id)+'">'+
       '<div class="custhead">'+
         '<div><h3>'+esc(c.name)+'</h3>'+(c.org?'<span class="custorg">'+esc(c.org)+'</span>':'')+'</div>'+
-        (readOnly?'':'<div class="custacts"><button class="btn sm" data-cust-edit="'+esc(c.id)+'">แก้ไข</button>'+
-          '<button class="btn sm danger" data-cust-del="'+esc(c.id)+'">ลบ</button></div>')+
+        (readOnly?'':'<div class="custacts"><button class="btn sm" data-cust-edit="'+esc(c.id)+'">'+esc(tr("edit"))+'</button>'+
+          '<button class="btn sm danger" data-cust-del="'+esc(c.id)+'">'+esc(tr("delete"))+'</button></div>')+
       '</div>'+
-      (c.contact?'<div class="custrow"><span class="custlabel">ช่องทางติดต่อ</span>'+esc(c.contact)+'</div>':'')+
+      (c.contact?'<div class="custrow"><span class="custlabel">'+esc(tr("cust_contact_label"))+'</span>'+esc(c.contact)+'</div>':'')+
       '<div class="custstats">'+
-        '<div class="custstat"><b>'+jobs.length+'</b><span>งานที่เคยจ้าง</span></div>'+
-        '<div class="custstat"><b>'+customerRevenue(c.id).toLocaleString()+'</b><span>ยอดจ้างสะสม (บาท)</span></div>'+
+        '<div class="custstat"><b>'+jobs.length+'</b><span>'+esc(tr("cust_jobs_stat"))+'</span></div>'+
+        '<div class="custstat"><b>'+customerRevenue(c.id).toLocaleString()+'</b><span>'+esc(tr("cust_revenue_stat"))+'</span></div>'+
       '</div>'+
       jobsHtml+
     '</div>';
   }).join("");
   return '<div class="viewport" id="viewport"><div class="custwrap">'+
-    (readOnly?'':'<div class="custaddbar"><button class="btn primary sm" id="btn-cust-add">+ เพิ่มลูกค้า</button></div>')+
+    (readOnly?'':'<div class="custaddbar"><button class="btn primary sm" id="btn-cust-add">'+esc(tr("cust_add_btn"))+'</button></div>')+
     '<div class="custgrid">'+cards+'</div>'+
   '</div></div>';
 }
@@ -1051,14 +1329,14 @@ function openCustomer(id){
   var c = id ? state.customers.filter(function(x){return x.id===id;})[0] : null;
   var isNew = !c;
   if(isNew) c = {id:uid("cu"), name:"", contact:"", org:""};
-  modal(isNew?"เพิ่มลูกค้าใหม่":"แก้ไขข้อมูลลูกค้า",
-    '<div class="field"><label>ชื่อลูกค้า</label><input id="f-cu-name" value="'+esc(c.name)+'" placeholder="เช่น โรงเรียน... / บริษัท..."></div>'+
-    '<div class="field"><label>สังกัด (โรงเรียน/มหาวิทยาลัย/องค์กร)</label><input id="f-cu-org" value="'+esc(c.org||"")+'"></div>'+
-    '<div class="field"><label>ช่องทางการติดต่อ</label><input id="f-cu-contact" value="'+esc(c.contact||"")+'" placeholder="เบอร์โทร, อีเมล, Line ฯลฯ"></div>'+
-    '<span class="hint">จำนวนงานที่เคยจ้าง และยอดจ้างสะสม คำนวณอัตโนมัติจากหัวข้อที่ผูกกับลูกค้านี้ในบอร์ดต่างๆ (รวมยอดขายที่กรอกไว้ในแต่ละงาน) — ไปผูกได้ที่ปุ่ม "แก้ชื่อ" ของหัวข้อ</span>',
-    (isNew?"":'<button class="btn danger" id="m-del">ลบลูกค้านี้</button>')+
-    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
-    '<button class="btn primary" id="m-ok">'+(isNew?"เพิ่มลูกค้า":"บันทึก")+'</button>'
+  modal(isNew?tr("cust_add_title"):tr("cust_edit_title"),
+    '<div class="field"><label>'+esc(tr("cust_name_label"))+'</label><input id="f-cu-name" value="'+esc(c.name)+'" placeholder="'+esc(tr("cust_name_ph"))+'"></div>'+
+    '<div class="field"><label>'+esc(tr("cust_org_label"))+'</label><input id="f-cu-org" value="'+esc(c.org||"")+'"></div>'+
+    '<div class="field"><label>'+esc(tr("cust_contact_field_label"))+'</label><input id="f-cu-contact" value="'+esc(c.contact||"")+'" placeholder="'+esc(tr("cust_contact_ph"))+'"></div>'+
+    '<span class="hint">'+esc(tr("cust_form_hint"))+'</span>',
+    (isNew?"":'<button class="btn danger" id="m-del">'+esc(tr("cust_delete_this"))+'</button>')+
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn primary" id="m-ok">'+(isNew?esc(tr("cust_add_submit")):esc(tr("save_btn")))+'</button>'
   );
   document.getElementById("m-cancel").onclick = closeModal;
   if(!isNew) document.getElementById("m-del").onclick = function(){ doDeleteCustomer(c.id); };
@@ -1082,11 +1360,11 @@ function confirmDeleteCustomer(id){
   var c = state.customers.filter(function(x){return x.id===id;})[0];
   if(!c) return;
   var jobs = customerSections(id);
-  modal("ลบลูกค้า",
-    '<p style="margin:0">ลบ <b>'+esc(c.name)+'</b>?'+(jobs.length?' หัวข้องาน '+jobs.length+' รายการที่ผูกอยู่จะถูกถอดออกจากลูกค้านี้ (ไม่ได้ลบงาน)':'')+'</p>'+
-    '<span class="hint">การลบย้อนกลับไม่ได้</span>',
-    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
-    '<button class="btn danger" id="m-ok">ลบลูกค้า</button>'
+  modal(tr("cust_delete_title"),
+    '<p style="margin:0">'+tr("cust_delete_body", {name:esc(c.name), jobsline: jobs.length?tr("cust_delete_jobsline",{n:jobs.length}):""})+'</p>'+
+    '<span class="hint">'+esc(tr("undo_hint"))+'</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn danger" id="m-ok">'+esc(tr("cust_delete_title"))+'</button>'
   );
   document.getElementById("m-cancel").onclick = closeModal;
   document.getElementById("m-ok").onclick = function(){ doDeleteCustomer(id); };
@@ -1108,13 +1386,13 @@ function toolbar(b){
         '<i class="dot"></i>'+esc(m.name)+'</button>';
     }).join("");
 
-  var opts = ['<option value="">ทั้งหมด</option>'].concat(STATUSES.map(function(s){
+  var opts = ['<option value="">'+esc(tr("status_all"))+'</option>'].concat(STATUSES.map(function(s){
     return '<option value="'+esc(s)+'"'+(filters.status===s?" selected":"")+'>'+esc(s)+'</option>';
   })).join("");
 
   var zoom = [14,24,34].map(function(w){
     return '<option value="'+w+'"'+((view.dayW||24)===w?" selected":"")+'>'+
-      (w===14?"กระชับ":w===24?"ปกติ":"กว้าง")+'</option>';
+      esc(w===14?tr("zoom_compact"):w===24?tr("zoom_normal"):tr("zoom_wide"))+'</option>';
   }).join("");
 
   return '<div class="toolbar">'+
@@ -1123,9 +1401,9 @@ function toolbar(b){
     '<div class="tgroup"><span class="tlabel">PIC</span><div class="pic-filter">'+pills+'</div></div>'+
     '<div class="tgroup"><span class="tlabel">Status</span><select class="ctl" id="f-status">'+opts+'</select></div>'+
     '<div class="tgroup"><span class="tlabel">Zoom</span><select class="ctl" id="f-zoom">'+zoom+'</select></div>'+
-    '<div class="tgroup"><button class="btn sm" id="btn-compact" aria-pressed="'+(!!view.compact)+'">'+(view.compact?"แสดงทุกคอลัมน์":"ย่อคอลัมน์")+'</button>'+
-    '<button class="btn sm" id="btn-today">วันนี้</button>'+
-      (readOnly?"":'<button class="btn sm" id="btn-section">+ หัวข้อ</button><button class="btn primary sm" id="btn-add">+ เพิ่มงาน</button>')+
+    '<div class="tgroup"><button class="btn sm" id="btn-compact" aria-pressed="'+(!!view.compact)+'">'+esc(view.compact?tr("show_all_cols"):tr("collapse_cols"))+'</button>'+
+    '<button class="btn sm" id="btn-today">'+esc(tr("today_btn"))+'</button>'+
+      (readOnly?"":'<button class="btn sm" id="btn-section">'+esc(tr("add_project_btn"))+'</button><button class="btn primary sm" id="btn-add">'+esc(tr("add_task_btn"))+'</button>')+
     '</div>'+
     '<div class="stats">'+
       '<div class="stat"><b>'+all.length+'</b><span>Tasks</span></div>'+
@@ -1146,7 +1424,7 @@ function head(r, dayW, trackW){
   }
   var mrow = months.map(function(m){
     var w = m.n*dayW;
-    var label = (w >= 92 ? MON[m.d.getUTCMonth()] : MONS[m.d.getUTCMonth()]) + " " + String(m.d.getUTCFullYear()).slice(2);
+    var label = (w >= 92 ? MON()[m.d.getUTCMonth()] : MONS()[m.d.getUTCMonth()]) + " " + String(m.d.getUTCFullYear()).slice(2);
     return '<div class="mcell" style="width:'+w+'px"><span>'+esc(label)+'</span></div>';
   }).join("");
 
@@ -1198,9 +1476,9 @@ function trackBg(r, dayW){
 
 function rows(b, r, dayW, trackW){
   if(!b.sections.length){
-    return '<div class="emptyboard"><h3>ยังไม่มีหัวข้องานในบอร์ดนี้</h3>'+
-      '<p>เริ่มจากสร้างหัวข้อ (เช่น Selling product to school) แล้วค่อยเพิ่มงานเข้าไปข้างใน</p>'+
-      (readOnly?"":'<button class="btn primary" id="btn-section-empty">+ สร้างหัวข้อแรก</button>')+'</div>';
+    return '<div class="emptyboard"><h3>'+esc(tr("board_empty_title"))+'</h3>'+
+      '<p>'+esc(tr("board_empty_body"))+'</p>'+
+      (readOnly?"":'<button class="btn primary" id="btn-section-empty">'+esc(tr("create_first_project"))+'</button>')+'</div>';
   }
   var bg = trackBg(r, dayW);
   return b.sections.map(function(s, si){
@@ -1209,21 +1487,21 @@ function rows(b, r, dayW, trackW){
     var collapsed = !!view.collapsed[s.id];
     var out = '<div class="sect" data-sect="'+esc(s.id)+'">'+
       '<div class="left">'+
-        '<button class="collapsebtn" data-collapse="'+esc(s.id)+'" aria-label="'+(collapsed?"ขยายหัวข้อ":"ย่อหัวข้อ")+'" title="'+(collapsed?"ขยาย":"ย่อ")+'">'+(collapsed?"&#9656;":"&#9662;")+'</button>'+
+        '<button class="collapsebtn" data-collapse="'+esc(s.id)+'" aria-label="'+esc(collapsed?tr("expand_project"):tr("collapse_project"))+'" title="'+esc(collapsed?tr("expand_short"):tr("collapse_short"))+'">'+(collapsed?"&#9656;":"&#9662;")+'</button>'+
         '<h2>'+esc(s.title)+'</h2>'+
         (ddayRange?'<span class="sectdday">'+esc(ddayRange)+'</span>':'')+
         '<span class="count">'+ts.length+(ts.length!==s.tasks.length?"/"+s.tasks.length:"")+'</span><span class="grow"></span>'+
         (readOnly?"":'<span class="sectacts">'+
-          (si>0?'<button class="btn sm" data-sect-up="'+esc(s.id)+'" title="ย้ายหัวข้อขึ้น">&#8593;</button>':'')+
-          (si<b.sections.length-1?'<button class="btn sm" data-sect-down="'+esc(s.id)+'" title="ย้ายหัวข้อลง">&#8595;</button>':'')+
-          '<button class="btn sm" data-tpl-open="'+esc(s.id)+'" title="เพิ่มงานจาก Workflow Template">Template</button>'+
-          '<select class="btn sm" data-sect-sort="'+esc(s.id)+'" title="จัดเรียงงานในหัวข้อนี้ตามวันที่">'+
-            '<option value="">จัดเรียง...</option>'+
-            '<option value="start">เรียงตาม Start date</option>'+
-            '<option value="due">เรียงตาม Due date</option>'+
+          (si>0?'<button class="btn sm" data-sect-up="'+esc(s.id)+'" title="'+esc(tr("move_project_up"))+'">&#8593;</button>':'')+
+          (si<b.sections.length-1?'<button class="btn sm" data-sect-down="'+esc(s.id)+'" title="'+esc(tr("move_project_down"))+'">&#8595;</button>':'')+
+          '<button class="btn sm" data-tpl-open="'+esc(s.id)+'" title="'+esc(tr("tpl_open_title"))+'">Template</button>'+
+          '<select class="btn sm" data-sect-sort="'+esc(s.id)+'" title="'+esc(tr("sort_select_title"))+'">'+
+            '<option value="">'+esc(tr("sort_placeholder"))+'</option>'+
+            '<option value="start">'+esc(tr("sort_by_start"))+'</option>'+
+            '<option value="due">'+esc(tr("sort_by_due"))+'</option>'+
           '</select>'+
-          '<button class="btn sm" data-rename="'+esc(s.id)+'">แก้ชื่อ</button>'+
-          '<button class="btn sm danger" data-delsect="'+esc(s.id)+'">ลบ</button>'+
+          '<button class="btn sm" data-rename="'+esc(s.id)+'">'+esc(tr("rename_btn"))+'</button>'+
+          '<button class="btn sm danger" data-delsect="'+esc(s.id)+'">'+esc(tr("delete"))+'</button>'+
         '</span>')+
       '</div>'+
       '<div class="track" style="width:'+trackW+'px"></div>'+
@@ -1233,7 +1511,7 @@ function rows(b, r, dayW, trackW){
       ts.forEach(function(t){ out += taskRow(t, s, r, dayW, trackW, bg); });
       if(!readOnly){
         out += '<div class="addrow"><div class="left">'+
-          '<button class="linkbtn" data-addto="'+esc(s.id)+'">+ เพิ่มงานใน '+esc(s.title)+'</button>'+
+          '<button class="linkbtn" data-addto="'+esc(s.id)+'">'+esc(tr("add_task_to",{name:s.title}))+'</button>'+
           '</div><div class="track" style="width:'+trackW+'px;'+bg+'"></div></div>';
       }
     }
@@ -1275,8 +1553,8 @@ function taskRow(t, s, r, dayW, trackW, bg){
     '<div class="left">'+
       '<div class="pics">'+picHtml+'</div>'+
       '<div class="c-act"><button data-edit="'+esc(t.id)+'" title="'+esc(t.title)+'">'+esc(t.title)+'</button>'+
-        (t.isProposal ? '<span class="propbadge" title="งาน Proposal">Proposal</span>' : '')+
-        (t.link ? '<a class="linkic" href="'+esc(t.link)+'" target="_blank" rel="noopener noreferrer" title="เปิดลิงก์: '+esc(t.link)+'">&#128279;</a>' : '')+
+        (t.isProposal ? '<span class="propbadge" title="'+esc(tr("proposal_title"))+'">Proposal</span>' : '')+
+        (t.link ? '<a class="linkic" href="'+esc(t.link)+'" target="_blank" rel="noopener noreferrer" title="'+esc(tr("open_link_title",{link:t.link}))+'">&#128279;</a>' : '')+
       '</div>'+
       (view.compact ? '' : '<div class="c-rem" title="'+esc(t.remark||"")+'">'+esc(t.remark||"")+'</div>')+
       '<div><select class="statussel" data-status="'+esc(t.id)+'" '+(readOnly?"disabled":"")+
@@ -1287,9 +1565,9 @@ function taskRow(t, s, r, dayW, trackW, bg){
         '<div class="c-num">'+(du?fmtShort(ymd(du)):"—")+(t.dueTime?' '+esc(t.dueTime):'')+'</div>')+
       '<div class="rowact">'+(readOnly?"":(function(){
         var ti = s.tasks.indexOf(t);
-        return (ti>0?'<button class="iconbtn" data-task-up="'+esc(t.id)+'" data-sect="'+esc(s.id)+'" aria-label="ย้ายขึ้น" title="ย้ายขึ้น">&#8593;</button>':'')+
-          (ti<s.tasks.length-1?'<button class="iconbtn" data-task-down="'+esc(t.id)+'" data-sect="'+esc(s.id)+'" aria-label="ย้ายลง" title="ย้ายลง">&#8595;</button>':'')+
-          '<button class="iconbtn" data-edit="'+esc(t.id)+'" aria-label="แก้ไข '+esc(t.title)+'">&#9998;</button>';
+        return (ti>0?'<button class="iconbtn" data-task-up="'+esc(t.id)+'" data-sect="'+esc(s.id)+'" aria-label="'+esc(tr("move_up"))+'" title="'+esc(tr("move_up"))+'">&#8593;</button>':'')+
+          (ti<s.tasks.length-1?'<button class="iconbtn" data-task-down="'+esc(t.id)+'" data-sect="'+esc(s.id)+'" aria-label="'+esc(tr("move_down"))+'" title="'+esc(tr("move_down"))+'">&#8595;</button>':'')+
+          '<button class="iconbtn" data-edit="'+esc(t.id)+'" aria-label="'+esc(tr("edit_title_aria",{title:t.title}))+'">&#9998;</button>';
       })())+'</div>'+
     '</div>'+
     '<div class="track" style="width:'+trackW+'px;'+bg+'">'+bar+'</div>'+
@@ -1301,7 +1579,7 @@ function footer(){
     return '<span class="lg"><i style="--c:var('+SVAR[s]+')"></i>'+esc(s)+'</span>';
   }).join("");
   return '<div class="footer"><div class="legend">'+lg+'</div>'+
-    '<span style="margin-left:auto">DUE = START + DURATION − 1 · แถบทึบ = กำลังทำ/เสร็จ · แถบเส้นประ = ยังไม่เริ่ม/ยกเลิก</span></div>';
+    '<span style="margin-left:auto">'+esc(tr("footer_legend_note"))+'</span></div>';
 }
 
 /* ============ interaction ============ */
@@ -1353,6 +1631,12 @@ function wire(b, r, dayW){
     if(e) e.onclick = function(){ openSection(null); };
   });
 
+  var blang = document.getElementById("btn-lang");
+  if(blang) blang.onclick = function(){
+    view.lang = view.lang==="en" ? "th" : "en";
+    document.documentElement.lang = view.lang;
+    saveView(); render();
+  };
   var bteam = document.getElementById("btn-team");
   if(bteam) bteam.onclick = openTeam;
   var bcsv = document.getElementById("btn-csv");
@@ -1467,7 +1751,7 @@ function modal(title, bodyHtml, footHtml){
   d.className = "scrim";
   d.id = "scrim";
   d.innerHTML = '<div class="modal" role="dialog" aria-modal="true">'+
-    '<header><h2>'+esc(title)+'</h2><button class="iconbtn" id="m-x" style="opacity:1" aria-label="ปิด">&#10005;</button></header>'+
+    '<header><h2>'+esc(title)+'</h2><button class="iconbtn" id="m-x" style="opacity:1" aria-label="'+esc(tr("modal_close_aria"))+'">&#10005;</button></header>'+
     '<div class="body">'+bodyHtml+'</div>'+
     '<footer>'+footHtml+'</footer>'+
   '</div>';
@@ -1487,13 +1771,13 @@ function proposalBriefText(){
       topic = v("f-ptopic"), part = v("f-ppart"), notes = v("f-pnotes"),
       start = v("f-start"), due = v("f-due");
   return [
-    "ขอ Proposal สำหรับงาน: " + (title || "-"),
-    "ลูกค้า/โรงเรียน: " + (client || "-"),
-    "ผู้ติดต่อ: " + (contact || "-"),
-    "หัวข้อ/ชื่อค่าย: " + (topic || title || "-"),
-    "จำนวนผู้เข้าร่วม: " + (part || "-"),
-    "ช่วงวันที่: " + (start?fmtShort(start):"-") + " ถึง " + (due?fmtShort(due):"-"),
-    "รายละเอียดเพิ่มเติม: " + (notes || "-")
+    tr("brief_task") + (title || "-"),
+    tr("brief_client") + (client || "-"),
+    tr("brief_contact") + (contact || "-"),
+    tr("brief_topic") + (topic || title || "-"),
+    tr("brief_part") + (part || "-"),
+    tr("brief_daterange") + (start?fmtShort(start):"-") + tr("brief_to") + (due?fmtShort(due):"-"),
+    tr("brief_notes") + (notes || "-")
   ].join("\n");
 }
 
@@ -1507,7 +1791,7 @@ function openTask(id, sectId){
   if(!t.proposal || typeof t.proposal !== "object") t.proposal = {};
 
   var allOn = state.team.length > 0 && (t.pic||[]).length === state.team.length;
-  var picks = '<button type="button" class="pickbtn allpick" id="pick-all" aria-pressed="'+allOn+'">ALL &middot; ทั้งทีม</button>' +
+  var picks = '<button type="button" class="pickbtn allpick" id="pick-all" aria-pressed="'+allOn+'">'+esc(tr("pick_all_btn"))+'</button>' +
     state.team.map(function(m){
       var on = (t.pic||[]).indexOf(m.code) >= 0;
       return '<button type="button" class="pickbtn" data-pick="'+esc(m.code)+'" aria-pressed="'+on+'" style="--m:'+esc(m.color)+'">'+
@@ -1520,32 +1804,32 @@ function openTask(id, sectId){
     return '<option value="'+esc(s)+'"'+(t.status===s?" selected":"")+'>'+esc(s)+'</option>';
   }).join("");
 
-  modal(found ? "แก้ไขงาน" : "เพิ่มงานใหม่",
+  modal(found ? tr("task_edit_title") : tr("task_add_title"),
     '<div class="field"><label>Activities&#39; Processes</label>'+
-      '<input id="f-title" value="'+esc(t.title)+'" placeholder="ชื่องาน เช่น ส่งอีเมลเสนอโครงการ"></div>'+
+      '<input id="f-title" value="'+esc(t.title)+'" placeholder="'+esc(tr("title_ph"))+'"></div>'+
     '<div class="field"><label>Remark</label>'+
-      '<textarea id="f-remark" placeholder="หมายเหตุหรือรายละเอียดเพิ่มเติม">'+esc(t.remark||"")+'</textarea></div>'+
-    '<div class="field"><label>ลิงก์งาน</label>'+
-      '<input type="url" id="f-link" value="'+esc(t.link||"")+'" placeholder="เช่น ลิงก์ Canva หรือไฟล์งาน"></div>'+
+      '<textarea id="f-remark" placeholder="'+esc(tr("remark_ph"))+'">'+esc(t.remark||"")+'</textarea></div>'+
+    '<div class="field"><label>'+esc(tr("link_label"))+'</label>'+
+      '<input type="url" id="f-link" value="'+esc(t.link||"")+'" placeholder="'+esc(tr("link_ph"))+'"></div>'+
     '<div class="field"><label class="chk"><input type="checkbox" id="f-isprop"'+(t.isProposal?" checked":"")+'>'+
-      '<span>เป็นงาน Proposal (ต้องทำใบเสนอโครงการ)</span></label></div>'+
+      '<span>'+esc(tr("is_proposal_label"))+'</span></label></div>'+
     '<div class="propblock" id="prop-block" style="display:'+(t.isProposal?"flex":"none")+'">'+
       '<div class="grid2">'+
-        '<div class="field"><label>ลูกค้า/โรงเรียน</label><input id="f-pclient" value="'+esc(t.proposal.client||"")+'"></div>'+
-        '<div class="field"><label>ผู้ติดต่อ</label><input id="f-pcontact" value="'+esc(t.proposal.contact||"")+'"></div>'+
+        '<div class="field"><label>'+esc(tr("prop_client_label"))+'</label><input id="f-pclient" value="'+esc(t.proposal.client||"")+'"></div>'+
+        '<div class="field"><label>'+esc(tr("prop_contact_label"))+'</label><input id="f-pcontact" value="'+esc(t.proposal.contact||"")+'"></div>'+
       '</div>'+
       '<div class="grid2">'+
-        '<div class="field"><label>หัวข้อ/ชื่อค่าย</label><input id="f-ptopic" value="'+esc(t.proposal.topic||"")+'"></div>'+
-        '<div class="field"><label>จำนวนผู้เข้าร่วม</label><input id="f-ppart" value="'+esc(t.proposal.participants||"")+'"></div>'+
+        '<div class="field"><label>'+esc(tr("prop_topic_label"))+'</label><input id="f-ptopic" value="'+esc(t.proposal.topic||"")+'"></div>'+
+        '<div class="field"><label>'+esc(tr("prop_part_label"))+'</label><input id="f-ppart" value="'+esc(t.proposal.participants||"")+'"></div>'+
       '</div>'+
-      '<div class="field"><label>รายละเอียดเพิ่มเติม</label><textarea id="f-pnotes" placeholder="เช่น รูปแบบกิจกรรม งบประมาณ ข้อกำหนดพิเศษ">'+esc(t.proposal.notes||"")+'</textarea></div>'+
-      '<div><button type="button" class="btn sm" id="btn-prop-brief">คัดลอกสรุปเพื่อขอ Proposal จาก Claude</button></div>'+
-      '<span class="hint">คัดลอกสรุปนี้ไปวางแชทกับ Claude เพื่อให้ช่วยร่าง Proposal (ใช้ skill soulscity-proposal) แล้วนำลิงก์เอกสารที่ได้มาใส่ในช่อง Link ด้านบน</span>'+
+      '<div class="field"><label>'+esc(tr("prop_notes_label"))+'</label><textarea id="f-pnotes" placeholder="'+esc(tr("prop_notes_ph"))+'">'+esc(t.proposal.notes||"")+'</textarea></div>'+
+      '<div><button type="button" class="btn sm" id="btn-prop-brief">'+esc(tr("prop_brief_btn"))+'</button></div>'+
+      '<span class="hint">'+esc(tr("prop_brief_hint"))+'</span>'+
     '</div>'+
     '<div class="field"><label>PIC</label><div class="picks">'+picks+'</div>'+
-      '<span class="hint">เลือกได้หลายคน — เลือกครบทุกคนจะแสดงเป็น ALL</span></div>'+
+      '<span class="hint">'+esc(tr("pic_hint"))+'</span></div>'+
     '<div class="grid2">'+
-      '<div class="field"><label>Section</label><select id="f-sect">'+sects+'</select></div>'+
+      '<div class="field"><label>'+esc(tr("section_label"))+'</label><select id="f-sect">'+sects+'</select></div>'+
       '<div class="field"><label>Status</label><select id="f-st">'+sts+'</select></div>'+
     '</div>'+
     '<div class="grid3">'+
@@ -1554,22 +1838,22 @@ function openTask(id, sectId){
       '<div class="field"><label>Due date</label><input type="date" id="f-due" value="'+esc(dueOf(t)?ymd(dueOf(t)):"")+'"></div>'+
     '</div>'+
     '<div class="grid2">'+
-      '<div class="field"><label>Start time <span class="hint" style="text-transform:none">(ไม่บังคับ)</span></label><input type="time" id="f-starttime" value="'+esc(t.startTime||"")+'"></div>'+
-      '<div class="field"><label>Due time <span class="hint" style="text-transform:none">(ไม่บังคับ)</span></label><input type="time" id="f-duetime" value="'+esc(t.dueTime||"")+'"></div>'+
+      '<div class="field"><label>Start time <span class="hint" style="text-transform:none">'+esc(tr("optional_hint"))+'</span></label><input type="time" id="f-starttime" value="'+esc(t.startTime||"")+'"></div>'+
+      '<div class="field"><label>Due time <span class="hint" style="text-transform:none">'+esc(tr("optional_hint"))+'</span></label><input type="time" id="f-duetime" value="'+esc(t.dueTime||"")+'"></div>'+
     '</div>'+
     '<div class="propblock" id="d2027-block" style="display:'+(t.status==="D-DAY"?"flex":"none")+'">'+
       '<div class="grid3">'+
-        '<div class="field"><label>ยอดขาย (บาท)</label><input type="number" min="0" id="f-d2sales" value="'+((t.d2027&&t.d2027.sales)||0)+'"></div>'+
-        '<div class="field"><label>ผู้เข้าร่วม (คน)</label><input type="number" min="0" id="f-d2part" value="'+((t.d2027&&t.d2027.participants)||0)+'"></div>'+
-        '<div class="field"><label>นับเป็น Workshop (ครั้ง)</label><input type="number" min="0" id="f-d2work" value="'+((t.d2027&&t.d2027.workshops!=null)?t.d2027.workshops:1)+'"></div>'+
+        '<div class="field"><label>'+esc(tr("d2sales_label"))+'</label><input type="number" min="0" id="f-d2sales" value="'+((t.d2027&&t.d2027.sales)||0)+'"></div>'+
+        '<div class="field"><label>'+esc(tr("d2part_label"))+'</label><input type="number" min="0" id="f-d2part" value="'+((t.d2027&&t.d2027.participants)||0)+'"></div>'+
+        '<div class="field"><label>'+esc(tr("d2work_label"))+'</label><input type="number" min="0" id="f-d2work" value="'+((t.d2027&&t.d2027.workshops!=null)?t.d2027.workshops:1)+'"></div>'+
       '</div>'+
-      '<span class="hint">งาน D-DAY ที่ครบกำหนดในปี 2026 จะถูกรวมเข้าแถบเป้าหมายปี 2026 ด้านบนของบอร์ดอัตโนมัติจากตัวเลขนี้</span>'+
+      '<span class="hint">'+esc(tr("d2027_hint"))+'</span>'+
     '</div>',
-    (found ? '<button class="btn danger" id="m-del">ลบงานนี้</button>' : '')+
-    (found ? '<a class="btn" id="m-gcal" target="_blank" rel="noopener noreferrer" href="'+esc(gcalUrl(t))+'">เพิ่มลงปฏิทิน</a>' : '')+
+    (found ? '<button class="btn danger" id="m-del">'+esc(tr("delete_task_btn"))+'</button>' : '')+
+    (found ? '<a class="btn" id="m-gcal" target="_blank" rel="noopener noreferrer" href="'+esc(gcalUrl(t))+'">'+esc(tr("add_to_calendar_btn"))+'</a>' : '')+
     '<div class="spacer"></div>'+
-    '<button class="btn" id="m-cancel">ยกเลิก</button>'+
-    '<button class="btn primary" id="m-ok">'+(found?"บันทึก":"เพิ่มงาน")+'</button>'
+    '<button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn primary" id="m-ok">'+(found?esc(tr("save_btn")):esc(tr("add_task_submit")))+'</button>'
   );
 
   var picked = (t.pic||[]).slice();
@@ -1603,8 +1887,8 @@ function openTask(id, sectId){
   document.getElementById("btn-prop-brief").onclick = function(){
     var text = proposalBriefText();
     var btn = this, old = btn.textContent;
-    function ok(){ btn.textContent = "คัดลอกแล้ว ✓"; setTimeout(function(){ btn.textContent = old; }, 1600); }
-    function fallback(){ window.prompt("คัดลอกข้อความนี้ (Cmd/Ctrl+C แล้ว Enter):", text); }
+    function ok(){ btn.textContent = tr("copied_txt"); setTimeout(function(){ btn.textContent = old; }, 1600); }
+    function fallback(){ window.prompt(tr("copy_prompt_fallback"), text); }
     if(navigator.clipboard && navigator.clipboard.writeText){
       navigator.clipboard.writeText(text).then(ok).catch(fallback);
     }else fallback();
@@ -1702,63 +1986,64 @@ function picsForRoles(remark){
    remark holds the role(s) responsible (AE/LD/GM/OD/PR/CFO); actual PIC
    codes get resolved from WORKFLOW_ROLE_PIC at task-creation time */
 var WORKFLOW_TEMPLATE = [
-  {title:"รับบรีฟ", remark:"AE"},
-  {title:"Pre draft", remark:"AE"},
-  {title:"ส่ง Pre-draft ให้ลูกค้า", remark:"AE"},
-  {title:"Draft (นัด meeting online/onsite)", remark:"LD"},
-  {title:"Final Draft", remark:"LD"},
-  {title:"ทำ Slide", remark:"LD"},
-  {title:"Action plan ละเอียด", remark:"LD, AE"},
-  {title:"Evaluation Form", remark:"LD"},
-  {title:"Staff Listing", remark:"GM, AE"},
-  {title:"บรีฟ Staff", remark:"AE, LD, OD"},
-  {title:"Equipment Listing", remark:"LD, GM"},
-  {title:"หาซื้ออุปกรณ์", remark:"GM"},
-  {title:"เตรียมอุปกรณ์ให้พร้อม", remark:"LD, GM"},
-  {title:"วันจริง (Event Day)", remark:"", dday:true},
-  {title:"PR สรุปงาน", remark:"PR"},
-  {title:"ทำแคปชั่น / รูป / คลิป", remark:"PR, LD"},
-  {title:"ทำสรุปและส่งคืนให้ลูกค้า", remark:"AE"},
-  {title:"Feedback จาก Staff", remark:"GM"},
-  {title:"เคลียร์ค่า Equipment", remark:"AE"},
-  {title:"Staff evaluation", remark:"GM"},
-  {title:"จ่ายค่าจ้าง", remark:"GM, CFO"},
-  {title:"ใบสำคัญรับเงิน", remark:"GM"},
-  {title:"เสนอราคา", remark:"AE"},
-  {title:"ออก Quotation", remark:"AE"},
-  {title:"วาง Invoice", remark:"AE"},
-  {title:"ติดตามเรื่องการจ่ายเงินจากลูกค้า", remark:"AE"},
-  {title:"ส่งใบเสร็จให้ลูกค้า", remark:"AE"}
+  {title:{th:"รับบรีฟ",en:"Receive Brief"}, remark:"AE"},
+  {title:{th:"Pre draft",en:"Pre draft"}, remark:"AE"},
+  {title:{th:"ส่ง Pre-draft ให้ลูกค้า",en:"Send Pre-draft to Customer"}, remark:"AE"},
+  {title:{th:"Draft (นัด meeting online/onsite)",en:"Draft (schedule online/onsite meeting)"}, remark:"LD"},
+  {title:{th:"Final Draft",en:"Final Draft"}, remark:"LD"},
+  {title:{th:"ทำ Slide",en:"Make Slides"}, remark:"LD"},
+  {title:{th:"Action plan ละเอียด",en:"Detailed Action Plan"}, remark:"LD, AE"},
+  {title:{th:"Evaluation Form",en:"Evaluation Form"}, remark:"LD"},
+  {title:{th:"Staff Listing",en:"Staff Listing"}, remark:"GM, AE"},
+  {title:{th:"บรีฟ Staff",en:"Brief Staff"}, remark:"AE, LD, OD"},
+  {title:{th:"Equipment Listing",en:"Equipment Listing"}, remark:"LD, GM"},
+  {title:{th:"หาซื้ออุปกรณ์",en:"Source Equipment"}, remark:"GM"},
+  {title:{th:"เตรียมอุปกรณ์ให้พร้อม",en:"Prepare Equipment"}, remark:"LD, GM"},
+  {title:{th:"วันจริง (Event Day)",en:"Event Day"}, remark:"", dday:true},
+  {title:{th:"PR สรุปงาน",en:"PR Wrap-up"}, remark:"PR"},
+  {title:{th:"ทำแคปชั่น / รูป / คลิป",en:"Make Captions / Photos / Clips"}, remark:"PR, LD"},
+  {title:{th:"ทำสรุปและส่งคืนให้ลูกค้า",en:"Summarize and Send Back to Customer"}, remark:"AE"},
+  {title:{th:"Feedback จาก Staff",en:"Feedback from Staff"}, remark:"GM"},
+  {title:{th:"เคลียร์ค่า Equipment",en:"Clear Equipment Costs"}, remark:"AE"},
+  {title:{th:"Staff evaluation",en:"Staff Evaluation"}, remark:"GM"},
+  {title:{th:"จ่ายค่าจ้าง",en:"Pay Staff"}, remark:"GM, CFO"},
+  {title:{th:"ใบสำคัญรับเงิน",en:"Receipt Voucher"}, remark:"GM"},
+  {title:{th:"เสนอราคา",en:"Quote Price"}, remark:"AE"},
+  {title:{th:"ออก Quotation",en:"Issue Quotation"}, remark:"AE"},
+  {title:{th:"วาง Invoice",en:"Send Invoice"}, remark:"AE"},
+  {title:{th:"ติดตามเรื่องการจ่ายเงินจากลูกค้า",en:"Follow Up Customer Payment"}, remark:"AE"},
+  {title:{th:"ส่งใบเสร็จให้ลูกค้า",en:"Send Receipt to Customer"}, remark:"AE"}
 ];
+function tplTitle(item){ return item.title[view.lang] || item.title.th; }
 function openTemplatePicker(sectId){
   if(readOnly) return;
   var b = board();
   var s = b.sections.filter(function(x){return x.id===sectId;})[0];
   if(!s) return;
   var rows = WORKFLOW_TEMPLATE.map(function(item, i){
-    var names = item.dday ? "ทุกคน" : picsForRoles(item.remark).map(function(code){ return member(code).name; }).join(", ");
+    var names = item.dday ? tr("tpl_everyone") : picsForRoles(item.remark).map(function(code){ return member(code).name; }).join(", ");
     return '<label class="chk"><input type="checkbox" data-tpl="'+i+'" checked>'+
-      '<span>'+esc(item.title)+
+      '<span>'+esc(tplTitle(item))+
         (names?' <span class="hint">('+esc(names)+')</span>':'')+
       '</span></label>';
   }).join("");
-  modal("เลือกงานจาก Workflow Template — "+esc(s.title),
+  modal(tr("tpl_modal_title",{name:s.title}),
     '<div class="field" style="flex-direction:row;align-items:center;gap:10px">'+
-      '<button type="button" class="btn sm" id="tpl-selall">เลือกทั้งหมด</button>'+
-      '<button type="button" class="btn sm" id="tpl-clearall">ล้างทั้งหมด</button>'+
+      '<button type="button" class="btn sm" id="tpl-selall">'+esc(tr("tpl_select_all"))+'</button>'+
+      '<button type="button" class="btn sm" id="tpl-clearall">'+esc(tr("tpl_clear_all"))+'</button>'+
       '<span class="hint" id="tpl-count" style="margin-left:auto"></span>'+
     '</div>'+
     '<div class="field" style="gap:2px">'+rows+'</div>'+
-    '<div class="field"><label>วันที่เริ่ม (งานแรกที่เลือก)</label><input type="date" id="tpl-start" value="'+ymd(todayUTC())+'"></div>'+
-    '<span class="hint">งานที่เลือกจะถูกเพิ่มเรียงต่อกันทีละ 1 วัน เริ่มจากวันที่นี้ — ไปปรับวันที่/ระยะเวลา/มอบหมายคนของแต่ละงานทีหลังได้ตามปกติ</span>'+
-    '<span class="hint" id="tpl-warn" style="display:none;color:var(--s-cancel)">ยังไม่ได้เลือกงานเลย ติ๊กอย่างน้อย 1 รายการก่อนกดเพิ่ม</span>',
-    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
-    '<button class="btn primary" id="m-ok">เพิ่มงานที่เลือก</button>'
+    '<div class="field"><label>'+esc(tr("tpl_start_label"))+'</label><input type="date" id="tpl-start" value="'+ymd(todayUTC())+'"></div>'+
+    '<span class="hint">'+esc(tr("tpl_seq_hint"))+'</span>'+
+    '<span class="hint" id="tpl-warn" style="display:none;color:var(--s-cancel)">'+esc(tr("tpl_warn"))+'</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn primary" id="m-ok">'+esc(tr("tpl_add_submit"))+'</button>'
   );
   document.getElementById("m-cancel").onclick = closeModal;
   function tplUpdateCount(){
     var n = document.querySelectorAll("[data-tpl]:checked").length;
-    document.getElementById("tpl-count").textContent = "เลือกอยู่ "+n+" / "+WORKFLOW_TEMPLATE.length;
+    document.getElementById("tpl-count").textContent = tr("tpl_count",{n:n, total:WORKFLOW_TEMPLATE.length});
   }
   document.querySelectorAll("[data-tpl]").forEach(function(cb){ cb.onchange = tplUpdateCount; });
   document.getElementById("tpl-selall").onclick = function(){
@@ -1784,7 +2069,7 @@ function openTemplatePicker(sectId){
       s.tasks.push({
         id: uid("t"),
         pic: item.dday ? state.team.map(function(m){return m.code;}) : picsForRoles(item.remark),
-        title:item.title, remark:"",
+        title:tplTitle(item), remark:"",
         status: item.dday ? "D-DAY" : "Not started", start: ymd(cur), dur:1,
         link:"", isProposal:false, proposal:{}, d2027:{}
       });
@@ -1808,25 +2093,25 @@ function openSection(id){
   var s = id ? b.sections.filter(function(x){return x.id===id;})[0] : null;
   var curColor = s ? (s.color||"") : "";
   var swatches = '<button type="button" class="colorsw" data-color="" aria-pressed="'+(!curColor)+'" '+
-      'style="background:var(--surface-3);color:var(--text-2);font-size:10px" title="อัตโนมัติ">Auto</button>'+
+      'style="background:var(--surface-3);color:var(--text-2);font-size:10px" title="'+esc(tr("auto_title"))+'">Auto</button>'+
     GCAL_COLORS.map(function(c){
       return '<button type="button" class="colorsw" data-color="'+c[0]+'" aria-pressed="'+(curColor===c[0])+'" '+
         'style="background:'+c[2]+'" title="'+c[1]+'"></button>';
     }).join("");
-  var custOpts = '<option value="">— ไม่มีลูกค้า —</option>' + state.customers.map(function(c){
+  var custOpts = '<option value="">'+esc(tr("no_customer_opt"))+'</option>' + state.customers.map(function(c){
     var label = c.name + (c.org ? ", "+c.org : "");
     return '<option value="'+esc(c.id)+'"'+((s&&s.customerId===c.id)?" selected":"")+'>'+esc(label)+'</option>';
   }).join("");
-  modal(s ? "แก้ชื่อหัวข้อ" : "เพิ่มหัวข้อใหม่",
-    '<div class="field"><label>Section title</label>'+
-      '<input id="f-sname" value="'+esc(s?s.title:"")+'" placeholder="เช่น Selling product to school"></div>'+
-      '<span class="hint">หัวข้อใช้จัดกลุ่มงานตามโปรเจกต์หรือสายงาน เหมือนใน Gantt sheet เดิม</span>'+
-    '<div class="field"><label>สี (Google Calendar)</label><div class="colorswatches">'+swatches+'</div>'+
-      '<span class="hint">ใช้เป็นสี event ตอนส่งงานในหัวข้อนี้เข้า Google Calendar — เลือก Auto ให้ระบบสุ่มสีคงที่ให้เอง</span></div>'+
-    '<div class="field"><label>ลูกค้า (ถ้ามี)</label><select id="f-scust">'+custOpts+'</select>'+
-      '<span class="hint">ไม่บังคับ — ถ้าเลือกไว้ หัวข้อนี้จะไปโชว์ในหน้าลูกค้าด้วย</span></div>',
-    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
-    '<button class="btn primary" id="m-ok">'+(s?"บันทึก":"เพิ่มหัวข้อ")+'</button>'
+  modal(s ? tr("project_rename_title") : tr("project_add_title"),
+    '<div class="field"><label>'+esc(tr("project_title_label"))+'</label>'+
+      '<input id="f-sname" value="'+esc(s?s.title:"")+'" placeholder="'+esc(tr("project_title_ph"))+'"></div>'+
+      '<span class="hint">'+esc(tr("project_title_hint"))+'</span>'+
+    '<div class="field"><label>'+esc(tr("color_label"))+'</label><div class="colorswatches">'+swatches+'</div>'+
+      '<span class="hint">'+esc(tr("color_hint"))+'</span></div>'+
+    '<div class="field"><label>'+esc(tr("cust_optional_label"))+'</label><select id="f-scust">'+custOpts+'</select>'+
+      '<span class="hint">'+esc(tr("cust_optional_hint"))+'</span></div>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn primary" id="m-ok">'+(s?esc(tr("save_btn")):esc(tr("add_project_submit")))+'</button>'
   );
   var pickedColor = curColor;
   document.querySelectorAll("[data-color]").forEach(function(el){
@@ -1858,11 +2143,11 @@ function confirmDeleteSection(id){
   var b = board();
   var s = b.sections.filter(function(x){return x.id===id;})[0];
   if(!s) return;
-  modal("ลบหัวข้อ",
-    '<p style="margin:0">ลบ <b>'+esc(s.title)+'</b> และงาน '+s.tasks.length+' รายการข้างในทั้งหมด?</p>'+
-    '<span class="hint">การลบย้อนกลับไม่ได้</span>',
-    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
-    '<button class="btn danger" id="m-ok">ลบทั้งหัวข้อ</button>'
+  modal(tr("project_delete_title"),
+    '<p style="margin:0">'+tr("project_delete_body",{title:esc(s.title), n:s.tasks.length})+'</p>'+
+    '<span class="hint">'+esc(tr("undo_hint"))+'</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn danger" id="m-ok">'+esc(tr("project_delete_submit"))+'</button>'
   );
   document.getElementById("m-cancel").onclick = closeModal;
   document.getElementById("m-ok").onclick = function(){
@@ -1875,19 +2160,18 @@ function openTeam(){
   var rows = state.team.map(function(m,i){
     return '<div class="teamrow">'+
       '<input data-tc="'+i+'" value="'+esc(m.code)+'" maxlength="6" aria-label="Code">'+
-      '<input data-tn="'+i+'" value="'+esc(m.name)+'" aria-label="ชื่อเล่น">'+
-      '<input type="color" data-tk="'+i+'" value="'+esc(m.color)+'" style="padding:2px;height:32px" aria-label="สี">'+
+      '<input data-tn="'+i+'" value="'+esc(m.name)+'" aria-label="'+esc(tr("nickname_aria"))+'">'+
+      '<input type="color" data-tk="'+i+'" value="'+esc(m.color)+'" style="padding:2px;height:32px" aria-label="'+esc(tr("color_aria"))+'">'+
       '<input class="email" type="email" data-te="'+i+'" value="'+esc(m.email||"")+'" '+
-        'placeholder="อีเมลสำหรับเชิญเข้าปฏิทิน" aria-label="อีเมล">'+
+        'placeholder="'+esc(tr("email_ph"))+'" aria-label="'+esc(tr("email_aria"))+'">'+
     '</div>';
   }).join("");
-  modal("ทีม (" + state.team.length + " คน)",
-    '<div class="field"><label>Code / ชื่อเล่น / สี / อีเมล</label>'+
+  modal(tr("team_title",{n:state.team.length}),
+    '<div class="field"><label>'+esc(tr("team_field_label"))+'</label>'+
       '<div style="display:flex;flex-direction:column;gap:14px">'+rows+'</div></div>'+
-    '<span class="hint">Code คือตัวย่อที่แสดงบนแถว PIC — เปลี่ยนแล้วงานเดิมจะถูกอัปเดตให้ตาม · '+
-      'อีเมลใช้สำหรับเชิญเป็น guest ตอนส่งงานเข้า Google Calendar</span>',
-    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
-    '<button class="btn primary" id="m-ok">บันทึก</button>'
+    '<span class="hint">'+esc(tr("team_hint"))+'</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn primary" id="m-ok">'+esc(tr("save_btn"))+'</button>'
   );
   document.getElementById("m-cancel").onclick = closeModal;
   document.getElementById("m-ok").onclick = function(){
@@ -1975,7 +2259,7 @@ function taskDetails(t, s, b){
     b.name + " › " + s.title,
     "PIC: " + (who || "—"),
     "Status: " + t.status,
-    "Start: " + fmtShort(t.start) + (t.startTime?" "+t.startTime:"") + "  ·  Duration: " + (t.dur||1) + " วัน" +
+    "Start: " + fmtShort(t.start) + (t.startTime?" "+t.startTime:"") + "  ·  Duration: " + (t.dur||1) + tr("days_suffix") +
       (t.dueTime?"  ·  Due time: "+t.dueTime:""),
     t.remark ? "Remark: " + t.remark : ""
   ].filter(Boolean).join("\n");
@@ -2020,7 +2304,7 @@ function buildIcs(b){
       L.push("BEGIN:VALARM");
       L.push("ACTION:DISPLAY");
       L.push("TRIGGER:-P1D");
-      L.push("DESCRIPTION:"+icsEsc("พรุ่งนี้ครบกำหนด: "+x.t.title));
+      L.push("DESCRIPTION:"+icsEsc(tr("due_tomorrow_prefix")+x.t.title));
       L.push("END:VALARM");
     }
     L.push("END:VEVENT");
@@ -2100,14 +2384,14 @@ function ensureTokenClient(){
 function requestToken(interactive){
   return new Promise(function(resolve, reject){
     var tc = ensureTokenClient();
-    if(!tc){ reject({message:"Google Identity Services ยังไม่พร้อม"}); return; }
+    if(!tc){ reject({message:tr("gis_not_ready")}); return; }
     tc.callback = function(resp){
       if(resp && resp.access_token){
         gcalToken = {access_token:resp.access_token, expiresAt: Date.now() + (resp.expires_in||3600)*1000};
         resolve(gcalToken);
-      }else reject(resp||{message:"ไม่ได้รับสิทธิ์"});
+      }else reject(resp||{message:tr("permission_denied")});
     };
-    tc.error_callback = function(err){ reject(err||{message:"การเชื่อมต่อถูกยกเลิก"}); };
+    tc.error_callback = function(err){ reject(err||{message:tr("connection_cancelled")}); };
     try{ tc.requestAccessToken({prompt: interactive ? "consent" : ""}); }
     catch(e){ reject(e); }
   });
@@ -2224,8 +2508,8 @@ function gcalEventBody(x){
 function openCalendarExport(){
   loadGcal();
   modal("Google Calendar",
-    '<div id="gc-body"><p style="margin:0;color:var(--muted)">กำลังตรวจสอบการเชื่อมต่อ…</p></div>',
-    '<div class="spacer"></div><button class="btn" id="m-cancel">ปิด</button>');
+    '<div id="gc-body"><p style="margin:0;color:var(--muted)">'+esc(tr("gcal_checking"))+'</p></div>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("close"))+'</button>');
   document.getElementById("m-cancel").onclick = closeModal;
   gcalRoute();
 }
@@ -2239,28 +2523,28 @@ function gcalSetBody(bodyHtml, footHtml){
 }
 async function gcalRoute(){
   if(!gcalConfigured()){
-    gcalSetBody(gcalErrBox({t:"ยังไม่ได้ตั้งค่า Google Calendar", d:"ใส่ GOOGLE_CLIENT_ID ที่หัวไฟล์ HTML ก่อน (ดูคอมเมนต์ในไฟล์)"}),
-      '<div class="spacer"></div><button class="btn" data-x>ปิด</button>');
+    gcalSetBody(gcalErrBox({t:tr("gcal_not_configured_t"), d:tr("gcal_not_configured_d")}),
+      '<div class="spacer"></div><button class="btn" data-x>'+esc(tr("close"))+'</button>');
     return;
   }
   if(!gcalConnected()){
     gcalSetBody(
-      '<p style="margin:0">เชื่อมต่อ Google Calendar ด้วยบัญชีของคุณ เพื่อเลือกปฏิทินและส่งกำหนดส่งเข้าไปอัตโนมัติ</p>'+
-      '<span class="hint">ครั้งแรกจะมีหน้าต่างของ Google เด้งขึ้นมาให้อนุญาตสิทธิ์</span>',
-      '<div class="spacer"></div><button class="btn" data-x>ปิด</button><button class="btn primary" id="gc-connect">เชื่อมต่อ Google Calendar</button>'
+      '<p style="margin:0">'+esc(tr("gcal_connect_body"))+'</p>'+
+      '<span class="hint">'+esc(tr("gcal_connect_hint"))+'</span>',
+      '<div class="spacer"></div><button class="btn" data-x>'+esc(tr("close"))+'</button><button class="btn primary" id="gc-connect">'+esc(tr("gcal_connect_btn"))+'</button>'
     );
     document.getElementById("gc-connect").onclick = async function(){
-      gcalSetBody('<p style="margin:0;color:var(--muted)">กำลังเชื่อมต่อ…</p>', '<div class="spacer"></div><button class="btn" data-x>ปิด</button>');
+      gcalSetBody('<p style="margin:0;color:var(--muted)">'+esc(tr("gcal_connecting"))+'</p>', '<div class="spacer"></div><button class="btn" data-x>'+esc(tr("close"))+'</button>');
       try{ await requestToken(true); gcalRoute(); }
       catch(e){
-        gcalSetBody(gcalErrBox({t:"เชื่อมต่อไม่สำเร็จ", d:(e&&e.message)||"หน้าต่างอนุญาตสิทธิ์ถูกปิดหรือถูกปฏิเสธ"}),
-          '<div class="spacer"></div><button class="btn" data-x>ปิด</button><button class="btn primary" id="gc-retry">ลองอีกครั้ง</button>');
+        gcalSetBody(gcalErrBox({t:tr("gcal_connect_fail_t"), d:(e&&e.message)||tr("gcal_connect_fail_d")}),
+          '<div class="spacer"></div><button class="btn" data-x>'+esc(tr("close"))+'</button><button class="btn primary" id="gc-retry">'+esc(tr("retry_btn"))+'</button>');
         document.getElementById("gc-retry").onclick = gcalRoute;
       }
     };
     return;
   }
-  gcalSetBody('<p style="margin:0;color:var(--muted)">กำลังอ่านรายชื่อปฏิทิน…</p>', '<div class="spacer"></div><button class="btn" data-x>ปิด</button>');
+  gcalSetBody('<p style="margin:0;color:var(--muted)">'+esc(tr("gcal_reading_cals"))+'</p>', '<div class="spacer"></div><button class="btn" data-x>'+esc(tr("close"))+'</button>');
   try{
     var res = await gcalFetch("/users/me/calendarList?maxResults=250");
     var cals = (res && res.items) || [];
@@ -2269,17 +2553,17 @@ async function gcalRoute(){
     });
     gcalForm(cals, null);
   }catch(e){
-    gcalForm(null, {t:"อ่านรายชื่อปฏิทินไม่สำเร็จ", d:(e&&e.message)||"ไม่ทราบสาเหตุ", retry:true});
+    gcalForm(null, {t:tr("gcal_read_fail_t"), d:(e&&e.message)||tr("unknown_reason"), retry:true});
   }
 }
 function gcalForm(cals, err){
   var n = gcalSyncTargets().length;
   if(!cals || !cals.length){
     gcalSetBody(
-      (err?gcalErrBox(err):gcalErrBox({t:"ไม่พบปฏิทินที่แก้ไขได้", d:"ตรวจสอบว่าบัญชีที่ล็อกอินมีสิทธิ์แก้ไขปฏิทินอย่างน้อย 1 ปฏิทิน"}))+
-      '<p style="margin:0;color:var(--text-2)">ระหว่างนี้ยังดาวน์โหลดไฟล์ .ics แล้วนำเข้าเองได้</p>',
-      '<div class="spacer"></div><button class="btn" data-x>ปิด</button><button class="btn" id="gc-ics">ดาวน์โหลด .ics</button>'+
-      (err&&err.retry?'<button class="btn primary" id="gc-retry">ลองอีกครั้ง</button>':'')
+      (err?gcalErrBox(err):gcalErrBox({t:tr("gcal_no_cal_t"), d:tr("gcal_no_cal_d")}))+
+      '<p style="margin:0;color:var(--text-2)">'+esc(tr("gcal_meanwhile"))+'</p>',
+      '<div class="spacer"></div><button class="btn" data-x>'+esc(tr("close"))+'</button><button class="btn" id="gc-ics">'+esc(tr("download_ics_btn"))+'</button>'+
+      (err&&err.retry?'<button class="btn primary" id="gc-retry">'+esc(tr("retry_btn"))+'</button>':'')
     );
     document.getElementById("gc-ics").onclick = downloadIcs;
     var rt = document.getElementById("gc-retry");
@@ -2293,7 +2577,7 @@ function gcalForm(cals, err){
   var opts = cals.map(function(c){
     return '<option value="'+esc(c.id)+'"'+(c.id===gcal.calendarId?" selected":"")+'>'+esc(c.summary||c.id)+'</option>';
   }).join("");
-  var leads = [[0,"ในวันครบกำหนด (เช้า)"],[1440,"ล่วงหน้า 1 วัน"],[2880,"ล่วงหน้า 2 วัน"],[4320,"ล่วงหน้า 3 วัน"],[10080,"ล่วงหน้า 1 สัปดาห์"]];
+  var leads = [[0,tr("lead_0")],[1440,tr("lead_1d")],[2880,tr("lead_2d")],[4320,tr("lead_3d")],[10080,tr("lead_1w")]];
   var leadOpts = leads.map(function(l){
     return '<option value="'+l[0]+'"'+(gcal.lead===l[0]?" selected":"")+'>'+esc(l[1])+'</option>';
   }).join("");
@@ -2301,32 +2585,31 @@ function gcalForm(cals, err){
   var withMail = state.team.filter(function(m){ return (m.email||"").trim(); }).length;
 
   gcalSetBody(
-    '<p style="margin:0">ส่งงาน <b id="gc-count">'+n+'</b> รายการเข้า Google Calendar เป็น all-day event</p>'+
+    '<p style="margin:0">'+tr("gcal_send_count",{n:n})+'</p>'+
     '<div style="border:1px solid var(--border);border-radius:8px;background:var(--surface-2);'+
       'padding:9px 11px;display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--text-2)">'+
-      '<div><b style="color:var(--s-dday)">D-DAY</b> → ยิงทั้งช่วง <b>START → DUE</b> และจองเวลาเป็น Busy</div>'+
+      '<div><b style="color:var(--s-dday)">D-DAY</b> '+tr("gcal_dday_rule")+'</div>'+
       '<div><b style="color:var(--s-notstarted)">Not started</b> · <b style="color:var(--s-process)">In process</b> · '+
-        '<b style="color:var(--s-postponed)">Postponed</b> → ยิงเฉพาะวัน <b>DUE DATE</b> วันเดียว ไม่จองเวลา</div>'+
-      '<div><b style="color:var(--s-done)">Done</b> → <b>เก็บไว้ในปฏิทิน</b> เปลี่ยนชื่อเป็น [DONE] และปิดแจ้งเตือน</div>'+
-      '<div><b style="color:var(--s-cancel)">Cancel</b> → ไม่ยิง และถ้าเคยยิงไปแล้วจะถูกลบออกจากปฏิทินให้อัตโนมัติ</div>'+
+        '<b style="color:var(--s-postponed)">Postponed</b> '+tr("gcal_normal_rule")+'</div>'+
+      '<div><b style="color:var(--s-done)">Done</b> '+tr("gcal_done_rule")+'</div>'+
+      '<div><b style="color:var(--s-cancel)">Cancel</b> '+tr("gcal_cancel_rule")+'</div>'+
     '</div>'+
-    '<div class="field"><label>ปฏิทินปลายทาง</label><select id="gc-cal">'+opts+'</select></div>'+
+    '<div class="field"><label>'+esc(tr("gcal_target_cal_label"))+'</label><select id="gc-cal">'+opts+'</select></div>'+
     '<div class="grid2">'+
-      '<div class="field"><label>ขอบเขต</label><select id="gc-scope">'+
-        '<option value="all"'+(gcal.scope!=="board"?" selected":"")+'>ทุกบอร์ด ('+state.boards.length+' บอร์ด)</option>'+
-        '<option value="board"'+(gcal.scope==="board"?" selected":"")+'>เฉพาะบอร์ดที่เปิดอยู่</option>'+
+      '<div class="field"><label>'+esc(tr("gcal_scope_label"))+'</label><select id="gc-scope">'+
+        '<option value="all"'+(gcal.scope!=="board"?" selected":"")+'>'+esc(tr("gcal_scope_all",{n:state.boards.length}))+'</option>'+
+        '<option value="board"'+(gcal.scope==="board"?" selected":"")+'>'+esc(tr("gcal_scope_board"))+'</option>'+
       '</select></div>'+
-      '<div class="field"><label>แจ้งเตือน</label><select id="gc-lead">'+leadOpts+'</select></div>'+
+      '<div class="field"><label>'+esc(tr("gcal_reminder_label"))+'</label><select id="gc-lead">'+leadOpts+'</select></div>'+
     '</div>'+
-    '<div class="field"><label>ผู้ร่วมงาน</label>'+
+    '<div class="field"><label>'+esc(tr("gcal_attendees_label"))+'</label>'+
       '<label class="chk"><input type="checkbox" id="gc-invite"'+(gcal.invite?" checked":"")+'>'+
-        '<span>เชิญ PIC ของแต่ละงานเป็น guest ('+withMail+'/'+state.team.length+' คนมีอีเมลแล้ว)</span></label>'+
-      (withMail<state.team.length?'<span class="hint">ใส่อีเมลที่เหลือได้ที่ปุ่ม "ทีม"</span>':'')+
+        '<span>'+esc(tr("gcal_invite_label",{have:withMail, total:state.team.length}))+'</span></label>'+
+      (withMail<state.team.length?'<span class="hint">'+esc(tr("gcal_invite_hint"))+'</span>':'')+
     '</div>'+
-    '<span class="hint">'+(synced?'เคยส่งไปแล้ว '+synced+' รายการ — กดส่งอีกครั้งจะอัปเดตของเดิม ไม่สร้างซ้ำ'
-      :'ส่งซ้ำได้เรื่อยๆ ระบบจำ event ที่สร้างไว้ในเบราว์เซอร์นี้ แล้วอัปเดตของเดิมแทนการสร้างใหม่')+'</span>',
+    '<span class="hint">'+esc(synced?tr("gcal_resync_hint",{n:synced}):tr("gcal_first_sync_hint"))+'</span>',
     '<div class="spacer"></div><button class="btn" id="gc-ics">.ics</button>'+
-    '<button class="btn" data-x>ปิด</button><button class="btn primary" id="gc-go">ส่งเข้าปฏิทิน</button>'
+    '<button class="btn" data-x>'+esc(tr("close"))+'</button><button class="btn primary" id="gc-go">'+esc(tr("send_to_calendar_btn"))+'</button>'
   );
   document.getElementById("gc-cal").onchange = function(){ gcal.calendarId=this.value; saveGcal(); };
   document.getElementById("gc-lead").onchange = function(){ gcal.lead=+this.value; saveGcal(); };
@@ -2353,11 +2636,11 @@ async function gcalRunSync(cals){
   var done=0;
   function progress(){
     gcalSetBody(
-      '<p style="margin:0">กำลังซิงก์กับ Google Calendar…</p>'+
+      '<p style="margin:0">'+esc(tr("gcal_syncing"))+'</p>'+
       '<div style="height:6px;border-radius:999px;background:var(--surface-3);overflow:hidden">'+
         '<div style="height:100%;width:'+Math.round(done/Math.max(1,total)*100)+'%;background:var(--accent)"></div></div>'+
       '<span class="hint">'+done+' / '+total+'</span>',
-      '<div class="spacer"></div><button class="btn" disabled>กำลังส่ง…</button>'
+      '<div class="spacer"></div><button class="btn" disabled>'+esc(tr("sending_btn"))+'</button>'
     );
   }
   progress();
@@ -2392,7 +2675,7 @@ async function gcalRunSync(cals){
         created++; invited += guests.length;
       }
     }catch(e){
-      failed.push({title:x.t.title, info:{t:"ส่งไม่สำเร็จ", d:(e&&e.message)||"ไม่ทราบสาเหตุ"}});
+      failed.push({title:x.t.title, info:{t:tr("gcal_send_fail_t"), d:(e&&e.message)||tr("unknown_reason")}});
     }
     saveGcal();
     done++; progress();
@@ -2413,15 +2696,15 @@ async function gcalRunSync(cals){
 }
 function gcalResult(cals, r){
   var rows = [
-    ["สร้างใหม่", r.created, "--s-done"],
-    ["อัปเดต", r.updated, "--s-process"],
-    ["ลบออก (Cancel)", r.removed, "--s-notstarted"],
-    ["เชิญ PIC เป็น guest", r.invited, "--s-dday"]
+    [tr("gcal_created"), r.created, "--s-done"],
+    [tr("gcal_updated"), r.updated, "--s-process"],
+    [tr("gcal_removed"), r.removed, "--s-notstarted"],
+    [tr("gcal_invited"), r.invited, "--s-dday"]
   ].filter(function(x){ return x[1]>0; });
-  if(!rows.length && !r.failed.length) rows = [["ไม่มีอะไรต้องเปลี่ยน", 0, "--s-notstarted"]];
+  if(!rows.length && !r.failed.length) rows = [[tr("gcal_nothing_changed"), 0, "--s-notstarted"]];
 
   gcalSetBody(
-    '<p style="margin:0">ซิงก์กับปฏิทิน <b>'+esc(r.cal)+'</b> เรียบร้อย</p>'+
+    '<p style="margin:0">'+tr("gcal_sync_success",{cal:esc(r.cal)})+'</p>'+
     '<div style="display:flex;flex-direction:column;gap:6px">'+
       rows.map(function(x){
         return '<div style="display:flex;align-items:center;gap:9px">'+
@@ -2430,14 +2713,14 @@ function gcalResult(cals, r){
           '<b style="font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums">'+x[1]+'</b></div>';
       }).join("")+
     '</div>'+
-    (r.failed.length ? gcalErrBox({t:'ส่งไม่สำเร็จ '+r.failed.length+' รายการ',
+    (r.failed.length ? gcalErrBox({t:tr("gcal_fail_count_t",{n:r.failed.length}),
         d: r.failed.slice(0,3).map(function(x){ return x.title+" — "+x.info.d; }).join(" · ") +
-           (r.failed.length>3?' และอีก '+(r.failed.length-3)+' รายการ':'') +
-           ' · เช็กในปฏิทินก่อนกดส่งซ้ำ'}) : '')+
-    '<span class="hint">แก้บอร์ดแล้วกดส่งใหม่ได้เรื่อยๆ — event เดิมจะถูกอัปเดต ไม่สร้างซ้ำ</span>',
+           (r.failed.length>3?tr("gcal_fail_more",{n:r.failed.length-3}):"") +
+           tr("gcal_fail_check")}) : '')+
+    '<span class="hint">'+esc(tr("gcal_resend_hint"))+'</span>',
     '<div class="spacer"></div>'+
-    '<a class="btn" target="_blank" rel="noopener noreferrer" href="https://calendar.google.com/calendar/r">เปิด Google Calendar</a>'+
-    (r.failed.length ? '<button class="btn primary" id="gc-retry2">ลองอีกครั้ง</button>' : '<button class="btn primary" data-x>เสร็จแล้ว</button>')
+    '<a class="btn" target="_blank" rel="noopener noreferrer" href="https://calendar.google.com/calendar/r">'+esc(tr("open_gcal_link"))+'</a>'+
+    (r.failed.length ? '<button class="btn primary" id="gc-retry2">'+esc(tr("retry_btn"))+'</button>' : '<button class="btn primary" data-x>'+esc(tr("done_btn"))+'</button>')
   );
   var rt = document.getElementById("gc-retry2");
   if(rt) rt.onclick = function(){ gcalRunSync(cals); };

@@ -1,0 +1,2185 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SSt Gantt Board</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<!--
+  ตั้งค่า Firebase ก่อนใช้งาน:
+  1) สร้างโปรเจกต์ที่ console.firebase.google.com (ฟรี)
+  2) ไปที่ Build → Realtime Database → Create Database
+     เลือก location ที่ใกล้ (เช่น asia-southeast1) แล้วเริ่มในโหมด "locked" ก็ได้ เดี๋ยวเราตั้ง rules เอง
+     ไปที่แท็บ Rules แล้ววางทับด้วย:
+
+       {
+         "rules": {
+           "board_state": {
+             ".read": true,
+             ".write": true
+           }
+         }
+       }
+
+  3) ไปที่ Project settings (รูปเฟือง) → General → เลื่อนลงมา "Your apps" → กด </> เพิ่มแอปแบบ Web
+     ตั้งชื่ออะไรก็ได้ ไม่ต้องติ๊ก Firebase Hosting ก็ได้
+     คัดลอกค่า firebaseConfig ทั้งก้อนที่ขึ้นมา มาแทนที่ FIREBASE_CONFIG ด้านล่างนี้ (ทุกฟิลด์)
+
+  หมายเหตุความปลอดภัย: ค่า apiKey นี้ฝังอยู่ในไฟล์ HTML และมองเห็นได้จากทุกคนที่เปิดไฟล์ — ตามปกติของ Firebase
+  ความปลอดภัยจริงๆ ควบคุมด้วย Rules ด้านบน ซึ่งตอนนี้เปิดให้ "ใครก็ตามที่มีไฟล์/ลิงก์นี้" อ่าน-แก้บอร์ดได้ทั้งหมด
+  เหมาะกับทีมเล็กที่ไว้ใจกัน ถ้าต้องการจำกัดสิทธิ์มากกว่านี้ (เช่น ต้อง login ก่อน) บอกให้ Claude ช่วยเพิ่ม auth ได้ภายหลัง
+-->
+<script>
+  window.FIREBASE_CONFIG = {
+    apiKey: "AIzaSyBINnNE2kOBd1FL_JEOf5diemOJngPVwro",
+    authDomain: "soulscity-ce14b.firebaseapp.com",
+    databaseURL: "https://soulscity-ce14b-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "soulscity-ce14b",
+    storageBucket: "soulscity-ce14b.firebasestorage.app",
+    messagingSenderId: "330348847156",
+    appId: "1:330348847156:web:1b2d40efc37bd875e06a61"
+  };
+</script>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<!--
+  ตั้งค่า Google Calendar sync (ไม่บังคับ — ถ้าไม่ตั้ง ปุ่ม Google Calendar จะแจ้งว่ายังไม่ได้ตั้งค่า แต่ฟีเจอร์อื่นใช้ได้ปกติ):
+  1) Google Cloud Console (console.cloud.google.com) → เลือกโปรเจกต์เดียวกับ Firebase (soulscity-ce14b)
+  2) APIs & Services → Library → ค้นหา "Google Calendar API" → Enable
+  3) APIs & Services → Google Auth Platform → Overview → Get started
+     ตั้งค่า App info + Audience (External) + Contact → เสร็จแล้วไปที่เมนู "Audience"
+     เพิ่มอีเมลทีมทุกคนใน Test users (ไม่งั้นล็อกอินไม่ได้)
+  4) เมนู "Clients" → Create client → Web application
+     Authorized JavaScript origins ใส่ URL จริงที่ไฟล์นี้ถูก host อยู่ (เช่น https://xxxxx.netlify.app)
+     **ต้องเป็น URL จริง ใช้กับไฟล์ที่เปิดจากเครื่อง (file://) ไม่ได้**
+     คัดลอก Client ID มาใส่ด้านล่างนี้
+-->
+<script>
+  window.GOOGLE_CLIENT_ID = "330348847156-f25ncdcf7de7oe94e6ji4tee7l0abe3c.apps.googleusercontent.com";
+</script>
+
+<style>
+:root{
+  --bg:#EBEEF3;
+  --surface:#FFFFFF;
+  --surface-2:#F4F6F9;
+  --surface-3:#E6EAF0;
+  --border:#D3DAE3;
+  --border-strong:#B9C3D0;
+  --text:#182029;
+  --text-2:#47535F;
+  --muted:#78838F;
+  --accent:#2F5D7C;
+  --accent-soft:#DCE8F0;
+  --grid:#E2E7ED;
+  --weekend:#F0F2F6;
+  --today:#C2603F;
+  --shadow:0 1px 2px rgba(20,32,48,.06), 0 8px 24px rgba(20,32,48,.08);
+
+  --s-done:#3B8467;
+  --s-process:#2F6FA8;
+  --s-notstarted:#8A94A1;
+  --s-postponed:#AC7A28;
+  --s-cancel:#A25656;
+  --s-dday:#7A4FA3;
+
+  --dayW:24px;
+  --leftW:794px;
+  --headH:58px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#12161C;
+    --surface:#1A1F27;
+    --surface-2:#212832;
+    --surface-3:#2A323E;
+    --border:#2F3945;
+    --border-strong:#3D4956;
+    --text:#E6EBF1;
+    --text-2:#B6C1CD;
+    --muted:#8592A0;
+    --accent:#7FB0D2;
+    --accent-soft:#23323F;
+    --grid:#242C36;
+    --weekend:#1E242C;
+    --today:#E08663;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+    --s-done:#4FA684;
+    --s-process:#4E93CE;
+    --s-notstarted:#8592A0;
+    --s-postponed:#CB9944;
+    --s-cancel:#C57575;
+    --s-dday:#9A70C2;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#12161C;
+  --surface:#1A1F27;
+  --surface-2:#212832;
+  --surface-3:#2A323E;
+  --border:#2F3945;
+  --border-strong:#3D4956;
+  --text:#E6EBF1;
+  --text-2:#B6C1CD;
+  --muted:#8592A0;
+  --accent:#7FB0D2;
+  --accent-soft:#23323F;
+  --grid:#242C36;
+  --weekend:#1E242C;
+  --today:#E08663;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 30px rgba(0,0,0,.35);
+  --s-done:#4FA684;
+  --s-process:#4E93CE;
+  --s-notstarted:#8592A0;
+  --s-postponed:#CB9944;
+  --s-cancel:#C57575;
+  --s-dday:#9A70C2;
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:"IBM Plex Sans Thai","Anuphan",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font-size:13px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:"Anuphan","IBM Plex Sans Thai",sans-serif;margin:0;text-wrap:balance}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+
+/* ---------- shell ---------- */
+.app{display:flex;flex-direction:column;height:100vh;min-height:100vh}
+
+.topbar{
+  display:flex;align-items:center;gap:18px;
+  padding:0 18px;height:54px;flex:0 0 auto;
+  background:var(--surface);border-bottom:1px solid var(--border);
+}
+.brand{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+.mark{
+  width:28px;height:28px;border-radius:8px;flex:0 0 auto;
+  background:var(--accent);color:#fff;
+  display:grid;place-items:center;
+  font-family:"Anuphan",sans-serif;font-weight:700;font-size:11px;letter-spacing:.02em;
+}
+.brand b{font-family:"Anuphan",sans-serif;font-weight:600;font-size:14px;letter-spacing:.01em}
+.brand span{display:block;font-size:10.5px;color:var(--muted);letter-spacing:.06em;text-transform:uppercase;line-height:1.2}
+
+.tabs{display:flex;gap:2px;align-items:center;flex:1 1 auto;min-width:0;overflow-x:auto}
+.tab{
+  border:1px solid transparent;background:transparent;color:var(--text-2);
+  padding:6px 13px;border-radius:8px;white-space:nowrap;font-weight:500;
+  display:flex;align-items:baseline;gap:7px;
+}
+.tab:hover{background:var(--surface-2);color:var(--text)}
+.tab[aria-selected="true"]{background:var(--accent-soft);color:var(--accent);border-color:var(--border)}
+.tab i{font-style:normal;font-size:10.5px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tab[aria-selected="true"] i{color:var(--accent);opacity:.75}
+
+.topright{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+
+.savechip{
+  display:flex;align-items:center;gap:6px;
+  font-size:11.5px;color:var(--muted);
+  padding:4px 10px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);
+  white-space:nowrap;
+}
+.savedot{width:6px;height:6px;border-radius:50%;background:var(--muted);flex:0 0 auto}
+.savechip[data-s="saved"] .savedot{background:var(--s-done)}
+.savechip[data-s="saving"] .savedot{background:var(--s-postponed);animation:pulse 1s ease-in-out infinite}
+.savechip[data-s="unsaved"] .savedot{background:var(--s-postponed)}
+.savechip[data-s="error"] .savedot{background:var(--s-cancel)}
+.savechip[data-s="connecting"] .savedot{background:var(--s-notstarted);animation:pulse 1s ease-in-out infinite}
+.savechip[data-s="unconfigured"] .savedot{background:var(--s-cancel)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.savechip[data-s="saving"] .savedot{animation:none}}
+.gdot{width:6px;height:6px;border-radius:50%;background:var(--s-done);display:inline-block;margin-right:5px;vertical-align:middle}
+
+/* ---------- buttons ---------- */
+.btn{
+  border:1px solid var(--border);background:var(--surface);color:var(--text-2);
+  padding:5px 11px;border-radius:8px;font-weight:500;white-space:nowrap;
+  transition:background .12s,border-color .12s,color .12s;
+}
+.btn:hover{background:var(--surface-2);color:var(--text);border-color:var(--border-strong)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.primary:hover{filter:brightness(1.08);color:#fff}
+.btn.danger{color:var(--s-cancel);border-color:var(--border)}
+.btn.danger:hover{background:var(--s-cancel);border-color:var(--s-cancel);color:#fff}
+.btn.sm{padding:3px 9px;font-size:12px;border-radius:7px}
+a.btn{text-decoration:none;display:inline-flex;align-items:center;color:var(--text-2)}
+a.btn:hover{text-decoration:none;color:var(--text)}
+a.btn.primary{color:#fff}
+.btn[disabled]{opacity:.45;pointer-events:none}
+
+/* ---------- toolbar ---------- */
+.goals{
+  flex:0 0 auto;display:flex;align-items:center;gap:16px;
+  padding:9px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);
+}
+.goalsrow{flex:1 1 auto;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;min-width:0}
+.goalitem{min-width:0}
+.goalhead{
+  display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  font-size:11px;color:var(--text-2);margin-bottom:4px;white-space:nowrap;overflow:hidden;
+}
+.goalhead span{overflow:hidden;text-overflow:ellipsis}
+.goalhead b{
+  font-family:"IBM Plex Mono",monospace;font-weight:600;color:var(--text);
+  font-variant-numeric:tabular-nums;flex:0 0 auto;
+}
+.goaltrack{height:6px;border-radius:999px;background:var(--surface-3);overflow:hidden}
+.goalfill{height:100%;background:var(--accent);border-radius:999px}
+.toolbar{
+  flex:0 0 auto;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+  padding:10px 18px;background:var(--surface);border-bottom:1px solid var(--border);
+}
+.boardtitle{display:flex;flex-direction:column;gap:1px;margin-right:2px}
+.boardtitle h1{font-size:16px;font-weight:600;letter-spacing:-.005em}
+.boardtitle p{margin:0;font-size:11.5px;color:var(--muted)}
+.tsep{width:1px;height:26px;background:var(--border);flex:0 0 auto}
+.tgroup{display:flex;align-items:center;gap:6px}
+.tlabel{font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+
+.pic-filter{display:flex;gap:4px;flex-wrap:wrap}
+.picpill{
+  border:1px solid var(--border);background:var(--surface);
+  border-radius:999px;padding:2px 10px 3px;font-size:11.5px;font-weight:500;
+  display:flex;align-items:center;gap:5px;color:var(--text-2);
+}
+.picpill .dot{width:7px;height:7px;border-radius:50%;background:var(--m,#888)}
+.picpill[aria-pressed="true"]{background:var(--surface-3);border-color:var(--border-strong);color:var(--text)}
+.picpill:hover{border-color:var(--border-strong)}
+.picpill.allpill{font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.04em;padding:3px 10px}
+
+select.ctl,input.ctl{
+  background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:5px 9px;color:var(--text);
+}
+select.ctl:hover,input.ctl:hover{border-color:var(--border-strong)}
+
+.stats{display:flex;gap:0;margin-left:auto;align-items:stretch}
+.stat{padding:0 14px;border-left:1px solid var(--border);display:flex;flex-direction:column;justify-content:center}
+.stat:first-child{border-left:0}
+.stat b{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15;font-family:"IBM Plex Mono",monospace}
+.stat span{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.stat.done b{color:var(--s-done)} .stat.proc b{color:var(--s-process)} .stat.late b{color:var(--s-cancel)}
+
+/* ---------- gantt ---------- */
+.viewport{flex:1 1 auto;overflow:auto;position:relative;background:var(--surface)}
+.canvas{position:relative;min-width:100%}
+
+.head{
+  position:sticky;top:0;z-index:5;height:var(--headH);display:flex;
+  background:var(--surface);border-bottom:1px solid var(--border-strong);
+}
+.head .left{
+  position:sticky;left:0;z-index:6;width:var(--leftW);flex:0 0 auto;
+  background:var(--surface);border-right:1px solid var(--border-strong);
+  display:grid;grid-template-columns:var(--cols);align-items:end;
+}
+.head .left>div{
+  padding:0 8px 7px;font-size:10px;letter-spacing:.07em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;line-height:1.25;
+}
+.head .track{flex:0 0 auto;position:relative}
+.mrow{display:flex;height:28px;align-items:center}
+.mcell{
+  height:100%;display:flex;align-items:center;flex:0 0 auto;
+  border-left:1px solid var(--border);font-size:11px;font-weight:600;color:var(--text-2);
+  white-space:nowrap;letter-spacing:.01em;
+}
+.mcell span{
+  position:sticky;left:calc(var(--leftW) + 9px);padding-right:10px;
+  background:var(--surface);
+}
+.drow{display:flex;height:29px}
+.dcell{
+  flex:0 0 auto;width:var(--dayW);display:grid;place-items:center;
+  font-size:9.5px;color:var(--muted);font-family:"IBM Plex Mono",monospace;
+  font-variant-numeric:tabular-nums;border-left:1px solid var(--grid);
+}
+.dcell.we{background:var(--weekend)}
+.dcell.mstart{border-left:1px solid var(--border-strong)}
+.dcell.today{background:var(--today);color:#fff;font-weight:500}
+
+.overlay{position:absolute;top:var(--headH);bottom:0;z-index:1;pointer-events:none}
+.mline{position:absolute;top:0;bottom:0;width:1px;background:var(--border-strong);opacity:.55}
+.todayline{position:absolute;top:0;bottom:0;width:2px;background:var(--today);opacity:.5}
+
+.rows{position:relative;z-index:2}
+
+.sect{display:flex;position:relative;z-index:3}
+.sect .left{
+  position:sticky;left:0;width:var(--leftW);flex:0 0 auto;
+  background:var(--surface-3);border-right:1px solid var(--border-strong);
+  display:flex;align-items:center;gap:8px;padding:7px 10px;
+}
+.sect .track{flex:0 0 auto;background:var(--surface-3)}
+.sect h2{
+  font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--text);
+  margin:0;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.sect .count{
+  font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;flex:0 0 auto;
+  background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:0 7px;
+}
+.sectdday{
+  font-size:10.5px;color:var(--s-dday);font-family:"IBM Plex Mono",monospace;
+  font-variant-numeric:tabular-nums;flex:0 0 auto;white-space:nowrap;
+}
+.sect .grow{flex:1 1 auto}
+.sectacts{display:flex;gap:4px;opacity:0;transition:opacity .12s;flex:0 0 auto}
+.sect:hover .sectacts,.sect:focus-within .sectacts{opacity:1}
+
+.row{display:flex;position:relative}
+.row:hover .left{background:var(--surface-2)}
+.row .left{
+  position:sticky;left:0;z-index:3;width:var(--leftW);flex:0 0 auto;
+  background:var(--surface);border-right:1px solid var(--border-strong);
+  border-bottom:1px solid var(--grid);
+  display:grid;grid-template-columns:var(--cols);align-items:center;min-height:34px;
+}
+.row .left>div{padding:5px 8px;min-width:0;overflow:hidden}
+.row .track{flex:0 0 auto;position:relative;border-bottom:1px solid var(--grid)}
+
+.c-act{font-weight:500;white-space:nowrap;text-overflow:ellipsis}
+.c-rem{color:var(--muted);font-size:11.5px;white-space:nowrap;text-overflow:ellipsis}
+.c-num{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-variant-numeric:tabular-nums;
+  color:var(--text-2);white-space:nowrap;
+}
+.c-dur{text-align:center}
+.c-act button{
+  background:none;border:0;padding:0;text-align:left;width:100%;font-weight:500;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text);
+}
+.c-act button:hover{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.c-act{display:flex;align-items:center;gap:5px;min-width:0}
+.c-act button{flex:0 1 auto;min-width:0}
+.linkic{
+  flex:0 0 auto;color:var(--accent);text-decoration:none;font-size:11px;
+  display:inline-flex;align-items:center;opacity:.85;
+}
+.linkic:hover{opacity:1;text-decoration:underline}
+.propbadge{
+  flex:0 0 auto;font-size:10px;font-weight:600;letter-spacing:.02em;color:var(--s-dday);
+  background:color-mix(in srgb, var(--s-dday) 14%, transparent);
+  border-radius:5px;padding:1px 5px;white-space:nowrap;
+}
+
+.pics{display:flex;gap:3px;flex-wrap:nowrap}
+.pic{
+  width:20px;height:20px;border-radius:6px;flex:0 0 auto;
+  display:grid;place-items:center;font-size:9px;font-weight:600;color:#fff;
+  background:var(--m,#888);letter-spacing:.01em;
+}
+.pic.all{width:auto;padding:0 7px;background:var(--text-2)}
+
+select.statussel{
+  border:1px solid transparent;background:var(--st-bg,var(--surface-2));color:var(--st-fg,var(--text-2));
+  border-radius:999px;padding:2px 6px 3px 8px;font-size:11px;font-weight:500;
+  max-width:100%;appearance:none;text-align:left;
+}
+select.statussel:hover{border-color:var(--border-strong)}
+select.statussel option{background:var(--surface);color:var(--text)}
+
+.rowact{display:flex;justify-content:center}
+.iconbtn{
+  border:0;background:none;color:var(--muted);width:22px;height:22px;border-radius:6px;
+  display:grid;place-items:center;font-size:14px;line-height:1;opacity:0;transition:opacity .12s;
+}
+.row:hover .iconbtn,.row:focus-within .iconbtn{opacity:1}
+.iconbtn:hover{background:var(--surface-3);color:var(--text)}
+
+.bar{
+  position:absolute;top:7px;height:20px;border-radius:5px;
+  background:var(--c);display:flex;align-items:center;padding:0 7px;
+  font-size:10.5px;color:#fff;font-weight:500;white-space:nowrap;overflow:hidden;
+  box-shadow:0 1px 2px rgba(20,32,48,.18);
+}
+.bar.ghost{background:transparent;border:1px dashed var(--c);color:var(--c);box-shadow:none}
+.bar.dday{border-radius:4px;background:var(--c);min-width:12px}
+.bar .pct{position:absolute;inset:0;background:rgba(255,255,255,.18)}
+
+.addrow{display:flex;position:relative}
+.addrow .left{
+  position:sticky;left:0;z-index:3;width:var(--leftW);flex:0 0 auto;
+  background:var(--surface);border-right:1px solid var(--border-strong);
+  border-bottom:1px solid var(--grid);padding:4px 10px;
+}
+.addrow .track{flex:0 0 auto;border-bottom:1px solid var(--grid)}
+.linkbtn{
+  border:0;background:none;color:var(--muted);font-size:11.5px;font-weight:500;
+  padding:2px 6px;border-radius:6px;
+}
+.linkbtn:hover{color:var(--accent);background:var(--accent-soft)}
+
+.emptyboard{padding:56px 24px;text-align:center;color:var(--muted);position:sticky;left:0;max-width:520px;margin:0 auto}
+.emptyboard h3{font-size:15px;color:var(--text);margin-bottom:6px}
+.emptyboard p{margin:0 0 16px;font-size:12.5px}
+
+/* ---------- customer board ---------- */
+.custwrap{padding:20px 24px 40px;max-width:1100px;margin:0 auto}
+.custaddbar{display:flex;justify-content:flex-end;margin-bottom:14px}
+.custgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px}
+.custcard{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:14px 16px;display:flex;flex-direction:column;gap:10px;
+}
+.custhead{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.custhead h3{font-size:14.5px;font-weight:600}
+.custorg{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+.custacts{display:flex;gap:4px;flex:0 0 auto}
+.custrow{font-size:12.5px;color:var(--text-2);display:flex;gap:6px}
+.custlabel{color:var(--muted);flex:0 0 auto}
+.custstats{display:flex;gap:0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.custstat{flex:1 1 0;padding:8px 0;text-align:center}
+.custstat:first-child{border-right:1px solid var(--border)}
+.custstat b{display:block;font-family:"IBM Plex Mono",monospace;font-size:15px;font-weight:600}
+.custstat span{font-size:10px;color:var(--muted);letter-spacing:.03em;text-transform:uppercase}
+.custjobs{display:flex;flex-wrap:wrap;gap:5px}
+.custjobpill{
+  font-size:11px;padding:2px 8px;border-radius:999px;background:var(--surface-2);
+  border:1px solid var(--border);color:var(--text-2);
+}
+.custjobdate{color:var(--s-dday);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.colorswatches{display:flex;flex-wrap:wrap;gap:7px}
+.colorsw{
+  width:26px;height:26px;border-radius:8px;border:2px solid transparent;cursor:pointer;
+  display:grid;place-items:center;color:#fff;font-size:12px;
+}
+.colorsw[aria-pressed="true"]{border-color:var(--text)}
+
+.footer{
+  flex:0 0 auto;display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:7px 18px;background:var(--surface);border-top:1px solid var(--border);
+  font-size:11px;color:var(--muted);
+}
+.legend{display:flex;gap:12px;flex-wrap:wrap}
+.lg{display:flex;align-items:center;gap:5px}
+.lg i{width:10px;height:10px;border-radius:3px;background:var(--c);display:block}
+
+/* ---------- modal ---------- */
+.scrim{
+  position:fixed;inset:0;background:rgba(16,22,30,.42);backdrop-filter:blur(2px);
+  display:grid;place-items:center;z-index:50;padding:20px;
+}
+.modal{
+  background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  box-shadow:var(--shadow);width:min(560px,100%);max-height:88vh;overflow:auto;
+}
+.modal header{
+  padding:16px 20px 12px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+}
+.modal header h2{font-size:15px;font-weight:600}
+.modal .body{padding:16px 20px;display:flex;flex-direction:column;gap:14px}
+.modal footer{
+  padding:12px 20px 16px;display:flex;gap:8px;align-items:center;
+  border-top:1px solid var(--border);
+}
+.modal footer .spacer{flex:1 1 auto}
+.field{display:flex;flex-direction:column;gap:5px}
+.field>label{font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.field input,.field select,.field textarea{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:7px 10px;width:100%;
+}
+.field textarea{resize:vertical;min-height:56px}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);background:var(--surface)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.grid3{display:grid;grid-template-columns:1fr .6fr 1fr;gap:14px}
+.picks{display:flex;gap:6px;flex-wrap:wrap}
+.pickbtn{
+  border:1px solid var(--border);background:var(--surface-2);border-radius:8px;
+  padding:5px 10px;font-size:12px;display:flex;align-items:center;gap:6px;color:var(--text-2);font-weight:500;
+}
+.pickbtn .dot{width:8px;height:8px;border-radius:50%;background:var(--m,#888)}
+.pickbtn[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);color:var(--text)}
+.pickbtn.allpick{font-weight:600}
+.picks .allpick{margin-right:4px}
+.hint{font-size:11px;color:var(--muted)}
+.field>label.chk{text-transform:none;letter-spacing:normal;font-weight:400}
+.chk{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:var(--text-2);cursor:pointer;padding:2px 0}
+.chk input{width:auto;margin:2px 0 0;flex:0 0 auto;accent-color:var(--accent)}
+.chk span{flex:1 1 auto}
+.propblock{
+  display:flex;flex-direction:column;gap:14px;
+  border-left:2px solid var(--s-dday);padding:2px 0 2px 14px;margin-left:1px;
+}
+.teamrow{display:grid;grid-template-columns:74px 1fr 44px;gap:8px;align-items:center}
+.teamrow .email{grid-column:1 / -1;font-size:12px}
+.teamrow+.teamrow{border-top:1px solid var(--border);padding-top:12px}
+
+@media (max-width:900px){
+  .stats{margin-left:0;width:100%;order:9;border-top:1px solid var(--border);padding-top:8px}
+  .boardtitle{width:100%}
+}
+</style>
+</head>
+<body>
+
+<script type="application/json" id="seed-state">
+{"v":1,"activeBoard":"b-master","dayW":24,"team":[{"code":"PALM","name":"ปาม","color":"#2F6FA8","email":"napat.kijsana@gmail.com"},{"code":"SIN","name":"สิน","color":"#3B8467","email":"chirasin.ch@gmail.com"},{"code":"KK","name":"ของขวัญ","color":"#B07A2B","email":"kwanchanok.son@gmail.com"},{"code":"KANTA","name":"กันตะ","color":"#7A4FA3","email":"thanaphat.sngn@gmail.com"},{"code":"TT","name":"แทนไท","color":"#B85C5C","email":"tangwanit.tan@gmail.com"}],"boards":[{"id":"b-master","name":"SSt Gantt Chart","sub":"ภาพรวมงานทั้งทีม","sections":[{"id":"s1","title":"Back office","tasks":[{"id":"t1","pic":["PALM","SIN","KK","KANTA","TT"],"title":"ประชุมกรรมกรประจำสัปดาห์","remark":"เช็ก Gantt ร่วมกัน","status":"In process","start":"2026-08-25","dur":1},{"id":"t2","pic":["KK"],"title":"สรุปบัญชีรายรับรายจ่าย Q3","remark":"","status":"Not started","start":"2026-09-28","dur":5}]},{"id":"s2","title":"Project delivery","tasks":[{"id":"t3","pic":["PALM"],"title":"อัปเดตสถานะงานลูกค้าทั้งหมด","remark":"ลงในบอร์ดนี้ให้ครบ","status":"In process","start":"2026-08-24","dur":3}]},{"id":"s3","title":"Team & Planning","tasks":[{"id":"t4","pic":["PALM","SIN","KK","KANTA","TT"],"title":"วางแผนงานปี 2027","remark":"","status":"Not started","start":"2026-11-02","dur":10}]}]},{"id":"b-pr","name":"PR Gantt Chart","sub":"งานประชาสัมพันธ์และสื่อสารแบรนด์","sections":[{"id":"p1","title":"Content & Social Media","tasks":[{"id":"t5","pic":["KK"],"title":"แผนคอนเทนต์ TikTok เดือนกันยายน","remark":"คลิปความรู้ + คลิปขายของ","status":"In process","start":"2026-08-26","dur":5},{"id":"t6","pic":["PALM","KK"],"title":"โพสต์ให้ความรู้ Facebook รายสัปดาห์","remark":"","status":"Not started","start":"2026-09-01","dur":30}]},{"id":"p2","title":"Branding & Portfolio","tasks":[{"id":"t7","pic":["SIN"],"title":"อัปเดต Portfolio deck","remark":"ปรับหน้าตา / format","status":"Not started","start":"2026-09-07","dur":7}]},{"id":"p3","title":"Media & Partnership","tasks":[{"id":"t8","pic":["TT"],"title":"ติดต่อสื่อและพาร์ตเนอร์เครือข่าย","remark":"","status":"Not started","start":"2026-10-01","dur":14}]}]},{"id":"b-sales","name":"Sales & Marketing Gantt Chart","sub":"งานขายและการตลาด","sections":[{"id":"m1","title":"Selling product to school","tasks":[{"id":"t9","pic":["KK"],"title":"School listing + contact person","remark":"ลงแมพ ลง priority","status":"In process","start":"2026-08-24","dur":10},{"id":"t10","pic":["PALM"],"title":"ส่งอีเมลเสนอโครงการให้โรงเรียน","remark":"","status":"Not started","start":"2026-09-07","dur":5}]},{"id":"m2","title":"Connection & Referral","tasks":[{"id":"t11","pic":["SIN"],"title":"Connection listing","remark":"ลูกค้าส่วนใหญ่มาจากการบอกต่อ","status":"In process","start":"2026-08-31","dur":7}]},{"id":"m3","title":"Campaign & Promotion","tasks":[{"id":"t12","pic":["KANTA"],"title":"แคมเปญค่ายปิดเทอม","remark":"","status":"Not started","start":"2026-10-05","dur":20}]}]}]}
+</script>
+
+<div class="app" id="app"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============ constants ============ */
+var STATUSES = ["Not started","In process","Done","Postponed","Cancel","D-DAY"];
+var SVAR = {
+  "Not started":"--s-notstarted",
+  "In process":"--s-process",
+  "Done":"--s-done",
+  "Postponed":"--s-postponed",
+  "Cancel":"--s-cancel",
+  "D-DAY":"--s-dday"
+};
+var COLS_FULL = "72px 232px 152px 104px 78px 44px 78px 34px";
+var COLS_SLIM = "72px 288px 106px 34px";
+function colsDef(){ return view.compact ? COLS_SLIM : COLS_FULL; }
+function leftW(){ return view.compact ? 500 : 794; }
+var MON = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+var MONS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+
+/* ============ date helpers (UTC-safe) ============ */
+function ymd(d){
+  return d.getUTCFullYear()+"-"+String(d.getUTCMonth()+1).padStart(2,"0")+"-"+String(d.getUTCDate()).padStart(2,"0");
+}
+function parse(s){
+  if(!s) return null;
+  var p = String(s).split("-");
+  if(p.length!==3) return null;
+  var d = new Date(Date.UTC(+p[0], +p[1]-1, +p[2]));
+  return isNaN(d.getTime()) ? null : d;
+}
+function addDays(d,n){ return new Date(d.getTime()+n*86400000); }
+function diffDays(a,b){ return Math.round((b.getTime()-a.getTime())/86400000); }
+function todayUTC(){
+  var n = new Date();
+  return new Date(Date.UTC(n.getFullYear(), n.getMonth(), n.getDate()));
+}
+function dueOf(t){
+  var s = parse(t.start);
+  if(!s) return null;
+  return addDays(s, Math.max(1,(t.dur||1))-1);
+}
+function fmtShort(s){
+  var d = parse(s);
+  if(!d) return "—";
+  return String(d.getUTCDate()).padStart(2,"0")+"/"+String(d.getUTCMonth()+1).padStart(2,"0")+"/"+String(d.getUTCFullYear()).slice(2);
+}
+function esc(s){
+  return String(s==null?"":s).replace(/[&<>"']/g,function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+function uid(p){ return p + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-3); }
+
+/* ============ state ============ */
+var state = null;
+var filters = { pic:[], status:"" };
+var readOnly = false;
+var saveTimer = null;
+var saveState = "connecting";
+
+/* Per-viewer view state — which board is open, zoom, compact columns.
+   Kept in this browser only, so browsing never publishes a new version
+   and never collides with a teammate's edits. */
+var view = {activeBoard:null, dayW:24, compact:false};
+var VIEW_KEY = "sst-gantt-view";
+function loadView(){
+  try{
+    var raw = localStorage.getItem(VIEW_KEY);
+    if(raw){ var v = JSON.parse(raw); if(v && typeof v === "object") Object.assign(view, v); }
+  }catch(e){}
+}
+function saveView(){
+  try{ localStorage.setItem(VIEW_KEY, JSON.stringify(view)); }catch(e){}
+}
+
+/* ============ firebase ============ */
+var FB_PATH = "board_state";
+var fbDb = null;
+function fbConfigured(){
+  var c = window.FIREBASE_CONFIG;
+  return !!(c && c.apiKey && c.apiKey.indexOf("YOUR_API_KEY") < 0 &&
+            c.databaseURL && c.databaseURL.indexOf("YOUR_PROJECT") < 0);
+}
+function initFirebase(){
+  if(!fbConfigured() || !window.firebase) return null;
+  try{
+    firebase.initializeApp(window.FIREBASE_CONFIG);
+    return firebase.database();
+  }catch(e){ return null; }
+}
+/* Firebase Realtime Database drops empty arrays/objects entirely (a section
+   with zero tasks comes back as undefined, not []) — patch that back in
+   wherever state is loaded, so the rest of the app can assume arrays exist. */
+function normalizeState(s){
+  if(!s) return s;
+  s.boards = s.boards || [];
+  s.boards.forEach(function(b){
+    b.sections = b.sections || [];
+    b.sections.forEach(function(sec){
+      sec.tasks = sec.tasks || [];
+      sec.color = sec.color || "";
+      sec.customerId = sec.customerId || "";
+    });
+  });
+  s.team = s.team || [];
+  s.customers = s.customers || [];
+  s.goals2027 = s.goals2027 || {salesTarget:0, participantsTarget:0, workshopsTarget:0};
+  return s;
+}
+function subscribeRealtime(){
+  if(!fbDb) return;
+  fbDb.ref(FB_PATH).on("value", function(snap){
+    var v = snap.val();
+    if(v && Object.keys(v).length){
+      state = normalizeState(v);
+      render();
+    }
+    setSave("saved");
+  }, function(){
+    setSave("error");
+  });
+}
+
+function seed(){
+  return JSON.parse(document.getElementById("seed-state").textContent);
+}
+function board(){
+  var b = state.boards.filter(function(x){return x.id===view.activeBoard;})[0];
+  return b || state.boards[0];
+}
+function member(code){
+  var m = state.team.filter(function(x){return x.code===code;})[0];
+  return m || {code:code,name:code,color:"#8A94A1"};
+}
+
+/* ============ save ============ */
+function setSave(s){
+  saveState = s;
+  var el = document.getElementById("savechip");
+  if(!el) return;
+  var txt = {
+    saved:"บันทึกแล้ว · ซิงก์เรียลไทม์", saving:"กำลังบันทึก…", unsaved:"ยังไม่บันทึก",
+    error:"บันทึกไม่สำเร็จ", connecting:"กำลังเชื่อมต่อ…", unconfigured:"ยังไม่ได้ตั้งค่า Firebase"
+  }[s] || s;
+  el.setAttribute("data-s", s);
+  el.querySelector("span").textContent = txt;
+}
+function touch(){
+  setSave("unsaved");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 900);
+}
+async function save(){
+  if(!fbDb){ setSave("unconfigured"); return; }
+  setSave("saving");
+  try{
+    await fbDb.ref(FB_PATH).set(state);
+    setSave("saved");
+  }catch(e){
+    setSave("error");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 5000);
+  }
+}
+
+/* ============ range ============ */
+function rangeOf(b){
+  var lo = null, hi = null;
+  b.sections.forEach(function(s){
+    s.tasks.forEach(function(t){
+      var st = parse(t.start), du = dueOf(t);
+      if(st && (!lo || st < lo)) lo = st;
+      if(du && (!hi || du > hi)) hi = du;
+    });
+  });
+  var tod = todayUTC();
+  if(!lo) lo = tod;
+  if(!hi) hi = addDays(tod, 60);
+  if(tod < lo) lo = tod;
+  if(tod > hi) hi = tod;
+  var start = new Date(Date.UTC(lo.getUTCFullYear(), lo.getUTCMonth(), 1));
+  var end = new Date(Date.UTC(hi.getUTCFullYear(), hi.getUTCMonth()+1, 0));
+  if(diffDays(start,end) < 80) end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth()+3, 0));
+  return {start:start, end:end, days: diffDays(start,end)+1};
+}
+
+/* ============ filtering ============ */
+function visible(t){
+  if(filters.status && t.status !== filters.status) return false;
+  if(filters.pic.length){
+    var hit = (t.pic||[]).some(function(p){ return filters.pic.indexOf(p) >= 0; });
+    if(!hit) return false;
+  }
+  return true;
+}
+
+/* ============ render ============ */
+function render(){
+  document.documentElement.style.setProperty("--cols", colsDef());
+  document.documentElement.style.setProperty("--leftW", leftW()+"px");
+  var app = document.getElementById("app");
+
+  if(view.activeBoard === "customers"){
+    app.innerHTML = topbar("customers") + goalsPanel() + customersView();
+    wire(null, null, null);
+    wireCustomers();
+    return;
+  }
+
+  var b = board();
+  var r = rangeOf(b);
+  var dayW = view.dayW || 24;
+  var trackW = r.days * dayW;
+  var LEFTW = leftW();
+  document.documentElement.style.setProperty("--dayW", dayW+"px");
+
+  var keepScroll = null;
+  var oldVp = document.getElementById("viewport");
+  if(oldVp) keepScroll = {x:oldVp.scrollLeft, y:oldVp.scrollTop};
+
+  app.innerHTML =
+    topbar(b.id) +
+    goalsPanel() +
+    toolbar(b) +
+    '<div class="viewport" id="viewport"><div class="canvas" style="width:'+(LEFTW+trackW)+'px">' +
+      head(r, dayW, trackW) +
+      overlay(r, dayW, trackW) +
+      '<div class="rows">' + rows(b, r, dayW, trackW) + '</div>' +
+    '</div></div>' +
+    footer();
+
+  wire(b, r, dayW);
+
+  var vp = document.getElementById("viewport");
+  if(keepScroll){ vp.scrollLeft = keepScroll.x; vp.scrollTop = keepScroll.y; }
+  else jumpToday(false);
+}
+
+var CI_LOGO_URL = "https://drive.google.com/drive/folders/1kmvK1LZiQ0lGpqXSPwyeFcwRVBuz5oEt?usp=share_link";
+function topbar(activeId){
+  var tabs = state.boards.map(function(x){
+    var n = 0;
+    x.sections.forEach(function(s){ n += s.tasks.length; });
+    return '<button class="tab" role="tab" data-board="'+esc(x.id)+'" aria-selected="'+(x.id===activeId)+'">'+
+      esc(x.name)+' <i>'+n+'</i></button>';
+  }).join("") +
+    '<button class="tab" role="tab" data-board="customers" aria-selected="'+(activeId==="customers")+'">'+
+      'ลูกค้า <i>'+state.customers.length+'</i></button>';
+  var isBoard = activeId !== "customers";
+  return '<div class="topbar">'+
+    '<div class="brand"><div class="mark">SSt</div><div>'+
+      '<b>SSt Gantt Board</b><span>SoulScity Learning</span>'+
+    '</div></div>'+
+    '<div class="tabs" role="tablist">'+tabs+'</div>'+
+    '<div class="topright">'+
+      '<a class="btn sm" id="btn-cilogo" target="_blank" rel="noopener noreferrer" href="'+esc(CI_LOGO_URL)+'">CI&amp;Logo</a>'+
+      '<button class="btn sm" id="btn-team">ทีม</button>'+
+      (isBoard?'<button class="btn sm" id="btn-gcal" title="ส่งกำหนดส่ง (DUE DATE) เข้า Google Calendar อัตโนมัติ">'+
+        (gcalConnected()?'<i class="gdot" aria-hidden="true"></i>':'')+'Google Calendar</button>':'')+
+      (isBoard?'<button class="btn sm" id="btn-ics" title="ดาวน์โหลดกำหนดส่ง (DUE DATE) เป็นไฟล์ .ics เพื่อนำเข้าปฏิทิน">.ics</button>':'')+
+      (isBoard?'<button class="btn sm" id="btn-csv" title="ดาวน์โหลดบอร์ดนี้เป็นไฟล์ CSV">CSV</button>':'')+
+      '<div class="savechip" id="savechip" data-s="'+saveState+'"><i class="savedot"></i><span>บันทึกแล้ว</span></div>'+
+    '</div>'+
+  '</div>';
+}
+
+/* ============ goal 2027 ============ */
+function goals2027Sums(){
+  var sales=0, participants=0, workshops=0;
+  state.boards.forEach(function(b){
+    b.sections.forEach(function(s){
+      s.tasks.forEach(function(t){
+        if(t.status !== "D-DAY") return;
+        var du = dueOf(t);
+        if(!du || du.getUTCFullYear() !== 2027) return;
+        var g = t.d2027 || {};
+        sales += (+g.sales)||0;
+        participants += (+g.participants)||0;
+        workshops += (+g.workshops)||0;
+      });
+    });
+  });
+  return {sales:sales, participants:participants, workshops:workshops};
+}
+function goalBar(label, actual, target, suffix){
+  var pct = target>0 ? Math.min(100, Math.round(actual/target*100)) : 0;
+  return '<div class="goalitem">'+
+    '<div class="goalhead"><span>'+esc(label)+'</span><b>'+actual.toLocaleString()+' / '+target.toLocaleString()+esc(suffix||"")+'</b></div>'+
+    '<div class="goaltrack"><div class="goalfill" style="width:'+pct+'%"></div></div>'+
+  '</div>';
+}
+function goalsPanel(){
+  var sums = goals2027Sums();
+  var g = state.goals2027;
+  return '<div class="goals">'+
+    '<div class="goalsrow">'+
+      goalBar("ยอดขาย 2027", sums.sales, g.salesTarget, " บาท") +
+      goalBar("ผู้เข้าร่วมสะสม 2027", sums.participants, g.participantsTarget, " คน") +
+      goalBar("Workshop/Camp สะสม 2027", sums.workshops, g.workshopsTarget, " ครั้ง") +
+    '</div>'+
+    (readOnly?"":'<button class="btn sm" id="btn-goals-edit" style="flex:0 0 auto">แก้เป้าหมาย</button>')+
+  '</div>';
+}
+function openGoalsEdit(){
+  var g = state.goals2027;
+  modal("แก้เป้าหมายปี 2027",
+    '<div class="field"><label>เป้ายอดขาย (บาท)</label><input type="number" min="0" id="f-goal-sales" value="'+(g.salesTarget||0)+'"></div>'+
+    '<div class="field"><label>เป้าผู้เข้าร่วมสะสม (คน)</label><input type="number" min="0" id="f-goal-part" value="'+(g.participantsTarget||0)+'"></div>'+
+    '<div class="field"><label>เป้า Workshop/Camp สะสม (ครั้ง)</label><input type="number" min="0" id="f-goal-work" value="'+(g.workshopsTarget||0)+'"></div>'+
+    '<span class="hint">ตัวเลข "ก้าวหน้าจริง" คำนวณอัตโนมัติจากงานสถานะ D-DAY ที่มีกำหนดส่งในปี 2027 — กรอกยอดขาย/ผู้เข้าร่วม/จำนวน workshop ไว้ในหน้าต่างแก้ไขงานแต่ละงาน</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
+    '<button class="btn primary" id="m-ok">บันทึก</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  document.getElementById("m-ok").onclick = function(){
+    state.goals2027 = {
+      salesTarget: Math.max(0, parseInt(document.getElementById("f-goal-sales").value,10)||0),
+      participantsTarget: Math.max(0, parseInt(document.getElementById("f-goal-part").value,10)||0),
+      workshopsTarget: Math.max(0, parseInt(document.getElementById("f-goal-work").value,10)||0)
+    };
+    closeModal(); touch(); render();
+  };
+}
+
+/* ============ customer board ============ */
+function customerSections(customerId){
+  var out = [];
+  state.boards.forEach(function(b){
+    b.sections.forEach(function(s){
+      if(s.customerId === customerId) out.push({board:b, section:s});
+    });
+  });
+  return out;
+}
+/* earliest start → latest due across that section's D-DAY task(s), for display
+   next to the section name — empty string if the section has no D-DAY task */
+function sectionDdayRange(s){
+  var from = null, to = null;
+  s.tasks.forEach(function(t){
+    if(t.status !== "D-DAY") return;
+    var st = parse(t.start), du = dueOf(t);
+    if(st && (!from || st < from)) from = st;
+    if(du && (!to || du > to)) to = du;
+  });
+  if(!from || !to) return "";
+  return fmtShort(ymd(from)) + " – " + fmtShort(ymd(to));
+}
+/* cumulative revenue for a customer = sum of the "sales" figure entered on
+   every task inside every section linked to them (not just D-DAY, and not
+   restricted to 2027 — this is a running lifetime total, unlike the 2027
+   goal panel which only counts D-DAY tasks due within that year). */
+function customerRevenue(customerId){
+  var total = 0;
+  customerSections(customerId).forEach(function(j){
+    j.section.tasks.forEach(function(t){
+      total += (t.d2027 && (+t.d2027.sales)) || 0;
+    });
+  });
+  return total;
+}
+function customersView(){
+  if(!state.customers.length){
+    return '<div class="viewport" id="viewport"><div class="emptyboard"><h3>ยังไม่มีข้อมูลลูกค้า</h3>'+
+      '<p>เพิ่มลูกค้าแล้วไปผูกกับหัวข้องานในบอร์ดต่างๆ ได้ที่ปุ่ม "แก้ชื่อ" ของแต่ละหัวข้อ</p>'+
+      (readOnly?"":'<button class="btn primary" id="btn-cust-add-empty">+ เพิ่มลูกค้า</button>')+'</div></div>';
+  }
+  var cards = state.customers.map(function(c){
+    var jobs = customerSections(c.id);
+    var jobsHtml = jobs.length
+      ? '<div class="custjobs">'+jobs.map(function(j){
+          var range = sectionDdayRange(j.section);
+          return '<span class="custjobpill">'+esc(j.board.name)+' › '+esc(j.section.title)+
+            (range?' <span class="custjobdate">('+esc(range)+')</span>':'')+'</span>';
+        }).join("")+'</div>'
+      : '<span class="hint">ยังไม่มีหัวข้องานผูกกับลูกค้านี้</span>';
+    return '<div class="custcard" data-cust="'+esc(c.id)+'">'+
+      '<div class="custhead">'+
+        '<div><h3>'+esc(c.name)+'</h3>'+(c.org?'<span class="custorg">'+esc(c.org)+'</span>':'')+'</div>'+
+        (readOnly?'':'<div class="custacts"><button class="btn sm" data-cust-edit="'+esc(c.id)+'">แก้ไข</button>'+
+          '<button class="btn sm danger" data-cust-del="'+esc(c.id)+'">ลบ</button></div>')+
+      '</div>'+
+      (c.contact?'<div class="custrow"><span class="custlabel">ช่องทางติดต่อ</span>'+esc(c.contact)+'</div>':'')+
+      '<div class="custstats">'+
+        '<div class="custstat"><b>'+jobs.length+'</b><span>งานที่เคยจ้าง</span></div>'+
+        '<div class="custstat"><b>'+customerRevenue(c.id).toLocaleString()+'</b><span>ยอดจ้างสะสม (บาท)</span></div>'+
+      '</div>'+
+      jobsHtml+
+    '</div>';
+  }).join("");
+  return '<div class="viewport" id="viewport"><div class="custwrap">'+
+    (readOnly?'':'<div class="custaddbar"><button class="btn primary sm" id="btn-cust-add">+ เพิ่มลูกค้า</button></div>')+
+    '<div class="custgrid">'+cards+'</div>'+
+  '</div></div>';
+}
+function wireCustomers(){
+  var add1 = document.getElementById("btn-cust-add");
+  if(add1) add1.onclick = function(){ openCustomer(null); };
+  var add2 = document.getElementById("btn-cust-add-empty");
+  if(add2) add2.onclick = function(){ openCustomer(null); };
+  document.querySelectorAll("[data-cust-edit]").forEach(function(el){
+    el.onclick = function(){ openCustomer(el.getAttribute("data-cust-edit")); };
+  });
+  document.querySelectorAll("[data-cust-del]").forEach(function(el){
+    el.onclick = function(){ confirmDeleteCustomer(el.getAttribute("data-cust-del")); };
+  });
+}
+function openCustomer(id){
+  if(readOnly) return;
+  var c = id ? state.customers.filter(function(x){return x.id===id;})[0] : null;
+  var isNew = !c;
+  if(isNew) c = {id:uid("cu"), name:"", contact:"", org:""};
+  modal(isNew?"เพิ่มลูกค้าใหม่":"แก้ไขข้อมูลลูกค้า",
+    '<div class="field"><label>ชื่อลูกค้า</label><input id="f-cu-name" value="'+esc(c.name)+'" placeholder="เช่น โรงเรียน... / บริษัท..."></div>'+
+    '<div class="field"><label>สังกัด (โรงเรียน/มหาวิทยาลัย/องค์กร)</label><input id="f-cu-org" value="'+esc(c.org||"")+'"></div>'+
+    '<div class="field"><label>ช่องทางการติดต่อ</label><input id="f-cu-contact" value="'+esc(c.contact||"")+'" placeholder="เบอร์โทร, อีเมล, Line ฯลฯ"></div>'+
+    '<span class="hint">จำนวนงานที่เคยจ้าง และยอดจ้างสะสม คำนวณอัตโนมัติจากหัวข้อที่ผูกกับลูกค้านี้ในบอร์ดต่างๆ (รวมยอดขายที่กรอกไว้ในแต่ละงาน) — ไปผูกได้ที่ปุ่ม "แก้ชื่อ" ของหัวข้อ</span>',
+    (isNew?"":'<button class="btn danger" id="m-del">ลบลูกค้านี้</button>')+
+    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
+    '<button class="btn primary" id="m-ok">'+(isNew?"เพิ่มลูกค้า":"บันทึก")+'</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  if(!isNew) document.getElementById("m-del").onclick = function(){ doDeleteCustomer(c.id); };
+  document.getElementById("m-ok").onclick = function(){
+    var name = document.getElementById("f-cu-name").value.trim();
+    if(!name){ document.getElementById("f-cu-name").focus(); return; }
+    c.name = name;
+    c.org = document.getElementById("f-cu-org").value.trim();
+    c.contact = document.getElementById("f-cu-contact").value.trim();
+    if(isNew) state.customers.push(c);
+    closeModal(); touch(); render();
+  };
+  setTimeout(function(){ var el=document.getElementById("f-cu-name"); if(el) el.focus(); }, 30);
+}
+function doDeleteCustomer(id){
+  state.customers = state.customers.filter(function(x){ return x.id!==id; });
+  state.boards.forEach(function(b){ b.sections.forEach(function(s){ if(s.customerId===id) s.customerId=""; }); });
+  closeModal(); touch(); render();
+}
+function confirmDeleteCustomer(id){
+  var c = state.customers.filter(function(x){return x.id===id;})[0];
+  if(!c) return;
+  var jobs = customerSections(id);
+  modal("ลบลูกค้า",
+    '<p style="margin:0">ลบ <b>'+esc(c.name)+'</b>?'+(jobs.length?' หัวข้องาน '+jobs.length+' รายการที่ผูกอยู่จะถูกถอดออกจากลูกค้านี้ (ไม่ได้ลบงาน)':'')+'</p>'+
+    '<span class="hint">การลบย้อนกลับไม่ได้</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
+    '<button class="btn danger" id="m-ok">ลบลูกค้า</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  document.getElementById("m-ok").onclick = function(){ doDeleteCustomer(id); };
+}
+
+function toolbar(b){
+  var all = [], done = 0, proc = 0, late = 0;
+  var tod = todayUTC();
+  b.sections.forEach(function(s){ s.tasks.forEach(function(t){
+    all.push(t);
+    if(t.status==="Done") done++;
+    else if(t.status==="In process") proc++;
+    var du = dueOf(t);
+    if(du && du < tod && t.status!=="Done" && t.status!=="Cancel") late++;
+  });});
+
+  var pills = '<button class="picpill allpill" data-pic-all="1" aria-pressed="'+(filters.pic.length===0)+'">ALL</button>' +
+    state.team.map(function(m){
+      var on = filters.pic.indexOf(m.code) >= 0;
+      return '<button class="picpill" data-pic="'+esc(m.code)+'" aria-pressed="'+on+'" style="--m:'+esc(m.color)+'">'+
+        '<i class="dot"></i>'+esc(m.name)+'</button>';
+    }).join("");
+
+  var opts = ['<option value="">ทั้งหมด</option>'].concat(STATUSES.map(function(s){
+    return '<option value="'+esc(s)+'"'+(filters.status===s?" selected":"")+'>'+esc(s)+'</option>';
+  })).join("");
+
+  var zoom = [14,24,34].map(function(w){
+    return '<option value="'+w+'"'+((view.dayW||24)===w?" selected":"")+'>'+
+      (w===14?"กระชับ":w===24?"ปกติ":"กว้าง")+'</option>';
+  }).join("");
+
+  return '<div class="toolbar">'+
+    '<div class="boardtitle"><h1>'+esc(b.name)+'</h1><p>'+esc(b.sub||"")+'</p></div>'+
+    '<div class="tsep"></div>'+
+    '<div class="tgroup"><span class="tlabel">PIC</span><div class="pic-filter">'+pills+'</div></div>'+
+    '<div class="tgroup"><span class="tlabel">Status</span><select class="ctl" id="f-status">'+opts+'</select></div>'+
+    '<div class="tgroup"><span class="tlabel">Zoom</span><select class="ctl" id="f-zoom">'+zoom+'</select></div>'+
+    '<div class="tgroup"><button class="btn sm" id="btn-compact" aria-pressed="'+(!!view.compact)+'">'+(view.compact?"แสดงทุกคอลัมน์":"ย่อคอลัมน์")+'</button>'+
+    '<button class="btn sm" id="btn-today">วันนี้</button>'+
+      (readOnly?"":'<button class="btn sm" id="btn-section">+ หัวข้อ</button><button class="btn primary sm" id="btn-add">+ เพิ่มงาน</button>')+
+    '</div>'+
+    '<div class="stats">'+
+      '<div class="stat"><b>'+all.length+'</b><span>Tasks</span></div>'+
+      '<div class="stat done"><b>'+done+'</b><span>Done</span></div>'+
+      '<div class="stat proc"><b>'+proc+'</b><span>In process</span></div>'+
+      '<div class="stat late"><b>'+late+'</b><span>Overdue</span></div>'+
+    '</div>'+
+  '</div>';
+}
+
+function head(r, dayW, trackW){
+  var months = [], cur = new Date(r.start.getTime());
+  while(cur <= r.end){
+    var mEnd = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth()+1, 0));
+    var to = mEnd > r.end ? r.end : mEnd;
+    months.push({d:new Date(cur.getTime()), n:diffDays(cur,to)+1});
+    cur = addDays(to,1);
+  }
+  var mrow = months.map(function(m){
+    var w = m.n*dayW;
+    var label = (w >= 92 ? MON[m.d.getUTCMonth()] : MONS[m.d.getUTCMonth()]) + " " + String(m.d.getUTCFullYear()).slice(2);
+    return '<div class="mcell" style="width:'+w+'px"><span>'+esc(label)+'</span></div>';
+  }).join("");
+
+  var tod = ymd(todayUTC());
+  var drow = "";
+  for(var i=0;i<r.days;i++){
+    var d = addDays(r.start,i);
+    var wd = d.getUTCDay();
+    var cls = "dcell";
+    if(wd===0 || wd===6) cls += " we";
+    if(d.getUTCDate()===1) cls += " mstart";
+    if(ymd(d)===tod) cls += " today";
+    drow += '<div class="'+cls+'">'+d.getUTCDate()+'</div>';
+  }
+
+  return '<div class="head">'+
+    '<div class="left">'+
+      (view.compact
+        ? '<div>PIC</div><div>Activities&#39; Processes</div><div>Status</div><div></div>'
+        : '<div>PIC</div><div>Activities&#39; Processes</div><div>Remark</div><div>Status</div>'+
+          '<div>Start</div><div>Dur</div><div>Due</div><div></div>')+
+    '</div>'+
+    '<div class="track" style="width:'+trackW+'px">'+
+      '<div class="mrow">'+mrow+'</div>'+
+      '<div class="drow">'+drow+'</div>'+
+    '</div>'+
+  '</div>';
+}
+
+function overlay(r, dayW, trackW){
+  var out = "", cur = new Date(Date.UTC(r.start.getUTCFullYear(), r.start.getUTCMonth()+1, 1));
+  while(cur <= r.end){
+    out += '<div class="mline" style="left:'+(diffDays(r.start,cur)*dayW)+'px"></div>';
+    cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth()+1, 1));
+  }
+  var tod = todayUTC();
+  if(tod >= r.start && tod <= r.end){
+    out += '<div class="todayline" style="left:'+(diffDays(r.start,tod)*dayW + dayW/2 - 1)+'px"></div>';
+  }
+  return '<div class="overlay" style="left:'+leftW()+'px;width:'+trackW+'px">'+out+'</div>';
+}
+
+function trackBg(r, dayW){
+  var offset = -(r.start.getUTCDay()===0 ? 6 : r.start.getUTCDay()-1) * dayW;
+  return 'background-image:repeating-linear-gradient(90deg,transparent 0 '+(5*dayW)+'px,var(--weekend) '+(5*dayW)+'px '+(7*dayW)+'px),'+
+    'repeating-linear-gradient(90deg,var(--grid) 0 1px,transparent 1px '+dayW+'px);'+
+    'background-position:'+offset+'px 0, 0 0;';
+}
+
+function rows(b, r, dayW, trackW){
+  if(!b.sections.length){
+    return '<div class="emptyboard"><h3>ยังไม่มีหัวข้องานในบอร์ดนี้</h3>'+
+      '<p>เริ่มจากสร้างหัวข้อ (เช่น Selling product to school) แล้วค่อยเพิ่มงานเข้าไปข้างใน</p>'+
+      (readOnly?"":'<button class="btn primary" id="btn-section-empty">+ สร้างหัวข้อแรก</button>')+'</div>';
+  }
+  var bg = trackBg(r, dayW);
+  return b.sections.map(function(s){
+    var ts = s.tasks.filter(visible);
+    var ddayRange = sectionDdayRange(s);
+    var out = '<div class="sect" data-sect="'+esc(s.id)+'">'+
+      '<div class="left"><h2>'+esc(s.title)+'</h2>'+
+        (ddayRange?'<span class="sectdday">'+esc(ddayRange)+'</span>':'')+
+        '<span class="count">'+ts.length+(ts.length!==s.tasks.length?"/"+s.tasks.length:"")+'</span><span class="grow"></span>'+
+        (readOnly?"":'<span class="sectacts">'+
+          '<button class="btn sm" data-rename="'+esc(s.id)+'">แก้ชื่อ</button>'+
+          '<button class="btn sm danger" data-delsect="'+esc(s.id)+'">ลบ</button>'+
+        '</span>')+
+      '</div>'+
+      '<div class="track" style="width:'+trackW+'px"></div>'+
+    '</div>';
+
+    ts.forEach(function(t){ out += taskRow(t, s, r, dayW, trackW, bg); });
+
+    if(!readOnly){
+      out += '<div class="addrow"><div class="left">'+
+        '<button class="linkbtn" data-addto="'+esc(s.id)+'">+ เพิ่มงานใน '+esc(s.title)+'</button>'+
+        '</div><div class="track" style="width:'+trackW+'px;'+bg+'"></div></div>';
+    }
+    return out;
+  }).join("");
+}
+
+function taskRow(t, s, r, dayW, trackW, bg){
+  var m = t.pic || [];
+  var picHtml;
+  if(m.length && m.length === state.team.length) picHtml = '<span class="pic all">ALL</span>';
+  else picHtml = m.slice(0,3).map(function(c){
+    var mm = member(c);
+    return '<span class="pic" style="--m:'+esc(mm.color)+'" title="'+esc(mm.name)+'">'+esc(c.slice(0,2))+'</span>';
+  }).join("") + (m.length>3 ? '<span class="pic" style="--m:var(--muted)">+'+(m.length-3)+'</span>' : "");
+  if(!m.length) picHtml = '<span class="c-rem">—</span>';
+
+  var svar = SVAR[t.status] || "--s-notstarted";
+  var sel = STATUSES.map(function(x){
+    return '<option value="'+esc(x)+'"'+(t.status===x?" selected":"")+'>'+esc(x)+'</option>';
+  }).join("");
+
+  var st = parse(t.start), du = dueOf(t);
+  var bar = "";
+  if(st && du){
+    var from = st < r.start ? r.start : st;
+    var to = du > r.end ? r.end : du;
+    if(to >= r.start && from <= r.end){
+      var left = diffDays(r.start, from) * dayW;
+      var w = Math.max(dayW, (diffDays(from,to)+1) * dayW) - 2;
+      var ghost = (t.status==="Cancel" || t.status==="Not started") ? " ghost" : "";
+      var dd = t.status==="D-DAY" ? " dday" : "";
+      var lbl = w > 58 ? esc(t.title) : "";
+      bar = '<div class="bar'+ghost+dd+'" style="left:'+(left+1)+'px;width:'+w+'px;--c:var('+svar+')" title="'+esc(t.title)+'">'+lbl+'</div>';
+    }
+  }
+
+  return '<div class="row" data-task="'+esc(t.id)+'" data-sect="'+esc(s.id)+'">'+
+    '<div class="left">'+
+      '<div class="pics">'+picHtml+'</div>'+
+      '<div class="c-act"><button data-edit="'+esc(t.id)+'" title="'+esc(t.title)+'">'+esc(t.title)+'</button>'+
+        (t.isProposal ? '<span class="propbadge" title="งาน Proposal">Proposal</span>' : '')+
+        (t.link ? '<a class="linkic" href="'+esc(t.link)+'" target="_blank" rel="noopener noreferrer" title="เปิดลิงก์: '+esc(t.link)+'">&#128279;</a>' : '')+
+      '</div>'+
+      (view.compact ? '' : '<div class="c-rem" title="'+esc(t.remark||"")+'">'+esc(t.remark||"")+'</div>')+
+      '<div><select class="statussel" data-status="'+esc(t.id)+'" '+(readOnly?"disabled":"")+
+        ' style="--st-bg:color-mix(in srgb, var('+svar+') 16%, transparent);--st-fg:var('+svar+')">'+sel+'</select></div>'+
+      (view.compact ? '' :
+        '<div class="c-num">'+fmtShort(t.start)+(t.startTime?' '+esc(t.startTime):'')+'</div>'+
+        '<div class="c-num c-dur">'+(t.dur||1)+'</div>'+
+        '<div class="c-num">'+(du?fmtShort(ymd(du)):"—")+(t.dueTime?' '+esc(t.dueTime):'')+'</div>')+
+      '<div class="rowact">'+(readOnly?"":'<button class="iconbtn" data-edit="'+esc(t.id)+'" aria-label="แก้ไข '+esc(t.title)+'">&#9998;</button>')+'</div>'+
+    '</div>'+
+    '<div class="track" style="width:'+trackW+'px;'+bg+'">'+bar+'</div>'+
+  '</div>';
+}
+
+function footer(){
+  var lg = STATUSES.map(function(s){
+    return '<span class="lg"><i style="--c:var('+SVAR[s]+')"></i>'+esc(s)+'</span>';
+  }).join("");
+  return '<div class="footer"><div class="legend">'+lg+'</div>'+
+    '<span style="margin-left:auto">DUE = START + DURATION − 1 · แถบทึบ = กำลังทำ/เสร็จ · แถบเส้นประ = ยังไม่เริ่ม/ยกเลิก</span></div>';
+}
+
+/* ============ interaction ============ */
+function jumpToday(smooth){
+  var vp = document.getElementById("viewport");
+  if(!vp) return;
+  var r = rangeOf(board());
+  var dayW = view.dayW || 24;
+  var tod = todayUTC();
+  if(tod < r.start || tod > r.end) return;
+  var pad = Math.min(220, Math.max(60, (vp.clientWidth - leftW()) * 0.22));
+  var x = diffDays(r.start, tod)*dayW - pad;
+  vp.scrollTo({left:Math.max(0,x), behavior: smooth ? "smooth" : "auto"});
+}
+
+function wire(b, r, dayW){
+  var app = document.getElementById("app");
+
+  app.querySelectorAll("[data-board]").forEach(function(el){
+    el.onclick = function(){ view.activeBoard = el.getAttribute("data-board"); saveView(); render(); };
+  });
+  app.querySelectorAll("[data-pic-all]").forEach(function(el){
+    el.onclick = function(){ filters.pic = []; render(); };
+  });
+  app.querySelectorAll("[data-pic]").forEach(function(el){
+    el.onclick = function(){
+      var c = el.getAttribute("data-pic");
+      var i = filters.pic.indexOf(c);
+      if(i>=0) filters.pic.splice(i,1); else filters.pic.push(c);
+      render();
+    };
+  });
+  var fs = document.getElementById("f-status");
+  if(fs) fs.onchange = function(){ filters.status = fs.value; render(); };
+  var fz = document.getElementById("f-zoom");
+  if(fz) fz.onchange = function(){ view.dayW = +fz.value; saveView(); render(); };
+
+  var bc = document.getElementById("btn-compact");
+  if(bc) bc.onclick = function(){ view.compact = !view.compact; saveView(); render(); };
+
+  var bt = document.getElementById("btn-today");
+  if(bt) bt.onclick = function(){ jumpToday(true); };
+
+  var ba = document.getElementById("btn-add");
+  if(ba) ba.onclick = function(){ openTask(null, (b && b.sections[0]) ? b.sections[0].id : null); };
+
+  ["btn-section","btn-section-empty"].forEach(function(id){
+    var e = document.getElementById(id);
+    if(e) e.onclick = function(){ openSection(null); };
+  });
+
+  var bteam = document.getElementById("btn-team");
+  if(bteam) bteam.onclick = openTeam;
+  var bcsv = document.getElementById("btn-csv");
+  if(bcsv) bcsv.onclick = exportCsv;
+  var bics = document.getElementById("btn-ics");
+  if(bics) bics.onclick = downloadIcs;
+  var bgcal = document.getElementById("btn-gcal");
+  if(bgcal) bgcal.onclick = openCalendarExport;
+  var bgoals = document.getElementById("btn-goals-edit");
+  if(bgoals) bgoals.onclick = openGoalsEdit;
+
+  app.querySelectorAll("[data-edit]").forEach(function(el){
+    el.onclick = function(){ openTask(el.getAttribute("data-edit"), null); };
+  });
+  app.querySelectorAll("[data-status]").forEach(function(el){
+    el.onchange = function(){
+      var t = findTask(el.getAttribute("data-status"));
+      if(t){ t.task.status = el.value; touch(); render(); }
+    };
+  });
+  app.querySelectorAll("[data-addto]").forEach(function(el){
+    el.onclick = function(){ openTask(null, el.getAttribute("data-addto")); };
+  });
+  app.querySelectorAll("[data-rename]").forEach(function(el){
+    el.onclick = function(){ openSection(el.getAttribute("data-rename")); };
+  });
+  app.querySelectorAll("[data-delsect]").forEach(function(el){
+    el.onclick = function(){ confirmDeleteSection(el.getAttribute("data-delsect")); };
+  });
+}
+
+function findTask(id){
+  var b = board(), out = null;
+  b.sections.forEach(function(s){
+    s.tasks.forEach(function(t){ if(t.id===id) out = {task:t, sect:s}; });
+  });
+  return out;
+}
+
+/* ============ modals ============ */
+function closeModal(){
+  var m = document.getElementById("scrim");
+  if(m) m.remove();
+}
+function modal(title, bodyHtml, footHtml){
+  closeModal();
+  var d = document.createElement("div");
+  d.className = "scrim";
+  d.id = "scrim";
+  d.innerHTML = '<div class="modal" role="dialog" aria-modal="true">'+
+    '<header><h2>'+esc(title)+'</h2><button class="iconbtn" id="m-x" style="opacity:1" aria-label="ปิด">&#10005;</button></header>'+
+    '<div class="body">'+bodyHtml+'</div>'+
+    '<footer>'+footHtml+'</footer>'+
+  '</div>';
+  document.body.appendChild(d);
+  d.onclick = function(e){ if(e.target === d) closeModal(); };
+  document.getElementById("m-x").onclick = closeModal;
+  document.addEventListener("keydown", escClose);
+  return d;
+}
+function escClose(e){
+  if(e.key === "Escape"){ closeModal(); document.removeEventListener("keydown", escClose); }
+}
+
+function proposalBriefText(){
+  function v(id){ var el = document.getElementById(id); return el ? el.value.trim() : ""; }
+  var title = v("f-title"), client = v("f-pclient"), contact = v("f-pcontact"),
+      topic = v("f-ptopic"), part = v("f-ppart"), notes = v("f-pnotes"),
+      start = v("f-start"), due = v("f-due");
+  return [
+    "ขอ Proposal สำหรับงาน: " + (title || "-"),
+    "ลูกค้า/โรงเรียน: " + (client || "-"),
+    "ผู้ติดต่อ: " + (contact || "-"),
+    "หัวข้อ/ชื่อค่าย: " + (topic || title || "-"),
+    "จำนวนผู้เข้าร่วม: " + (part || "-"),
+    "ช่วงวันที่: " + (start?fmtShort(start):"-") + " ถึง " + (due?fmtShort(due):"-"),
+    "รายละเอียดเพิ่มเติม: " + (notes || "-")
+  ].join("\n");
+}
+
+function openTask(id, sectId){
+  if(readOnly) return;
+  var b = board();
+  var found = id ? findTask(id) : null;
+  var t = found ? found.task : {id:uid("t"), pic:[], title:"", remark:"", status:"Not started", start:ymd(todayUTC()), dur:1, link:"", isProposal:false, proposal:{}, d2027:{}};
+  var sid = found ? found.sect.id : (sectId || (b.sections[0] && b.sections[0].id));
+  if(!sid){ openSection(null); return; }
+  if(!t.proposal || typeof t.proposal !== "object") t.proposal = {};
+
+  var allOn = state.team.length > 0 && (t.pic||[]).length === state.team.length;
+  var picks = '<button type="button" class="pickbtn allpick" id="pick-all" aria-pressed="'+allOn+'">ALL &middot; ทั้งทีม</button>' +
+    state.team.map(function(m){
+      var on = (t.pic||[]).indexOf(m.code) >= 0;
+      return '<button type="button" class="pickbtn" data-pick="'+esc(m.code)+'" aria-pressed="'+on+'" style="--m:'+esc(m.color)+'">'+
+        '<i class="dot"></i>'+esc(m.name)+' <span class="hint">'+esc(m.code)+'</span></button>';
+    }).join("");
+  var sects = b.sections.map(function(s){
+    return '<option value="'+esc(s.id)+'"'+(s.id===sid?" selected":"")+'>'+esc(s.title)+'</option>';
+  }).join("");
+  var sts = STATUSES.map(function(s){
+    return '<option value="'+esc(s)+'"'+(t.status===s?" selected":"")+'>'+esc(s)+'</option>';
+  }).join("");
+
+  modal(found ? "แก้ไขงาน" : "เพิ่มงานใหม่",
+    '<div class="field"><label>Activities&#39; Processes</label>'+
+      '<input id="f-title" value="'+esc(t.title)+'" placeholder="ชื่องาน เช่น ส่งอีเมลเสนอโครงการ"></div>'+
+    '<div class="field"><label>Remark</label>'+
+      '<textarea id="f-remark" placeholder="หมายเหตุหรือรายละเอียดเพิ่มเติม">'+esc(t.remark||"")+'</textarea></div>'+
+    '<div class="field"><label>ลิงก์งาน</label>'+
+      '<input type="url" id="f-link" value="'+esc(t.link||"")+'" placeholder="เช่น ลิงก์ Canva หรือไฟล์งาน"></div>'+
+    '<div class="field"><label class="chk"><input type="checkbox" id="f-isprop"'+(t.isProposal?" checked":"")+'>'+
+      '<span>เป็นงาน Proposal (ต้องทำใบเสนอโครงการ)</span></label></div>'+
+    '<div class="propblock" id="prop-block" style="display:'+(t.isProposal?"flex":"none")+'">'+
+      '<div class="grid2">'+
+        '<div class="field"><label>ลูกค้า/โรงเรียน</label><input id="f-pclient" value="'+esc(t.proposal.client||"")+'"></div>'+
+        '<div class="field"><label>ผู้ติดต่อ</label><input id="f-pcontact" value="'+esc(t.proposal.contact||"")+'"></div>'+
+      '</div>'+
+      '<div class="grid2">'+
+        '<div class="field"><label>หัวข้อ/ชื่อค่าย</label><input id="f-ptopic" value="'+esc(t.proposal.topic||"")+'"></div>'+
+        '<div class="field"><label>จำนวนผู้เข้าร่วม</label><input id="f-ppart" value="'+esc(t.proposal.participants||"")+'"></div>'+
+      '</div>'+
+      '<div class="field"><label>รายละเอียดเพิ่มเติม</label><textarea id="f-pnotes" placeholder="เช่น รูปแบบกิจกรรม งบประมาณ ข้อกำหนดพิเศษ">'+esc(t.proposal.notes||"")+'</textarea></div>'+
+      '<div><button type="button" class="btn sm" id="btn-prop-brief">คัดลอกสรุปเพื่อขอ Proposal จาก Claude</button></div>'+
+      '<span class="hint">คัดลอกสรุปนี้ไปวางแชทกับ Claude เพื่อให้ช่วยร่าง Proposal (ใช้ skill soulscity-proposal) แล้วนำลิงก์เอกสารที่ได้มาใส่ในช่อง Link ด้านบน</span>'+
+    '</div>'+
+    '<div class="field"><label>PIC</label><div class="picks">'+picks+'</div>'+
+      '<span class="hint">เลือกได้หลายคน — เลือกครบทุกคนจะแสดงเป็น ALL</span></div>'+
+    '<div class="grid2">'+
+      '<div class="field"><label>Section</label><select id="f-sect">'+sects+'</select></div>'+
+      '<div class="field"><label>Status</label><select id="f-st">'+sts+'</select></div>'+
+    '</div>'+
+    '<div class="grid3">'+
+      '<div class="field"><label>Start date</label><input type="date" id="f-start" value="'+esc(t.start||"")+'"></div>'+
+      '<div class="field"><label>Duration</label><input type="number" min="1" id="f-dur" value="'+(t.dur||1)+'"></div>'+
+      '<div class="field"><label>Due date</label><input type="date" id="f-due" value="'+esc(dueOf(t)?ymd(dueOf(t)):"")+'"></div>'+
+    '</div>'+
+    '<div class="grid2">'+
+      '<div class="field"><label>Start time <span class="hint" style="text-transform:none">(ไม่บังคับ)</span></label><input type="time" id="f-starttime" value="'+esc(t.startTime||"")+'"></div>'+
+      '<div class="field"><label>Due time <span class="hint" style="text-transform:none">(ไม่บังคับ)</span></label><input type="time" id="f-duetime" value="'+esc(t.dueTime||"")+'"></div>'+
+    '</div>'+
+    '<div class="propblock" id="d2027-block" style="display:'+(t.status==="D-DAY"?"flex":"none")+'">'+
+      '<div class="grid3">'+
+        '<div class="field"><label>ยอดขาย (บาท)</label><input type="number" min="0" id="f-d2sales" value="'+((t.d2027&&t.d2027.sales)||0)+'"></div>'+
+        '<div class="field"><label>ผู้เข้าร่วม (คน)</label><input type="number" min="0" id="f-d2part" value="'+((t.d2027&&t.d2027.participants)||0)+'"></div>'+
+        '<div class="field"><label>นับเป็น Workshop (ครั้ง)</label><input type="number" min="0" id="f-d2work" value="'+((t.d2027&&t.d2027.workshops!=null)?t.d2027.workshops:1)+'"></div>'+
+      '</div>'+
+      '<span class="hint">งาน D-DAY ที่ครบกำหนดในปี 2027 จะถูกรวมเข้าแถบเป้าหมายปี 2027 ด้านบนของบอร์ดอัตโนมัติจากตัวเลขนี้</span>'+
+    '</div>',
+    (found ? '<button class="btn danger" id="m-del">ลบงานนี้</button>' : '')+
+    (found ? '<a class="btn" id="m-gcal" target="_blank" rel="noopener noreferrer" href="'+esc(gcalUrl(t))+'">เพิ่มลงปฏิทิน</a>' : '')+
+    '<div class="spacer"></div>'+
+    '<button class="btn" id="m-cancel">ยกเลิก</button>'+
+    '<button class="btn primary" id="m-ok">'+(found?"บันทึก":"เพิ่มงาน")+'</button>'
+  );
+
+  var picked = (t.pic||[]).slice();
+  function syncPicks(){
+    document.querySelectorAll("[data-pick]").forEach(function(el){
+      el.setAttribute("aria-pressed", picked.indexOf(el.getAttribute("data-pick")) >= 0);
+    });
+    var pa = document.getElementById("pick-all");
+    if(pa) pa.setAttribute("aria-pressed", picked.length === state.team.length && state.team.length > 0);
+  }
+  document.querySelectorAll("[data-pick]").forEach(function(el){
+    el.onclick = function(){
+      var c = el.getAttribute("data-pick");
+      var i = picked.indexOf(c);
+      if(i>=0) picked.splice(i,1); else picked.push(c);
+      syncPicks();
+    };
+  });
+  document.getElementById("pick-all").onclick = function(){
+    picked = (picked.length === state.team.length) ? [] : state.team.map(function(m){ return m.code; });
+    syncPicks();
+  };
+
+  var fIsProp = document.getElementById("f-isprop");
+  var propBlock = document.getElementById("prop-block");
+  fIsProp.onchange = function(){ propBlock.style.display = fIsProp.checked ? "flex" : "none"; };
+
+  var fSt = document.getElementById("f-st");
+  var d2Block = document.getElementById("d2027-block");
+  fSt.onchange = function(){ d2Block.style.display = fSt.value==="D-DAY" ? "flex" : "none"; };
+  document.getElementById("btn-prop-brief").onclick = function(){
+    var text = proposalBriefText();
+    var btn = this, old = btn.textContent;
+    function ok(){ btn.textContent = "คัดลอกแล้ว ✓"; setTimeout(function(){ btn.textContent = old; }, 1600); }
+    function fallback(){ window.prompt("คัดลอกข้อความนี้ (Cmd/Ctrl+C แล้ว Enter):", text); }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(ok).catch(fallback);
+    }else fallback();
+  };
+
+  var fStart = document.getElementById("f-start");
+  var fDur = document.getElementById("f-dur");
+  var fDue = document.getElementById("f-due");
+  function syncDue(){
+    var s = parse(fStart.value);
+    var n = Math.max(1, parseInt(fDur.value,10) || 1);
+    if(s) fDue.value = ymd(addDays(s, n-1));
+  }
+  function syncDur(){
+    var s = parse(fStart.value), d = parse(fDue.value);
+    if(s && d){
+      var n = diffDays(s,d)+1;
+      if(n < 1){ fDue.value = ymd(s); n = 1; }
+      fDur.value = n;
+    }
+  }
+  fStart.onchange = syncDue;
+  fDur.oninput = syncDue;
+  fDue.onchange = syncDur;
+
+  document.getElementById("m-cancel").onclick = closeModal;
+  if(found){
+    document.getElementById("m-del").onclick = function(){
+      var s = found.sect;
+      s.tasks = s.tasks.filter(function(x){ return x.id !== t.id; });
+      closeModal(); touch(); render();
+    };
+  }
+  document.getElementById("m-ok").onclick = function(){
+    var title = document.getElementById("f-title").value.trim();
+    if(!title){ document.getElementById("f-title").focus(); return; }
+    t.title = title;
+    t.remark = document.getElementById("f-remark").value.trim();
+    t.link = document.getElementById("f-link").value.trim();
+    t.isProposal = fIsProp.checked;
+    t.proposal = {
+      client: document.getElementById("f-pclient").value.trim(),
+      contact: document.getElementById("f-pcontact").value.trim(),
+      topic: document.getElementById("f-ptopic").value.trim(),
+      participants: document.getElementById("f-ppart").value.trim(),
+      notes: document.getElementById("f-pnotes").value.trim()
+    };
+    t.pic = picked;
+    t.status = document.getElementById("f-st").value;
+    t.start = fStart.value || ymd(todayUTC());
+    t.dur = Math.max(1, parseInt(fDur.value,10) || 1);
+    t.startTime = document.getElementById("f-starttime").value || "";
+    t.dueTime = document.getElementById("f-duetime").value || "";
+    t.d2027 = {
+      sales: Math.max(0, parseFloat(document.getElementById("f-d2sales").value)||0),
+      participants: Math.max(0, parseInt(document.getElementById("f-d2part").value,10)||0),
+      workshops: Math.max(0, parseInt(document.getElementById("f-d2work").value,10)||0)
+    };
+    var target = document.getElementById("f-sect").value;
+    if(found){
+      if(found.sect.id !== target){
+        found.sect.tasks = found.sect.tasks.filter(function(x){ return x.id !== t.id; });
+        b.sections.filter(function(s){return s.id===target;})[0].tasks.push(t);
+      }
+    }else{
+      b.sections.filter(function(s){return s.id===target;})[0].tasks.push(t);
+    }
+    closeModal(); touch(); render();
+  };
+  setTimeout(function(){ var el=document.getElementById("f-title"); if(el) el.focus(); }, 30);
+}
+
+var GCAL_COLORS = [
+  ["1","Lavender","#7986cb"],["2","Sage","#33b679"],["3","Grape","#8e24aa"],
+  ["4","Flamingo","#e67c73"],["5","Banana","#f6bf26"],["6","Tangerine","#f4511e"],
+  ["7","Peacock","#039be5"],["8","Graphite","#616161"],["9","Blueberry","#3f51b5"],
+  ["10","Basil","#0b8043"]
+];
+function openSection(id){
+  if(readOnly) return;
+  var b = board();
+  var s = id ? b.sections.filter(function(x){return x.id===id;})[0] : null;
+  var curColor = s ? (s.color||"") : "";
+  var swatches = '<button type="button" class="colorsw" data-color="" aria-pressed="'+(!curColor)+'" '+
+      'style="background:var(--surface-3);color:var(--text-2);font-size:10px" title="อัตโนมัติ">Auto</button>'+
+    GCAL_COLORS.map(function(c){
+      return '<button type="button" class="colorsw" data-color="'+c[0]+'" aria-pressed="'+(curColor===c[0])+'" '+
+        'style="background:'+c[2]+'" title="'+c[1]+'"></button>';
+    }).join("");
+  var custOpts = '<option value="">— ไม่มีลูกค้า —</option>' + state.customers.map(function(c){
+    var label = c.name + (c.org ? ", "+c.org : "");
+    return '<option value="'+esc(c.id)+'"'+((s&&s.customerId===c.id)?" selected":"")+'>'+esc(label)+'</option>';
+  }).join("");
+  modal(s ? "แก้ชื่อหัวข้อ" : "เพิ่มหัวข้อใหม่",
+    '<div class="field"><label>Section title</label>'+
+      '<input id="f-sname" value="'+esc(s?s.title:"")+'" placeholder="เช่น Selling product to school"></div>'+
+      '<span class="hint">หัวข้อใช้จัดกลุ่มงานตามโปรเจกต์หรือสายงาน เหมือนใน Gantt sheet เดิม</span>'+
+    '<div class="field"><label>สี (Google Calendar)</label><div class="colorswatches">'+swatches+'</div>'+
+      '<span class="hint">ใช้เป็นสี event ตอนส่งงานในหัวข้อนี้เข้า Google Calendar — เลือก Auto ให้ระบบสุ่มสีคงที่ให้เอง</span></div>'+
+    '<div class="field"><label>ลูกค้า (ถ้ามี)</label><select id="f-scust">'+custOpts+'</select>'+
+      '<span class="hint">ไม่บังคับ — ถ้าเลือกไว้ หัวข้อนี้จะไปโชว์ในหน้าลูกค้าด้วย</span></div>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
+    '<button class="btn primary" id="m-ok">'+(s?"บันทึก":"เพิ่มหัวข้อ")+'</button>'
+  );
+  var pickedColor = curColor;
+  document.querySelectorAll("[data-color]").forEach(function(el){
+    el.onclick = function(){
+      pickedColor = el.getAttribute("data-color");
+      document.querySelectorAll("[data-color]").forEach(function(x){
+        x.setAttribute("aria-pressed", x.getAttribute("data-color")===pickedColor);
+      });
+    };
+  });
+  document.getElementById("m-cancel").onclick = closeModal;
+  document.getElementById("m-ok").onclick = function(){
+    var v = document.getElementById("f-sname").value.trim();
+    if(!v){ document.getElementById("f-sname").focus(); return; }
+    var custId = document.getElementById("f-scust").value;
+    if(s){ s.title = v; s.color = pickedColor; s.customerId = custId; }
+    else b.sections.push({id:uid("s"), title:v, tasks:[], color:pickedColor, customerId:custId});
+    closeModal(); touch(); render();
+  };
+  setTimeout(function(){ var el=document.getElementById("f-sname"); if(el) el.focus(); }, 30);
+}
+
+function confirmDeleteSection(id){
+  var b = board();
+  var s = b.sections.filter(function(x){return x.id===id;})[0];
+  if(!s) return;
+  modal("ลบหัวข้อ",
+    '<p style="margin:0">ลบ <b>'+esc(s.title)+'</b> และงาน '+s.tasks.length+' รายการข้างในทั้งหมด?</p>'+
+    '<span class="hint">การลบย้อนกลับไม่ได้</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
+    '<button class="btn danger" id="m-ok">ลบทั้งหัวข้อ</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  document.getElementById("m-ok").onclick = function(){
+    b.sections = b.sections.filter(function(x){ return x.id !== id; });
+    closeModal(); touch(); render();
+  };
+}
+
+function openTeam(){
+  var rows = state.team.map(function(m,i){
+    return '<div class="teamrow">'+
+      '<input data-tc="'+i+'" value="'+esc(m.code)+'" maxlength="6" aria-label="Code">'+
+      '<input data-tn="'+i+'" value="'+esc(m.name)+'" aria-label="ชื่อเล่น">'+
+      '<input type="color" data-tk="'+i+'" value="'+esc(m.color)+'" style="padding:2px;height:32px" aria-label="สี">'+
+      '<input class="email" type="email" data-te="'+i+'" value="'+esc(m.email||"")+'" '+
+        'placeholder="อีเมลสำหรับเชิญเข้าปฏิทิน" aria-label="อีเมล">'+
+    '</div>';
+  }).join("");
+  modal("ทีม (" + state.team.length + " คน)",
+    '<div class="field"><label>Code / ชื่อเล่น / สี / อีเมล</label>'+
+      '<div style="display:flex;flex-direction:column;gap:14px">'+rows+'</div></div>'+
+    '<span class="hint">Code คือตัวย่อที่แสดงบนแถว PIC — เปลี่ยนแล้วงานเดิมจะถูกอัปเดตให้ตาม · '+
+      'อีเมลใช้สำหรับเชิญเป็น guest ตอนส่งงานเข้า Google Calendar</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
+    '<button class="btn primary" id="m-ok">บันทึก</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  document.getElementById("m-ok").onclick = function(){
+    state.team.forEach(function(m,i){
+      var c = document.querySelector('[data-tc="'+i+'"]').value.trim();
+      var n = document.querySelector('[data-tn="'+i+'"]').value.trim();
+      var k = document.querySelector('[data-tk="'+i+'"]').value;
+      var em = document.querySelector('[data-te="'+i+'"]').value.trim();
+      if(c && c !== m.code){
+        var old = m.code;
+        state.boards.forEach(function(b){ b.sections.forEach(function(s){ s.tasks.forEach(function(t){
+          t.pic = (t.pic||[]).map(function(p){ return p===old ? c : p; });
+        });});});
+        m.code = c;
+      }
+      if(n) m.name = n;
+      m.color = k;
+      m.email = em;
+    });
+    closeModal(); touch(); render();
+  };
+}
+
+/* ============ csv ============ */
+function downloadBlob(filename, data, mime){
+  var blob = new Blob([data], {type: mime});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+}
+function exportCsv(){
+  var b = board();
+  var lines = [["Section","PIC","Activities' Processes","Remark","Status","START DATE","DURATION","DUE DATE"]];
+  b.sections.forEach(function(s){
+    s.tasks.forEach(function(t){
+      var du = dueOf(t);
+      lines.push([s.title, (t.pic||[]).join(" "), t.title, t.remark||"", t.status,
+                  fmtShort(t.start), String(t.dur||1), du?fmtShort(ymd(du)):""]);
+    });
+  });
+  var csv = "﻿" + lines.map(function(r){
+    return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(",");
+  }).join("\r\n");
+  var name = b.name.replace(/[^\w฀-๿]+/g,"-").replace(/^-|-$/g,"") + ".csv";
+  downloadBlob(name, csv, "text/csv;charset=utf-8");
+}
+
+
+/* ============ calendar export ============ */
+function pad2(n){ return String(n).padStart(2,"0"); }
+function icsDate(d){ return d.getUTCFullYear()+pad2(d.getUTCMonth()+1)+pad2(d.getUTCDate()); }
+function icsEsc(v){
+  return String(v==null?"":v).replace(/\\/g,"\\\\").replace(/;/g,"\\;").replace(/,/g,"\\,").replace(/\r?\n/g,"\\n");
+}
+function icsFold(line){
+  var bytes = new TextEncoder().encode(line);
+  if(bytes.length <= 74) return line;
+  var out = [], cur = "", curLen = 0;
+  for(var i=0;i<line.length;i++){
+    var ch = line[i];
+    var n = new TextEncoder().encode(ch).length;
+    if(curLen + n > 72){ out.push(cur); cur = " "; curLen = 1; }
+    cur += ch; curLen += n;
+  }
+  out.push(cur);
+  return out.join("\r\n");
+}
+/* tasks that still need a deadline reminder */
+function dueTasks(b){
+  var out = [];
+  b.sections.forEach(function(s){
+    s.tasks.forEach(function(t){
+      if(!isSyncStatus(t.status)) return;
+      if(!dueOf(t)) return;
+      out.push({t:t, s:s});
+    });
+  });
+  return out;
+}
+function taskDetails(t, s, b){
+  var who = (t.pic||[]).map(function(c){ return member(c).name; }).join(", ");
+  return [
+    b.name + " › " + s.title,
+    "PIC: " + (who || "—"),
+    "Status: " + t.status,
+    "Start: " + fmtShort(t.start) + (t.startTime?" "+t.startTime:"") + "  ·  Duration: " + (t.dur||1) + " วัน" +
+      (t.dueTime?"  ·  Due time: "+t.dueTime:""),
+    t.remark ? "Remark: " + t.remark : ""
+  ].filter(Boolean).join("\n");
+}
+function gcalUrl(t){
+  var b = board();
+  var f = findTask(t.id);
+  var s = f ? f.sect : {title:""};
+  var sp = eventSpan(t);
+  if(!sp) return "https://calendar.google.com/calendar/r";
+  var d1, d2;
+  if(isHHMM(t.startTime) || isHHMM(t.dueTime)){
+    var r = gcalTimedRange(ymd(sp.from), ymd(sp.to), t.startTime, t.dueTime);
+    d1 = r.startDT.replace(/[-:]/g,"");
+    d2 = r.endDT.replace(/[-:]/g,"");
+  }else{
+    d1 = icsDate(sp.from); d2 = icsDate(addDays(sp.to,1));
+  }
+  return "https://calendar.google.com/calendar/render?action=TEMPLATE" +
+    "&text=" + encodeURIComponent(eventTitle(t, s)) +
+    "&dates=" + d1 + "/" + d2 +
+    "&details=" + encodeURIComponent(taskDetails(t, s, b));
+}
+function buildIcs(b){
+  var now = new Date();
+  var stamp = now.getUTCFullYear()+pad2(now.getUTCMonth()+1)+pad2(now.getUTCDate())+"T"+
+              pad2(now.getUTCHours())+pad2(now.getUTCMinutes())+pad2(now.getUTCSeconds())+"Z";
+  var L = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//SoulScity Learning//SSt Gantt Board//TH",
+           "CALSCALE:GREGORIAN","METHOD:PUBLISH","X-WR-CALNAME:"+icsEsc(b.name)];
+  dueTasks(b).forEach(function(x){
+    var sp = eventSpan(x.t);
+    L.push("BEGIN:VEVENT");
+    L.push("UID:"+x.t.id+"-"+b.id+"@sst-gantt-board");
+    L.push("DTSTAMP:"+stamp);
+    L.push("DTSTART;VALUE=DATE:"+icsDate(sp.from));
+    L.push("DTEND;VALUE=DATE:"+icsDate(addDays(sp.to,1)));
+    L.push("SUMMARY:"+icsEsc(eventTitle(x.t, x.s)));
+    L.push("DESCRIPTION:"+icsEsc(taskDetails(x.t, x.s, b)));
+    L.push("CATEGORIES:"+icsEsc(x.s.title));
+    L.push("TRANSP:"+(sp.span ? "OPAQUE" : "TRANSPARENT"));
+    if(x.t.status !== "Done"){
+      L.push("BEGIN:VALARM");
+      L.push("ACTION:DISPLAY");
+      L.push("TRIGGER:-P1D");
+      L.push("DESCRIPTION:"+icsEsc("พรุ่งนี้ครบกำหนด: "+x.t.title));
+      L.push("END:VALARM");
+    }
+    L.push("END:VEVENT");
+  });
+  L.push("END:VCALENDAR");
+  return L.map(icsFold).join("\r\n")+"\r\n";
+}
+var TEAM_EMAILS = {
+  PALM:"napat.kijsana@gmail.com",
+  SIN:"chirasin.ch@gmail.com",
+  KK:"kwanchanok.son@gmail.com",
+  KANTA:"thanaphat.sngn@gmail.com",
+  TT:"tangwanit.tan@gmail.com"
+};
+/* fills in emails for boards saved before the email field existed */
+function backfillEmails(){
+  var changed = false;
+  state.team.forEach(function(m){
+    if(!m.email && TEAM_EMAILS[m.code]){ m.email = TEAM_EMAILS[m.code]; changed = true; }
+  });
+  return changed;
+}
+/* Which statuses hold a slot in the calendar. Only Cancel is pulled back out —
+   Done stays as a record of what the team actually shipped. */
+function isSyncStatus(st){ return st !== "Cancel"; }
+/* D-DAY = the real event days, so it spans START→DUE and blocks time.
+   Every other status is a deadline marker on the DUE DATE, free/transparent. */
+function isSpanStatus(st){ return st === "D-DAY"; }
+function eventSpan(t){
+  var du = dueOf(t);
+  if(!du) return null;
+  var from = isSpanStatus(t.status) ? (parse(t.start) || du) : du;
+  if(from > du) from = du;
+  return {from:from, to:du, span:isSpanStatus(t.status)};
+}
+function eventTitle(t, s){
+  var section = "[" + (s ? s.title : "") + "] ";
+  return section + (isSpanStatus(t.status) ? "D-day" : t.title);
+}
+function downloadIcs(){
+  var b = board();
+  var name = b.name.replace(/[^\w฀-๿]+/g,"-").replace(/^-|-$/g,"")+".ics";
+  downloadBlob(name, buildIcs(b), "text/calendar;charset=utf-8");
+}
+
+/* ============ google calendar (direct OAuth, no MCP) ============ */
+var GCAL_SCOPE = "https://www.googleapis.com/auth/calendar";
+var GCAL_KEY = "sst-gantt-gcal2";
+var gcal = {calendarId:"", lead:1440, scope:"all", invite:true, map:{}};
+var gcalToken = null;          /* {access_token, expiresAt} — memory only, never persisted */
+var gcalTokenClient = null;
+
+function loadGcal(){
+  try{ var r = localStorage.getItem(GCAL_KEY);
+       if(r){ var v = JSON.parse(r); if(v && typeof v==="object") Object.assign(gcal, v); } }catch(e){}
+  if(!gcal.map || typeof gcal.map !== "object") gcal.map = {};
+}
+function saveGcal(){ try{ localStorage.setItem(GCAL_KEY, JSON.stringify(gcal)); }catch(e){} }
+
+function gcalConfigured(){
+  return !!(window.GOOGLE_CLIENT_ID && window.GOOGLE_CLIENT_ID.indexOf("YOUR_") < 0);
+}
+function gcalConnected(){
+  return !!(gcalToken && gcalToken.access_token && gcalToken.expiresAt > Date.now()+30000);
+}
+function ensureTokenClient(){
+  if(!gcalConfigured() || !window.google || !google.accounts || !google.accounts.oauth2) return null;
+  if(!gcalTokenClient){
+    gcalTokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: window.GOOGLE_CLIENT_ID,
+      scope: GCAL_SCOPE,
+      callback: function(){}
+    });
+  }
+  return gcalTokenClient;
+}
+function requestToken(interactive){
+  return new Promise(function(resolve, reject){
+    var tc = ensureTokenClient();
+    if(!tc){ reject({message:"Google Identity Services ยังไม่พร้อม"}); return; }
+    tc.callback = function(resp){
+      if(resp && resp.access_token){
+        gcalToken = {access_token:resp.access_token, expiresAt: Date.now() + (resp.expires_in||3600)*1000};
+        resolve(gcalToken);
+      }else reject(resp||{message:"ไม่ได้รับสิทธิ์"});
+    };
+    tc.error_callback = function(err){ reject(err||{message:"การเชื่อมต่อถูกยกเลิก"}); };
+    try{ tc.requestAccessToken({prompt: interactive ? "consent" : ""}); }
+    catch(e){ reject(e); }
+  });
+}
+async function gcalFetch(path, opts){
+  opts = opts || {};
+  if(!gcalConnected()) await requestToken(true);
+  var headers = Object.assign({"Authorization":"Bearer "+gcalToken.access_token, "Content-Type":"application/json"}, opts.headers||{});
+  var res = await fetch("https://www.googleapis.com/calendar/v3"+path, Object.assign({}, opts, {headers:headers}));
+  if(res.status === 401){
+    await requestToken(true);
+    headers.Authorization = "Bearer "+gcalToken.access_token;
+    res = await fetch("https://www.googleapis.com/calendar/v3"+path, Object.assign({}, opts, {headers:headers}));
+  }
+  if(!res.ok){
+    var body = await res.json().catch(function(){ return null; });
+    var e = new Error((body && body.error && body.error.message) || ("HTTP "+res.status));
+    e.status = res.status;
+    throw e;
+  }
+  if(res.status === 204) return null;
+  return res.json();
+}
+
+function gcalErrBox(info){
+  return '<div style="border:1px solid var(--border);border-left:3px solid var(--s-cancel);border-radius:8px;'+
+    'padding:10px 12px;background:var(--surface-2);margin-bottom:12px">'+
+    '<b style="display:block;margin-bottom:3px">'+esc(info.t)+'</b>'+
+    '<span style="color:var(--text-2)">'+esc(info.d)+'</span></div>';
+}
+
+function gcalSyncScope(){ return gcal.scope === "board" ? [board()] : state.boards; }
+function gcalSyncTargets(){
+  var out = [];
+  gcalSyncScope().forEach(function(b){
+    b.sections.forEach(function(s){
+      s.tasks.forEach(function(t){
+        if(!isSyncStatus(t.status)) return;
+        if(!dueOf(t)) return;
+        out.push({b:b, s:s, t:t, key:b.id+"|"+t.id});
+      });
+    });
+  });
+  return out;
+}
+function gcalPicGuests(t){
+  var seen = {}, out = [];
+  (t.pic||[]).forEach(function(c){
+    var m = member(c);
+    var e = (m.email||"").trim();
+    if(!e || seen[e.toLowerCase()]) return;
+    seen[e.toLowerCase()] = 1;
+    out.push({email:e, displayName:m.name || c});
+  });
+  return out;
+}
+/* wall-clock "HH:MM" + N minutes, wraps at midnight (day component untouched — good enough for our use) */
+function addTimeMinutes(hhmm, mins){
+  var p = hhmm.split(":"), total = ((+p[0]*60+ +p[1]+mins) % 1440 + 1440) % 1440;
+  return String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");
+}
+function isHHMM(s){ return /^([01]\d|2[0-3]):[0-5]\d$/.test(s||""); }
+/* builds a valid, always-end-after-start {startDT,endDT} pair from whatever
+   start/due time the user typed — handles missing one side, equal times, and
+   (the common real case) a due-time that's earlier in the day than start-time,
+   which for single-day tasks would otherwise produce an event ending before
+   it starts and get rejected by Google as "Invalid start time". */
+function gcalTimedRange(fromDate, toDate, startTime, dueTime){
+  var st = isHHMM(startTime) ? startTime : "";
+  var dt = isHHMM(dueTime) ? dueTime : "";
+  var t1 = st || dt, t2 = dt || st;
+  var startDT = fromDate+"T"+t1+":00";
+  var endDT = toDate+"T"+t2+":00";
+  if(endDT <= startDT){
+    t2 = addTimeMinutes(t1, 30);
+    endDT = toDate+"T"+t2+":00";
+    if(endDT <= startDT) endDT = ymd(addDays(parse(toDate),1))+"T"+t2+":00";
+  }
+  return {startDT:startDT, endDT:endDT};
+}
+/* Google Calendar's fixed event palette has 11 slots (colorId "1".."11").
+   "11" (Tomato/red) is reserved for D-DAY tasks so they always stand out;
+   every other task gets a colorId derived from its section, so the same
+   section always lands on the same color (1..10) regardless of sync order. */
+function sectionColorId(s){
+  if(s && s.color) return s.color;
+  var str = (s && (s.id || s.title)) || "";
+  var h = 0;
+  for(var i=0;i<str.length;i++) h = (h*31 + str.charCodeAt(i)) >>> 0;
+  return String((h % 10) + 1);
+}
+function gcalEventBody(x){
+  var sp = eventSpan(x.t);
+  var tz = (Intl.DateTimeFormat().resolvedOptions().timeZone) || "Asia/Bangkok";
+  var body = {
+    summary: eventTitle(x.t, x.s),
+    description: taskDetails(x.t, x.s, x.b),
+    transparency: sp.span ? "opaque" : "transparent",
+    colorId: isSpanStatus(x.t.status) ? "11" : sectionColorId(x.s),
+    reminders: x.t.status==="Done" ? {useDefault:false, overrides:[]} : {useDefault:false, overrides:[{method:"popup", minutes: gcal.lead}]}
+  };
+  if(isHHMM(x.t.startTime) || isHHMM(x.t.dueTime)){
+    var r = gcalTimedRange(ymd(sp.from), ymd(sp.to), x.t.startTime, x.t.dueTime);
+    body.start = {dateTime: r.startDT, timeZone: tz};
+    body.end   = {dateTime: r.endDT, timeZone: tz};
+  }else{
+    body.start = {date: ymd(sp.from)};
+    body.end = {date: ymd(addDays(sp.to,1))};
+  }
+  return body;
+}
+
+/* ---- dialog ---- */
+function openCalendarExport(){
+  loadGcal();
+  modal("Google Calendar",
+    '<div id="gc-body"><p style="margin:0;color:var(--muted)">กำลังตรวจสอบการเชื่อมต่อ…</p></div>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">ปิด</button>');
+  document.getElementById("m-cancel").onclick = closeModal;
+  gcalRoute();
+}
+function gcalSetBody(bodyHtml, footHtml){
+  var body = document.getElementById("gc-body");
+  if(!body) return;
+  body.innerHTML = bodyHtml;
+  var f = body.closest(".modal").querySelector("footer");
+  f.innerHTML = footHtml;
+  f.querySelectorAll("[data-x]").forEach(function(el){ el.onclick = closeModal; });
+}
+async function gcalRoute(){
+  if(!gcalConfigured()){
+    gcalSetBody(gcalErrBox({t:"ยังไม่ได้ตั้งค่า Google Calendar", d:"ใส่ GOOGLE_CLIENT_ID ที่หัวไฟล์ HTML ก่อน (ดูคอมเมนต์ในไฟล์)"}),
+      '<div class="spacer"></div><button class="btn" data-x>ปิด</button>');
+    return;
+  }
+  if(!gcalConnected()){
+    gcalSetBody(
+      '<p style="margin:0">เชื่อมต่อ Google Calendar ด้วยบัญชีของคุณ เพื่อเลือกปฏิทินและส่งกำหนดส่งเข้าไปอัตโนมัติ</p>'+
+      '<span class="hint">ครั้งแรกจะมีหน้าต่างของ Google เด้งขึ้นมาให้อนุญาตสิทธิ์</span>',
+      '<div class="spacer"></div><button class="btn" data-x>ปิด</button><button class="btn primary" id="gc-connect">เชื่อมต่อ Google Calendar</button>'
+    );
+    document.getElementById("gc-connect").onclick = async function(){
+      gcalSetBody('<p style="margin:0;color:var(--muted)">กำลังเชื่อมต่อ…</p>', '<div class="spacer"></div><button class="btn" data-x>ปิด</button>');
+      try{ await requestToken(true); gcalRoute(); }
+      catch(e){
+        gcalSetBody(gcalErrBox({t:"เชื่อมต่อไม่สำเร็จ", d:(e&&e.message)||"หน้าต่างอนุญาตสิทธิ์ถูกปิดหรือถูกปฏิเสธ"}),
+          '<div class="spacer"></div><button class="btn" data-x>ปิด</button><button class="btn primary" id="gc-retry">ลองอีกครั้ง</button>');
+        document.getElementById("gc-retry").onclick = gcalRoute;
+      }
+    };
+    return;
+  }
+  gcalSetBody('<p style="margin:0;color:var(--muted)">กำลังอ่านรายชื่อปฏิทิน…</p>', '<div class="spacer"></div><button class="btn" data-x>ปิด</button>');
+  try{
+    var res = await gcalFetch("/users/me/calendarList?maxResults=250");
+    var cals = (res && res.items) || [];
+    cals = cals.filter(function(c){
+      return c.id && c.id.indexOf("#holiday@") < 0 && (c.accessRole==="owner" || c.accessRole==="writer");
+    });
+    gcalForm(cals, null);
+  }catch(e){
+    gcalForm(null, {t:"อ่านรายชื่อปฏิทินไม่สำเร็จ", d:(e&&e.message)||"ไม่ทราบสาเหตุ", retry:true});
+  }
+}
+function gcalForm(cals, err){
+  var n = gcalSyncTargets().length;
+  if(!cals || !cals.length){
+    gcalSetBody(
+      (err?gcalErrBox(err):gcalErrBox({t:"ไม่พบปฏิทินที่แก้ไขได้", d:"ตรวจสอบว่าบัญชีที่ล็อกอินมีสิทธิ์แก้ไขปฏิทินอย่างน้อย 1 ปฏิทิน"}))+
+      '<p style="margin:0;color:var(--text-2)">ระหว่างนี้ยังดาวน์โหลดไฟล์ .ics แล้วนำเข้าเองได้</p>',
+      '<div class="spacer"></div><button class="btn" data-x>ปิด</button><button class="btn" id="gc-ics">ดาวน์โหลด .ics</button>'+
+      (err&&err.retry?'<button class="btn primary" id="gc-retry">ลองอีกครั้ง</button>':'')
+    );
+    document.getElementById("gc-ics").onclick = downloadIcs;
+    var rt = document.getElementById("gc-retry");
+    if(rt) rt.onclick = gcalRoute;
+    return;
+  }
+  if(!gcal.calendarId || !cals.some(function(c){ return c.id===gcal.calendarId; })){
+    var pref = cals.filter(function(c){ return /soulscity/i.test(c.summary||""); })[0];
+    gcal.calendarId = (pref||cals[0]).id;
+  }
+  var opts = cals.map(function(c){
+    return '<option value="'+esc(c.id)+'"'+(c.id===gcal.calendarId?" selected":"")+'>'+esc(c.summary||c.id)+'</option>';
+  }).join("");
+  var leads = [[0,"ในวันครบกำหนด (เช้า)"],[1440,"ล่วงหน้า 1 วัน"],[2880,"ล่วงหน้า 2 วัน"],[4320,"ล่วงหน้า 3 วัน"],[10080,"ล่วงหน้า 1 สัปดาห์"]];
+  var leadOpts = leads.map(function(l){
+    return '<option value="'+l[0]+'"'+(gcal.lead===l[0]?" selected":"")+'>'+esc(l[1])+'</option>';
+  }).join("");
+  var synced = Object.keys(gcal.map).length;
+  var withMail = state.team.filter(function(m){ return (m.email||"").trim(); }).length;
+
+  gcalSetBody(
+    '<p style="margin:0">ส่งงาน <b id="gc-count">'+n+'</b> รายการเข้า Google Calendar เป็น all-day event</p>'+
+    '<div style="border:1px solid var(--border);border-radius:8px;background:var(--surface-2);'+
+      'padding:9px 11px;display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--text-2)">'+
+      '<div><b style="color:var(--s-dday)">D-DAY</b> → ยิงทั้งช่วง <b>START → DUE</b> และจองเวลาเป็น Busy</div>'+
+      '<div><b style="color:var(--s-notstarted)">Not started</b> · <b style="color:var(--s-process)">In process</b> · '+
+        '<b style="color:var(--s-postponed)">Postponed</b> → ยิงเฉพาะวัน <b>DUE DATE</b> วันเดียว ไม่จองเวลา</div>'+
+      '<div><b style="color:var(--s-done)">Done</b> → <b>เก็บไว้ในปฏิทิน</b> เปลี่ยนชื่อเป็น [DONE] และปิดแจ้งเตือน</div>'+
+      '<div><b style="color:var(--s-cancel)">Cancel</b> → ไม่ยิง และถ้าเคยยิงไปแล้วจะถูกลบออกจากปฏิทินให้อัตโนมัติ</div>'+
+    '</div>'+
+    '<div class="field"><label>ปฏิทินปลายทาง</label><select id="gc-cal">'+opts+'</select></div>'+
+    '<div class="grid2">'+
+      '<div class="field"><label>ขอบเขต</label><select id="gc-scope">'+
+        '<option value="all"'+(gcal.scope!=="board"?" selected":"")+'>ทุกบอร์ด ('+state.boards.length+' บอร์ด)</option>'+
+        '<option value="board"'+(gcal.scope==="board"?" selected":"")+'>เฉพาะบอร์ดที่เปิดอยู่</option>'+
+      '</select></div>'+
+      '<div class="field"><label>แจ้งเตือน</label><select id="gc-lead">'+leadOpts+'</select></div>'+
+    '</div>'+
+    '<div class="field"><label>ผู้ร่วมงาน</label>'+
+      '<label class="chk"><input type="checkbox" id="gc-invite"'+(gcal.invite?" checked":"")+'>'+
+        '<span>เชิญ PIC ของแต่ละงานเป็น guest ('+withMail+'/'+state.team.length+' คนมีอีเมลแล้ว)</span></label>'+
+      (withMail<state.team.length?'<span class="hint">ใส่อีเมลที่เหลือได้ที่ปุ่ม "ทีม"</span>':'')+
+    '</div>'+
+    '<span class="hint">'+(synced?'เคยส่งไปแล้ว '+synced+' รายการ — กดส่งอีกครั้งจะอัปเดตของเดิม ไม่สร้างซ้ำ'
+      :'ส่งซ้ำได้เรื่อยๆ ระบบจำ event ที่สร้างไว้ในเบราว์เซอร์นี้ แล้วอัปเดตของเดิมแทนการสร้างใหม่')+'</span>',
+    '<div class="spacer"></div><button class="btn" id="gc-ics">.ics</button>'+
+    '<button class="btn" data-x>ปิด</button><button class="btn primary" id="gc-go">ส่งเข้าปฏิทิน</button>'
+  );
+  document.getElementById("gc-cal").onchange = function(){ gcal.calendarId=this.value; saveGcal(); };
+  document.getElementById("gc-lead").onchange = function(){ gcal.lead=+this.value; saveGcal(); };
+  document.getElementById("gc-invite").onchange = function(){ gcal.invite=this.checked; saveGcal(); };
+  document.getElementById("gc-scope").onchange = function(){
+    gcal.scope=this.value; saveGcal();
+    document.getElementById("gc-count").textContent = gcalSyncTargets().length;
+  };
+  document.getElementById("gc-ics").onclick = downloadIcs;
+  document.getElementById("gc-go").onclick = function(){ gcalRunSync(cals); };
+}
+
+async function gcalRunSync(cals){
+  var targets = gcalSyncTargets();
+  var calId = gcal.calendarId;
+  var prefix = calId+"|";
+  var stale = Object.keys(gcal.map).filter(function(k){
+    if(k.indexOf(prefix)!==0) return false;
+    var rest = k.slice(prefix.length);
+    return !targets.some(function(x){ return x.key===rest; });
+  });
+  var total = targets.length + stale.length;
+  var created=0, updated=0, removed=0, invited=0, failed=[];
+  var done=0;
+  function progress(){
+    gcalSetBody(
+      '<p style="margin:0">กำลังซิงก์กับ Google Calendar…</p>'+
+      '<div style="height:6px;border-radius:999px;background:var(--surface-3);overflow:hidden">'+
+        '<div style="height:100%;width:'+Math.round(done/Math.max(1,total)*100)+'%;background:var(--accent)"></div></div>'+
+      '<span class="hint">'+done+' / '+total+'</span>',
+      '<div class="spacer"></div><button class="btn" disabled>กำลังส่ง…</button>'
+    );
+  }
+  progress();
+
+  for(var i=0;i<targets.length;i++){
+    var x = targets[i];
+    var mk = calId+"|"+x.key;
+    var body = gcalEventBody(x);
+    var guests = gcal.invite ? gcalPicGuests(x.t) : [];
+    if(guests.length) body.attendees = guests;
+    var sendUpdates = gcal.invite ? "all" : "none";
+    var prevId = gcal.map[mk];
+    try{
+      if(prevId){
+        try{
+          await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events/"+encodeURIComponent(prevId)+"?sendUpdates="+sendUpdates,
+            {method:"PATCH", body:JSON.stringify(body)});
+          updated++; invited += guests.length;
+        }catch(e1){
+          if(e1 && (e1.status===404 || e1.status===410)){
+            delete gcal.map[mk];
+            var r1 = await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events?sendUpdates="+sendUpdates,
+              {method:"POST", body:JSON.stringify(body)});
+            gcal.map[mk] = r1.id;
+            created++; invited += guests.length;
+          } else throw e1;
+        }
+      }else{
+        var r2 = await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events?sendUpdates="+sendUpdates,
+          {method:"POST", body:JSON.stringify(body)});
+        gcal.map[mk] = r2.id;
+        created++; invited += guests.length;
+      }
+    }catch(e){
+      failed.push({title:x.t.title, info:{t:"ส่งไม่สำเร็จ", d:(e&&e.message)||"ไม่ทราบสาเหตุ"}});
+    }
+    saveGcal();
+    done++; progress();
+  }
+  for(var j=0;j<stale.length;j++){
+    var k = stale[j];
+    try{
+      await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events/"+encodeURIComponent(gcal.map[k])+"?sendUpdates=none", {method:"DELETE"});
+      removed++;
+    }catch(e2){ /* already gone upstream — drop it either way */ }
+    delete gcal.map[k];
+    saveGcal();
+    done++; progress();
+  }
+
+  gcalResult(cals, {created:created, updated:updated, removed:removed, invited:invited, failed:failed,
+    cal:(cals.filter(function(c){return c.id===calId;})[0]||{}).summary || calId});
+}
+function gcalResult(cals, r){
+  var rows = [
+    ["สร้างใหม่", r.created, "--s-done"],
+    ["อัปเดต", r.updated, "--s-process"],
+    ["ลบออก (Cancel)", r.removed, "--s-notstarted"],
+    ["เชิญ PIC เป็น guest", r.invited, "--s-dday"]
+  ].filter(function(x){ return x[1]>0; });
+  if(!rows.length && !r.failed.length) rows = [["ไม่มีอะไรต้องเปลี่ยน", 0, "--s-notstarted"]];
+
+  gcalSetBody(
+    '<p style="margin:0">ซิงก์กับปฏิทิน <b>'+esc(r.cal)+'</b> เรียบร้อย</p>'+
+    '<div style="display:flex;flex-direction:column;gap:6px">'+
+      rows.map(function(x){
+        return '<div style="display:flex;align-items:center;gap:9px">'+
+          '<i style="width:9px;height:9px;border-radius:3px;background:var('+x[2]+');display:block"></i>'+
+          '<span style="flex:1 1 auto">'+esc(x[0])+'</span>'+
+          '<b style="font-family:\'IBM Plex Mono\',monospace;font-variant-numeric:tabular-nums">'+x[1]+'</b></div>';
+      }).join("")+
+    '</div>'+
+    (r.failed.length ? gcalErrBox({t:'ส่งไม่สำเร็จ '+r.failed.length+' รายการ',
+        d: r.failed.slice(0,3).map(function(x){ return x.title+" — "+x.info.d; }).join(" · ") +
+           (r.failed.length>3?' และอีก '+(r.failed.length-3)+' รายการ':'') +
+           ' · เช็กในปฏิทินก่อนกดส่งซ้ำ'}) : '')+
+    '<span class="hint">แก้บอร์ดแล้วกดส่งใหม่ได้เรื่อยๆ — event เดิมจะถูกอัปเดต ไม่สร้างซ้ำ</span>',
+    '<div class="spacer"></div>'+
+    '<a class="btn" target="_blank" rel="noopener noreferrer" href="https://calendar.google.com/calendar/r">เปิด Google Calendar</a>'+
+    (r.failed.length ? '<button class="btn primary" id="gc-retry2">ลองอีกครั้ง</button>' : '<button class="btn primary" data-x>เสร็จแล้ว</button>')
+  );
+  var rt = document.getElementById("gc-retry2");
+  if(rt) rt.onclick = function(){ gcalRunSync(cals); };
+}
+
+/* resolves {ok:false} instead of hanging forever if a promise never settles
+   (e.g. wrong/unreachable Firebase config) — boot() must always reach render() */
+function withTimeout(promise, ms){
+  return new Promise(function(resolve){
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done=true; resolve({ok:false}); } }, ms);
+    promise.then(function(v){ if(!done){ done=true; clearTimeout(timer); resolve({ok:true, value:v}); } },
+                 function(){ if(!done){ done=true; clearTimeout(timer); resolve({ok:false}); } });
+  });
+}
+
+/* ============ boot ============ */
+async function boot(){
+  loadView();
+  loadGcal();
+  fbDb = initFirebase();
+  var remoteConfirmedEmpty = false;
+
+  if(fbDb){
+    var res = await withTimeout(fbDb.ref(FB_PATH).once("value"), 4000);
+    if(res.ok){
+      var v = res.value.val();
+      if(v && Object.keys(v).length) state = normalizeState(v);
+      else remoteConfirmedEmpty = true;
+    }
+    /* !res.ok: timed out or errored — connection status unknown, do NOT assume
+       empty (that could later overwrite real data once the connection comes back).
+       Fall through to local seed just so the page isn't blank; subscribeRealtime()
+       below will replace it with the real data as soon as Firebase responds. */
+  }
+  if(!state) state = normalizeState(seed());
+
+  if(fbDb && (remoteConfirmedEmpty || backfillEmails())) touch();
+  if(!view.dayW) view.dayW = 24;
+  var ids = state.boards.map(function(b){ return b.id; });
+  if(ids.indexOf(view.activeBoard) < 0) view.activeBoard = state.activeBoard || ids[0];
+  render();
+  setSave(fbDb ? "saved" : "unconfigured");
+  if(fbDb) subscribeRealtime();
+}
+boot();
+
+})();
+</script>
+
+
+</body>
+</html>

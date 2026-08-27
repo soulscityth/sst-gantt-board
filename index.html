@@ -1217,6 +1217,11 @@ function rows(b, r, dayW, trackW){
           (si>0?'<button class="btn sm" data-sect-up="'+esc(s.id)+'" title="ย้ายหัวข้อขึ้น">&#8593;</button>':'')+
           (si<b.sections.length-1?'<button class="btn sm" data-sect-down="'+esc(s.id)+'" title="ย้ายหัวข้อลง">&#8595;</button>':'')+
           '<button class="btn sm" data-tpl-open="'+esc(s.id)+'" title="เพิ่มงานจาก Workflow Template">Template</button>'+
+          '<select class="btn sm" data-sect-sort="'+esc(s.id)+'" title="จัดเรียงงานในหัวข้อนี้ตามวันที่">'+
+            '<option value="">จัดเรียง...</option>'+
+            '<option value="start">เรียงตาม Start date</option>'+
+            '<option value="due">เรียงตาม Due date</option>'+
+          '</select>'+
           '<button class="btn sm" data-rename="'+esc(s.id)+'">แก้ชื่อ</button>'+
           '<button class="btn sm danger" data-delsect="'+esc(s.id)+'">ลบ</button>'+
         '</span>')+
@@ -1387,6 +1392,11 @@ function wire(b, r, dayW){
       saveView(); render();
     };
   });
+  app.querySelectorAll("[data-sect-sort]").forEach(function(el){
+    el.onchange = function(){
+      if(el.value) sortSectionTasks(el.getAttribute("data-sect-sort"), el.value);
+    };
+  });
   app.querySelectorAll("[data-sect-up]").forEach(function(el){
     el.onclick = function(){ moveSection(el.getAttribute("data-sect-up"), -1); };
   });
@@ -1418,6 +1428,23 @@ function moveTask(taskId, sectId, dir){
   var j = i + dir;
   if(i<0 || j<0 || j>=s.tasks.length) return;
   var tmp = s.tasks[i]; s.tasks[i] = s.tasks[j]; s.tasks[j] = tmp;
+  touch(); render();
+}
+/* sorts a section's tasks by start or due date (ascending); tasks with no
+   parseable date sink to the bottom. Order can still be nudged afterward
+   with the per-task up/down buttons. */
+function sortSectionTasks(sectId, by){
+  var b = board(), s = null;
+  for(var k=0;k<b.sections.length;k++) if(b.sections[k].id===sectId){ s=b.sections[k]; break; }
+  if(!s) return;
+  s.tasks.sort(function(a, c){
+    var da = by==="due" ? dueOf(a) : parse(a.start);
+    var dc = by==="due" ? dueOf(c) : parse(c.start);
+    if(!da && !dc) return 0;
+    if(!da) return 1;
+    if(!dc) return -1;
+    return da.getTime() - dc.getTime();
+  });
   touch(); render();
 }
 

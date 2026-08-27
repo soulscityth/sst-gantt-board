@@ -653,12 +653,61 @@ function normalizeState(s){
   if(s.goals2027.workshopsBase == null) s.goals2027.workshopsBase = 0;
   return s;
 }
+/* Rebuilds localArr to match remoteArr's content/order, but for any item that
+   already exists locally (matched by key), mutates that SAME object in place
+   instead of swapping in the remote's plain object. This preserves object
+   identity for anything already referenced elsewhere (e.g. a task/section a
+   modal has open) so a realtime update landing mid-edit can't orphan it. */
+function mergeByKey(localArr, remoteArr, key, excludeKey){
+  key = key || "id";
+  var localByKey = {};
+  localArr.forEach(function(item){ localByKey[item[key]] = item; });
+  var result = remoteArr.map(function(r){
+    var existing = localByKey[r[key]];
+    if(existing){
+      Object.keys(existing).forEach(function(k){ if(k!==excludeKey && !(k in r)) delete existing[k]; });
+      Object.keys(r).forEach(function(k){ if(k!==excludeKey) existing[k] = r[k]; });
+      return existing;
+    }
+    return r;
+  });
+  localArr.length = 0;
+  Array.prototype.push.apply(localArr, result);
+}
+/* merges a freshly-arrived remote snapshot into the existing `state` object
+   IN PLACE (rather than `state = remote`), so open modals holding direct
+   references to a board/section/task/customer object keep working correctly
+   even if a save-echo or a teammate's edit arrives while they're mid-edit.
+   excludeKey on the nested-collection merges keeps mergeByKey's own
+   Object.assign from clobbering the child array reference (sections/tasks)
+   before the per-level loop below gets a chance to merge it separately. */
+function mergeState(remote){
+  remote = normalizeState(remote);
+  if(!state){ state = remote; return; }
+  mergeByKey(state.boards, remote.boards, "id", "sections");
+  state.boards.forEach(function(b, bi){
+    var rb = remote.boards[bi];
+    if(!rb) return;
+    mergeByKey(b.sections, rb.sections, "id", "tasks");
+    b.sections.forEach(function(s, si){
+      var rs = rb.sections[si];
+      if(!rs) return;
+      mergeByKey(s.tasks, rs.tasks, "id");
+    });
+  });
+  mergeByKey(state.team, remote.team, "code");
+  mergeByKey(state.customers, remote.customers, "id");
+  state.dayW = remote.dayW;
+  state.goals2027 = remote.goals2027;
+  state.activeBoard = remote.activeBoard;
+  state.v = remote.v;
+}
 function subscribeRealtime(){
   if(!fbDb) return;
   fbDb.ref(FB_PATH).on("value", function(snap){
     var v = snap.val();
     if(v && Object.keys(v).length){
-      state = normalizeState(v);
+      mergeState(v);
       render();
     }
     setSave("saved");
@@ -1134,6 +1183,7 @@ function rows(b, r, dayW, trackW){
         (readOnly?"":'<span class="sectacts">'+
           (si>0?'<button class="btn sm" data-sect-up="'+esc(s.id)+'" title="ย้ายหัวข้อขึ้น">&#8593;</button>':'')+
           (si<b.sections.length-1?'<button class="btn sm" data-sect-down="'+esc(s.id)+'" title="ย้ายหัวข้อลง">&#8595;</button>':'')+
+          '<button class="btn sm" data-tpl-open="'+esc(s.id)+'" title="เพิ่มงานจาก Workflow Template">Template</button>'+
           '<button class="btn sm" data-rename="'+esc(s.id)+'">แก้ชื่อ</button>'+
           '<button class="btn sm danger" data-delsect="'+esc(s.id)+'">ลบ</button>'+
         '</span>')+
@@ -1287,6 +1337,9 @@ function wire(b, r, dayW){
   });
   app.querySelectorAll("[data-addto]").forEach(function(el){
     el.onclick = function(){ openTask(null, el.getAttribute("data-addto")); };
+  });
+  app.querySelectorAll("[data-tpl-open]").forEach(function(el){
+    el.onclick = function(){ openTemplatePicker(el.getAttribute("data-tpl-open")); };
   });
   app.querySelectorAll("[data-rename]").forEach(function(el){
     el.onclick = function(){ openSection(el.getAttribute("data-rename")); };
@@ -1564,6 +1617,123 @@ function openTask(id, sectId){
   setTimeout(function(){ var el=document.getElementById("f-title"); if(el) el.focus(); }, 30);
 }
 
+/* ============ workflow template ============ */
+/* who covers each role — some roles are shared by 2 people (either could take
+   it), so both get pre-assigned as PIC; narrow it down per task afterward */
+var WORKFLOW_ROLE_PIC = {
+  AE: ["SIN","PALM"],
+  LD: ["TT","KANTA"],
+  GM: ["KK"],
+  OD: ["SIN"],
+  PR: ["PALM","KK"],
+  CFO: ["SIN"]
+};
+function picsForRoles(remark){
+  var out = [];
+  (remark||"").split(",").forEach(function(r){
+    var role = r.trim();
+    (WORKFLOW_ROLE_PIC[role]||[]).forEach(function(code){
+      if(out.indexOf(code)<0) out.push(code);
+    });
+  });
+  return out;
+}
+/* standard project workflow, parsed from the team's flowchart —
+   remark holds the role(s) responsible (AE/LD/GM/OD/PR/CFO); actual PIC
+   codes get resolved from WORKFLOW_ROLE_PIC at task-creation time */
+var WORKFLOW_TEMPLATE = [
+  {title:"รับบรีฟ", remark:"AE"},
+  {title:"Pre draft", remark:"AE"},
+  {title:"ส่ง Pre-draft ให้ลูกค้า", remark:"AE"},
+  {title:"Draft (นัด meeting online/onsite)", remark:"LD"},
+  {title:"Final Draft", remark:"LD"},
+  {title:"ทำ Slide", remark:"LD"},
+  {title:"Action plan ละเอียด", remark:"LD, AE"},
+  {title:"Evaluation Form", remark:"LD"},
+  {title:"Staff Listing", remark:"GM, AE"},
+  {title:"บรีฟ Staff", remark:"AE, LD, OD"},
+  {title:"Equipment Listing", remark:"LD, GM"},
+  {title:"หาซื้ออุปกรณ์", remark:"GM"},
+  {title:"เตรียมอุปกรณ์ให้พร้อม", remark:"LD, GM"},
+  {title:"วันจริง (Event Day)", remark:""},
+  {title:"PR สรุปงาน", remark:"PR"},
+  {title:"ทำแคปชั่น / รูป / คลิป", remark:"PR, LD"},
+  {title:"ทำสรุปและส่งคืนให้ลูกค้า", remark:"AE"},
+  {title:"Feedback จาก Staff", remark:"GM"},
+  {title:"เคลียร์ค่า Equipment", remark:"AE"},
+  {title:"Staff evaluation", remark:"GM"},
+  {title:"จ่ายค่าจ้าง", remark:"GM, CFO"},
+  {title:"ใบสำคัญรับเงิน", remark:"GM"},
+  {title:"เสนอราคา", remark:"AE"},
+  {title:"ออก Quotation", remark:"AE"},
+  {title:"วาง Invoice", remark:"AE"},
+  {title:"ติดตามเรื่องการจ่ายเงินจากลูกค้า", remark:"AE"},
+  {title:"ส่งใบเสร็จให้ลูกค้า", remark:"AE"}
+];
+function openTemplatePicker(sectId){
+  if(readOnly) return;
+  var b = board();
+  var s = b.sections.filter(function(x){return x.id===sectId;})[0];
+  if(!s) return;
+  var rows = WORKFLOW_TEMPLATE.map(function(item, i){
+    var names = picsForRoles(item.remark).map(function(code){ return member(code).name; }).join(", ");
+    return '<label class="chk"><input type="checkbox" data-tpl="'+i+'" checked>'+
+      '<span>'+esc(item.title)+
+        (item.remark?' <span class="hint">('+esc(item.remark)+(names?" — "+esc(names):"")+')</span>':'')+
+      '</span></label>';
+  }).join("");
+  modal("เลือกงานจาก Workflow Template — "+esc(s.title),
+    '<div class="field" style="flex-direction:row;align-items:center;gap:10px">'+
+      '<button type="button" class="btn sm" id="tpl-selall">เลือกทั้งหมด</button>'+
+      '<button type="button" class="btn sm" id="tpl-clearall">ล้างทั้งหมด</button>'+
+      '<span class="hint" id="tpl-count" style="margin-left:auto"></span>'+
+    '</div>'+
+    '<div class="field" style="gap:2px">'+rows+'</div>'+
+    '<div class="field"><label>วันที่เริ่ม (งานแรกที่เลือก)</label><input type="date" id="tpl-start" value="'+ymd(todayUTC())+'"></div>'+
+    '<span class="hint">งานที่เลือกจะถูกเพิ่มเรียงต่อกันทีละ 1 วัน เริ่มจากวันที่นี้ — ไปปรับวันที่/ระยะเวลา/มอบหมายคนของแต่ละงานทีหลังได้ตามปกติ</span>'+
+    '<span class="hint" id="tpl-warn" style="display:none;color:var(--s-cancel)">ยังไม่ได้เลือกงานเลย ติ๊กอย่างน้อย 1 รายการก่อนกดเพิ่ม</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
+    '<button class="btn primary" id="m-ok">เพิ่มงานที่เลือก</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  function tplUpdateCount(){
+    var n = document.querySelectorAll("[data-tpl]:checked").length;
+    document.getElementById("tpl-count").textContent = "เลือกอยู่ "+n+" / "+WORKFLOW_TEMPLATE.length;
+  }
+  document.querySelectorAll("[data-tpl]").forEach(function(cb){ cb.onchange = tplUpdateCount; });
+  document.getElementById("tpl-selall").onclick = function(){
+    document.querySelectorAll("[data-tpl]").forEach(function(cb){ cb.checked = true; });
+    tplUpdateCount();
+  };
+  document.getElementById("tpl-clearall").onclick = function(){
+    document.querySelectorAll("[data-tpl]").forEach(function(cb){ cb.checked = false; });
+    tplUpdateCount();
+  };
+  tplUpdateCount();
+  document.getElementById("m-ok").onclick = function(){
+    if(!document.querySelectorAll("[data-tpl]:checked").length){
+      document.getElementById("tpl-warn").style.display = "block";
+      return;
+    }
+    var startBase = document.getElementById("tpl-start").value || ymd(todayUTC());
+    var cur = parse(startBase) || todayUTC();
+    var added = 0;
+    WORKFLOW_TEMPLATE.forEach(function(item, i){
+      var cb = document.querySelector('[data-tpl="'+i+'"]');
+      if(!cb || !cb.checked) return;
+      s.tasks.push({
+        id: uid("t"), pic:picsForRoles(item.remark), title:item.title, remark:item.remark||"",
+        status:"Not started", start: ymd(cur), dur:1,
+        link:"", isProposal:false, proposal:{}, d2027:{}
+      });
+      cur = addDays(cur, 1);
+      added++;
+    });
+    closeModal();
+    if(added) { touch(); render(); }
+  };
+}
+
 var GCAL_COLORS = [
   ["1","Lavender","#7986cb"],["2","Sage","#33b679"],["3","Grape","#8e24aa"],
   ["4","Flamingo","#e67c73"],["5","Banana","#f6bf26"],["6","Tangerine","#f4511e"],
@@ -1610,9 +1780,14 @@ function openSection(id){
     var v = document.getElementById("f-sname").value.trim();
     if(!v){ document.getElementById("f-sname").focus(); return; }
     var custId = document.getElementById("f-scust").value;
+    var newId = null;
     if(s){ s.title = v; s.color = pickedColor; s.customerId = custId; }
-    else b.sections.push({id:uid("s"), title:v, tasks:[], color:pickedColor, customerId:custId});
+    else{
+      newId = uid("s");
+      b.sections.push({id:newId, title:v, tasks:[], color:pickedColor, customerId:custId});
+    }
     closeModal(); touch(); render();
+    if(newId) openTemplatePicker(newId);
   };
   setTimeout(function(){ var el=document.getElementById("f-sname"); if(el) el.focus(); }, 30);
 }

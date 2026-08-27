@@ -86,6 +86,7 @@
   --s-postponed:#AC7A28;
   --s-cancel:#A25656;
   --s-dday:#7A4FA3;
+  --s-overdue:#C1591A;
 
   --dayW:24px;
   --leftW:794px;
@@ -114,6 +115,7 @@
     --s-postponed:#CB9944;
     --s-cancel:#C57575;
     --s-dday:#9A70C2;
+    --s-overdue:#E08A4B;
   }
 }
 :root[data-theme="dark"]{
@@ -138,6 +140,7 @@
   --s-postponed:#CB9944;
   --s-cancel:#C57575;
   --s-dday:#9A70C2;
+  --s-overdue:#E08A4B;
 }
 
 *{box-sizing:border-box}
@@ -271,7 +274,7 @@ select.ctl:hover,input.ctl:hover{border-color:var(--border-strong)}
 .stat:first-child{border-left:0}
 .stat b{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15;font-family:"IBM Plex Mono",monospace}
 .stat span{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
-.stat.done b{color:var(--s-done)} .stat.proc b{color:var(--s-process)} .stat.late b{color:var(--s-cancel)}
+.stat.done b{color:var(--s-done)} .stat.proc b{color:var(--s-process)} .stat.late b{color:var(--s-overdue)}
 
 /* ---------- gantt ---------- */
 .viewport{flex:1 1 auto;overflow:auto;position:relative;background:var(--surface)}
@@ -543,14 +546,15 @@ select.statussel option{background:var(--surface);color:var(--text)}
 "use strict";
 
 /* ============ constants ============ */
-var STATUSES = ["Not started","In process","Done","Postponed","Cancel","D-DAY"];
+var STATUSES = ["Not started","In process","Done","Postponed","Cancel","D-DAY","Overdue"];
 var SVAR = {
   "Not started":"--s-notstarted",
   "In process":"--s-process",
   "Done":"--s-done",
   "Postponed":"--s-postponed",
   "Cancel":"--s-cancel",
-  "D-DAY":"--s-dday"
+  "D-DAY":"--s-dday",
+  "Overdue":"--s-overdue"
 };
 var COLS_FULL = "72px 232px 152px 104px 78px 44px 78px 78px";
 var COLS_SLIM = "72px 288px 106px 78px";
@@ -580,6 +584,36 @@ function dueOf(t){
   var s = parse(t.start);
   if(!s) return null;
   return addDays(s, Math.max(1,(t.dur||1))-1);
+}
+/* keeps status in sync with today's date: a Not-started task flips to In
+   process once its start date arrives, and anything not yet Done flips to
+   Overdue once its due date has passed. Cancel/D-DAY are left alone — a
+   cancelled task was never going to be "late", and D-DAY marks the event
+   day itself rather than a to-do that can be overdue. Runs before every
+   render so a tab left open across midnight self-heals; returns true if it
+   changed anything so the caller knows to persist the change. */
+function applyAutoStatuses(){
+  if(!state) return false;
+  var tod = todayUTC();
+  var changed = false;
+  state.boards.forEach(function(b){
+    b.sections.forEach(function(s){
+      s.tasks.forEach(function(t){
+        if(t.status==="Done" || t.status==="Cancel" || t.status==="D-DAY") return;
+        var due = dueOf(t);
+        if(due && due < tod){
+          if(t.status !== "Overdue"){ t.status = "Overdue"; changed = true; }
+          return;
+        }
+        var st = parse(t.start);
+        if(st && st <= tod && t.status === "Not started"){
+          t.status = "In process";
+          changed = true;
+        }
+      });
+    });
+  });
+  return changed;
 }
 function fmtShort(s){
   var d = parse(s);
@@ -791,6 +825,7 @@ function visible(t){
 
 /* ============ render ============ */
 function render(){
+  if(applyAutoStatuses()) touch();
   document.documentElement.style.setProperty("--cols", colsDef());
   document.documentElement.style.setProperty("--leftW", leftW()+"px");
   var app = document.getElementById("app");
@@ -1059,13 +1094,11 @@ function confirmDeleteCustomer(id){
 
 function toolbar(b){
   var all = [], done = 0, proc = 0, late = 0;
-  var tod = todayUTC();
   b.sections.forEach(function(s){ s.tasks.forEach(function(t){
     all.push(t);
     if(t.status==="Done") done++;
     else if(t.status==="In process") proc++;
-    var du = dueOf(t);
-    if(du && du < tod && t.status!=="Done" && t.status!=="Cancel") late++;
+    else if(t.status==="Overdue") late++;
   });});
 
   var pills = '<button class="picpill allpill" data-pic-all="1" aria-pressed="'+(filters.pic.length===0)+'">ALL</button>' +
@@ -1655,7 +1688,7 @@ var WORKFLOW_TEMPLATE = [
   {title:"Equipment Listing", remark:"LD, GM"},
   {title:"หาซื้ออุปกรณ์", remark:"GM"},
   {title:"เตรียมอุปกรณ์ให้พร้อม", remark:"LD, GM"},
-  {title:"วันจริง (Event Day)", remark:""},
+  {title:"วันจริง (Event Day)", remark:"", dday:true},
   {title:"PR สรุปงาน", remark:"PR"},
   {title:"ทำแคปชั่น / รูป / คลิป", remark:"PR, LD"},
   {title:"ทำสรุปและส่งคืนให้ลูกค้า", remark:"AE"},
@@ -1676,10 +1709,10 @@ function openTemplatePicker(sectId){
   var s = b.sections.filter(function(x){return x.id===sectId;})[0];
   if(!s) return;
   var rows = WORKFLOW_TEMPLATE.map(function(item, i){
-    var names = picsForRoles(item.remark).map(function(code){ return member(code).name; }).join(", ");
+    var names = item.dday ? "ทุกคน" : picsForRoles(item.remark).map(function(code){ return member(code).name; }).join(", ");
     return '<label class="chk"><input type="checkbox" data-tpl="'+i+'" checked>'+
       '<span>'+esc(item.title)+
-        (item.remark?' <span class="hint">('+esc(item.remark)+(names?" — "+esc(names):"")+')</span>':'')+
+        (names?' <span class="hint">('+esc(names)+')</span>':'')+
       '</span></label>';
   }).join("");
   modal("เลือกงานจาก Workflow Template — "+esc(s.title),
@@ -1722,8 +1755,10 @@ function openTemplatePicker(sectId){
       var cb = document.querySelector('[data-tpl="'+i+'"]');
       if(!cb || !cb.checked) return;
       s.tasks.push({
-        id: uid("t"), pic:picsForRoles(item.remark), title:item.title, remark:item.remark||"",
-        status:"Not started", start: ymd(cur), dur:1,
+        id: uid("t"),
+        pic: item.dday ? state.team.map(function(m){return m.code;}) : picsForRoles(item.remark),
+        title:item.title, remark:"",
+        status: item.dday ? "D-DAY" : "Not started", start: ymd(cur), dur:1,
         link:"", isProposal:false, proposal:{}, d2027:{}
       });
       cur = addDays(cur, 1);

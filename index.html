@@ -328,6 +328,11 @@ select.ctl:hover,input.ctl:hover{border-color:var(--border-strong)}
   font-size:12px;font-weight:600;letter-spacing:.03em;color:var(--text);
   margin:0;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
 }
+.collapsebtn{
+  border:0;background:none;color:var(--muted);width:18px;height:18px;flex:0 0 auto;
+  display:grid;place-items:center;font-size:11px;border-radius:5px;line-height:1;
+}
+.collapsebtn:hover{background:var(--surface);color:var(--text)}
 .sect .count{
   font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums;flex:0 0 auto;
   background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:0 7px;
@@ -392,7 +397,7 @@ select.statussel{
 select.statussel:hover{border-color:var(--border-strong)}
 select.statussel option{background:var(--surface);color:var(--text)}
 
-.rowact{display:flex;justify-content:center}
+.rowact{display:flex;justify-content:center;gap:1px}
 .iconbtn{
   border:0;background:none;color:var(--muted);width:22px;height:22px;border-radius:6px;
   display:grid;place-items:center;font-size:14px;line-height:1;opacity:0;transition:opacity .12s;
@@ -547,10 +552,10 @@ var SVAR = {
   "Cancel":"--s-cancel",
   "D-DAY":"--s-dday"
 };
-var COLS_FULL = "72px 232px 152px 104px 78px 44px 78px 34px";
-var COLS_SLIM = "72px 288px 106px 34px";
+var COLS_FULL = "72px 232px 152px 104px 78px 44px 78px 78px";
+var COLS_SLIM = "72px 288px 106px 78px";
 function colsDef(){ return view.compact ? COLS_SLIM : COLS_FULL; }
-function leftW(){ return view.compact ? 500 : 794; }
+function leftW(){ return view.compact ? 544 : 838; }
 var MON = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
 var MONS = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
 
@@ -598,7 +603,7 @@ var saveState = "connecting";
 /* Per-viewer view state — which board is open, zoom, compact columns.
    Kept in this browser only, so browsing never publishes a new version
    and never collides with a teammate's edits. */
-var view = {activeBoard:null, dayW:24, compact:false};
+var view = {activeBoard:null, dayW:24, compact:false, collapsed:{}};
 var VIEW_KEY = "sst-gantt-view";
 function loadView(){
   try{
@@ -641,7 +646,11 @@ function normalizeState(s){
   });
   s.team = s.team || [];
   s.customers = s.customers || [];
+  /* named goals2027 historically — now tracks 2026, kept the key so live data isn't migrated */
   s.goals2027 = s.goals2027 || {salesTarget:0, participantsTarget:0, workshopsTarget:0};
+  if(s.goals2027.salesBase == null) s.goals2027.salesBase = 1028970;
+  if(s.goals2027.participantsBase == null) s.goals2027.participantsBase = 0;
+  if(s.goals2027.workshopsBase == null) s.goals2027.workshopsBase = 0;
   return s;
 }
 function subscribeRealtime(){
@@ -802,6 +811,8 @@ function topbar(activeId){
 }
 
 /* ============ goal 2027 ============ */
+/* sums only the amounts entered on D-DAY tasks due within the goal year —
+   this is added on top of the fixed "base" amount in goalsPanel() below */
 function goals2027Sums(){
   var sales=0, participants=0, workshops=0;
   state.boards.forEach(function(b){
@@ -809,7 +820,7 @@ function goals2027Sums(){
       s.tasks.forEach(function(t){
         if(t.status !== "D-DAY") return;
         var du = dueOf(t);
-        if(!du || du.getUTCFullYear() !== 2027) return;
+        if(!du || du.getUTCFullYear() !== 2026) return;
         var g = t.d2027 || {};
         sales += (+g.sales)||0;
         participants += (+g.participants)||0;
@@ -829,28 +840,38 @@ function goalBar(label, actual, target, suffix){
 function goalsPanel(){
   var sums = goals2027Sums();
   var g = state.goals2027;
+  var actualSales = (g.salesBase||0) + sums.sales;
+  var actualParticipants = (g.participantsBase||0) + sums.participants;
+  var actualWorkshops = (g.workshopsBase||0) + sums.workshops;
   return '<div class="goals">'+
     '<div class="goalsrow">'+
-      goalBar("ยอดขาย 2027", sums.sales, g.salesTarget, " บาท") +
-      goalBar("ผู้เข้าร่วมสะสม 2027", sums.participants, g.participantsTarget, " คน") +
-      goalBar("Workshop/Camp สะสม 2027", sums.workshops, g.workshopsTarget, " ครั้ง") +
+      goalBar("ยอดขาย 2026", actualSales, g.salesTarget, " บาท") +
+      goalBar("ผู้เข้าร่วมสะสม 2026", actualParticipants, g.participantsTarget, " คน") +
+      goalBar("Workshop/Camp สะสม 2026", actualWorkshops, g.workshopsTarget, " ครั้ง") +
     '</div>'+
     (readOnly?"":'<button class="btn sm" id="btn-goals-edit" style="flex:0 0 auto">แก้เป้าหมาย</button>')+
   '</div>';
 }
 function openGoalsEdit(){
   var g = state.goals2027;
-  modal("แก้เป้าหมายปี 2027",
+  modal("แก้เป้าหมายปี 2026",
+    '<div class="field"><label>ยอดขายเริ่มต้น (บาท)</label><input type="number" min="0" id="f-goal-salesbase" value="'+(g.salesBase||0)+'"></div>'+
+    '<div class="field"><label>ผู้เข้าร่วมเริ่มต้น (คน)</label><input type="number" min="0" id="f-goal-partbase" value="'+(g.participantsBase||0)+'"></div>'+
+    '<div class="field"><label>Workshop/Camp เริ่มต้น (ครั้ง)</label><input type="number" min="0" id="f-goal-workbase" value="'+(g.workshopsBase||0)+'"></div>'+
+    '<span class="hint">ตัวเลขเริ่มต้น = ยอดที่นับรวมมาก่อนหน้าระบบนี้ จะถูกบวกกับยอดที่มาจากงาน D-DAY ในแต่ละหัวข้อ (ที่ครบกำหนดปี 2026) โดยอัตโนมัติ</span>'+
     '<div class="field"><label>เป้ายอดขาย (บาท)</label><input type="number" min="0" id="f-goal-sales" value="'+(g.salesTarget||0)+'"></div>'+
     '<div class="field"><label>เป้าผู้เข้าร่วมสะสม (คน)</label><input type="number" min="0" id="f-goal-part" value="'+(g.participantsTarget||0)+'"></div>'+
     '<div class="field"><label>เป้า Workshop/Camp สะสม (ครั้ง)</label><input type="number" min="0" id="f-goal-work" value="'+(g.workshopsTarget||0)+'"></div>'+
-    '<span class="hint">ตัวเลข "ก้าวหน้าจริง" คำนวณอัตโนมัติจากงานสถานะ D-DAY ที่มีกำหนดส่งในปี 2027 — กรอกยอดขาย/ผู้เข้าร่วม/จำนวน workshop ไว้ในหน้าต่างแก้ไขงานแต่ละงาน</span>',
+    '<span class="hint">กรอกยอดขาย/ผู้เข้าร่วม/จำนวน workshop ของแต่ละงานได้ในหน้าต่างแก้ไขงาน ตอนตั้งสถานะเป็น D-DAY</span>',
     '<div class="spacer"></div><button class="btn" id="m-cancel">ยกเลิก</button>'+
     '<button class="btn primary" id="m-ok">บันทึก</button>'
   );
   document.getElementById("m-cancel").onclick = closeModal;
   document.getElementById("m-ok").onclick = function(){
     state.goals2027 = {
+      salesBase: Math.max(0, parseInt(document.getElementById("f-goal-salesbase").value,10)||0),
+      participantsBase: Math.max(0, parseInt(document.getElementById("f-goal-partbase").value,10)||0),
+      workshopsBase: Math.max(0, parseInt(document.getElementById("f-goal-workbase").value,10)||0),
       salesTarget: Math.max(0, parseInt(document.getElementById("f-goal-sales").value,10)||0),
       participantsTarget: Math.max(0, parseInt(document.getElementById("f-goal-part").value,10)||0),
       workshopsTarget: Math.max(0, parseInt(document.getElementById("f-goal-work").value,10)||0)
@@ -1100,14 +1121,19 @@ function rows(b, r, dayW, trackW){
       (readOnly?"":'<button class="btn primary" id="btn-section-empty">+ สร้างหัวข้อแรก</button>')+'</div>';
   }
   var bg = trackBg(r, dayW);
-  return b.sections.map(function(s){
+  return b.sections.map(function(s, si){
     var ts = s.tasks.filter(visible);
     var ddayRange = sectionDdayRange(s);
+    var collapsed = !!view.collapsed[s.id];
     var out = '<div class="sect" data-sect="'+esc(s.id)+'">'+
-      '<div class="left"><h2>'+esc(s.title)+'</h2>'+
+      '<div class="left">'+
+        '<button class="collapsebtn" data-collapse="'+esc(s.id)+'" aria-label="'+(collapsed?"ขยายหัวข้อ":"ย่อหัวข้อ")+'" title="'+(collapsed?"ขยาย":"ย่อ")+'">'+(collapsed?"&#9656;":"&#9662;")+'</button>'+
+        '<h2>'+esc(s.title)+'</h2>'+
         (ddayRange?'<span class="sectdday">'+esc(ddayRange)+'</span>':'')+
         '<span class="count">'+ts.length+(ts.length!==s.tasks.length?"/"+s.tasks.length:"")+'</span><span class="grow"></span>'+
         (readOnly?"":'<span class="sectacts">'+
+          (si>0?'<button class="btn sm" data-sect-up="'+esc(s.id)+'" title="ย้ายหัวข้อขึ้น">&#8593;</button>':'')+
+          (si<b.sections.length-1?'<button class="btn sm" data-sect-down="'+esc(s.id)+'" title="ย้ายหัวข้อลง">&#8595;</button>':'')+
           '<button class="btn sm" data-rename="'+esc(s.id)+'">แก้ชื่อ</button>'+
           '<button class="btn sm danger" data-delsect="'+esc(s.id)+'">ลบ</button>'+
         '</span>')+
@@ -1115,12 +1141,13 @@ function rows(b, r, dayW, trackW){
       '<div class="track" style="width:'+trackW+'px"></div>'+
     '</div>';
 
-    ts.forEach(function(t){ out += taskRow(t, s, r, dayW, trackW, bg); });
-
-    if(!readOnly){
-      out += '<div class="addrow"><div class="left">'+
-        '<button class="linkbtn" data-addto="'+esc(s.id)+'">+ เพิ่มงานใน '+esc(s.title)+'</button>'+
-        '</div><div class="track" style="width:'+trackW+'px;'+bg+'"></div></div>';
+    if(!collapsed){
+      ts.forEach(function(t){ out += taskRow(t, s, r, dayW, trackW, bg); });
+      if(!readOnly){
+        out += '<div class="addrow"><div class="left">'+
+          '<button class="linkbtn" data-addto="'+esc(s.id)+'">+ เพิ่มงานใน '+esc(s.title)+'</button>'+
+          '</div><div class="track" style="width:'+trackW+'px;'+bg+'"></div></div>';
+      }
     }
     return out;
   }).join("");
@@ -1170,7 +1197,12 @@ function taskRow(t, s, r, dayW, trackW, bg){
         '<div class="c-num">'+fmtShort(t.start)+(t.startTime?' '+esc(t.startTime):'')+'</div>'+
         '<div class="c-num c-dur">'+(t.dur||1)+'</div>'+
         '<div class="c-num">'+(du?fmtShort(ymd(du)):"—")+(t.dueTime?' '+esc(t.dueTime):'')+'</div>')+
-      '<div class="rowact">'+(readOnly?"":'<button class="iconbtn" data-edit="'+esc(t.id)+'" aria-label="แก้ไข '+esc(t.title)+'">&#9998;</button>')+'</div>'+
+      '<div class="rowact">'+(readOnly?"":(function(){
+        var ti = s.tasks.indexOf(t);
+        return (ti>0?'<button class="iconbtn" data-task-up="'+esc(t.id)+'" data-sect="'+esc(s.id)+'" aria-label="ย้ายขึ้น" title="ย้ายขึ้น">&#8593;</button>':'')+
+          (ti<s.tasks.length-1?'<button class="iconbtn" data-task-down="'+esc(t.id)+'" data-sect="'+esc(s.id)+'" aria-label="ย้ายลง" title="ย้ายลง">&#8595;</button>':'')+
+          '<button class="iconbtn" data-edit="'+esc(t.id)+'" aria-label="แก้ไข '+esc(t.title)+'">&#9998;</button>';
+      })())+'</div>'+
     '</div>'+
     '<div class="track" style="width:'+trackW+'px;'+bg+'">'+bar+'</div>'+
   '</div>';
@@ -1262,6 +1294,45 @@ function wire(b, r, dayW){
   app.querySelectorAll("[data-delsect]").forEach(function(el){
     el.onclick = function(){ confirmDeleteSection(el.getAttribute("data-delsect")); };
   });
+  app.querySelectorAll("[data-collapse]").forEach(function(el){
+    el.onclick = function(){
+      var id = el.getAttribute("data-collapse");
+      view.collapsed[id] = !view.collapsed[id];
+      saveView(); render();
+    };
+  });
+  app.querySelectorAll("[data-sect-up]").forEach(function(el){
+    el.onclick = function(){ moveSection(el.getAttribute("data-sect-up"), -1); };
+  });
+  app.querySelectorAll("[data-sect-down]").forEach(function(el){
+    el.onclick = function(){ moveSection(el.getAttribute("data-sect-down"), 1); };
+  });
+  app.querySelectorAll("[data-task-up]").forEach(function(el){
+    el.onclick = function(){ moveTask(el.getAttribute("data-task-up"), el.getAttribute("data-sect"), -1); };
+  });
+  app.querySelectorAll("[data-task-down]").forEach(function(el){
+    el.onclick = function(){ moveTask(el.getAttribute("data-task-down"), el.getAttribute("data-sect"), 1); };
+  });
+}
+
+function moveSection(id, dir){
+  var b = board();
+  var i = -1;
+  for(var k=0;k<b.sections.length;k++) if(b.sections[k].id===id){ i=k; break; }
+  var j = i + dir;
+  if(i<0 || j<0 || j>=b.sections.length) return;
+  var tmp = b.sections[i]; b.sections[i] = b.sections[j]; b.sections[j] = tmp;
+  touch(); render();
+}
+function moveTask(taskId, sectId, dir){
+  var b = board(), s = null;
+  for(var k=0;k<b.sections.length;k++) if(b.sections[k].id===sectId){ s=b.sections[k]; break; }
+  if(!s) return;
+  var i = s.tasks.indexOf(s.tasks.filter(function(t){return t.id===taskId;})[0]);
+  var j = i + dir;
+  if(i<0 || j<0 || j>=s.tasks.length) return;
+  var tmp = s.tasks[i]; s.tasks[i] = s.tasks[j]; s.tasks[j] = tmp;
+  touch(); render();
 }
 
 function findTask(id){
@@ -1379,7 +1450,7 @@ function openTask(id, sectId){
         '<div class="field"><label>ผู้เข้าร่วม (คน)</label><input type="number" min="0" id="f-d2part" value="'+((t.d2027&&t.d2027.participants)||0)+'"></div>'+
         '<div class="field"><label>นับเป็น Workshop (ครั้ง)</label><input type="number" min="0" id="f-d2work" value="'+((t.d2027&&t.d2027.workshops!=null)?t.d2027.workshops:1)+'"></div>'+
       '</div>'+
-      '<span class="hint">งาน D-DAY ที่ครบกำหนดในปี 2027 จะถูกรวมเข้าแถบเป้าหมายปี 2027 ด้านบนของบอร์ดอัตโนมัติจากตัวเลขนี้</span>'+
+      '<span class="hint">งาน D-DAY ที่ครบกำหนดในปี 2026 จะถูกรวมเข้าแถบเป้าหมายปี 2026 ด้านบนของบอร์ดอัตโนมัติจากตัวเลขนี้</span>'+
     '</div>',
     (found ? '<button class="btn danger" id="m-del">ลบงานนี้</button>' : '')+
     (found ? '<a class="btn" id="m-gcal" target="_blank" rel="noopener noreferrer" href="'+esc(gcalUrl(t))+'">เพิ่มลงปฏิทิน</a>' : '')+

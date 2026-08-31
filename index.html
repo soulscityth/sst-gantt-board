@@ -21,9 +21,18 @@
            "board_state": {
              ".read": true,
              ".write": true
+           },
+           "gcal_sync": {
+             ".read": true,
+             ".write": true
            }
          }
        }
+
+     (gcal_sync เก็บว่าใครเคยส่งงานไหนเข้า Google Calendar แล้วบ้าง — แยก path
+     จาก board_state เพื่อไม่ให้การบันทึกบอร์ดปกติไปทับข้อมูลนี้ทิ้ง ต้องมี
+     rule นี้ด้วยไม่งั้นทั้งทีมจะซิงก์ปฏิทินแบบแชร์กันไม่ได้ — คนละเครื่องจะ
+     ไม่รู้ว่าอีกคนส่งอะไรไปแล้วบ้าง เลยส่งซ้ำ/แจ้งเตือนซ้ำ)
 
   3) ไปที่ Project settings (รูปเฟือง) → General → เลื่อนลงมา "Your apps" → กด </> เพิ่มแอปแบบ Web
      ตั้งชื่ออะไรก็ได้ ไม่ต้องติ๊ก Firebase Hosting ก็ได้
@@ -2427,16 +2436,49 @@ function downloadIcs(){
 /* ============ google calendar (direct OAuth, no MCP) ============ */
 var GCAL_SCOPE = "https://www.googleapis.com/auth/calendar";
 var GCAL_KEY = "sst-gantt-gcal2";
+var GCAL_FB_PATH = "gcal_sync";
 var gcal = {calendarId:"", lead:1440, scope:"all", invite:true, map:{}};
 var gcalToken = null;          /* {access_token, expiresAt} — memory only, never persisted */
 var gcalTokenClient = null;
 
+/* local cache only — lets the dialog open instantly with last-known settings
+   before loadGcalRemote() below has a chance to answer. */
 function loadGcal(){
   try{ var r = localStorage.getItem(GCAL_KEY);
        if(r){ var v = JSON.parse(r); if(v && typeof v==="object") Object.assign(gcal, v); } }catch(e){}
   if(!gcal.map || typeof gcal.map !== "object") gcal.map = {};
 }
-function saveGcal(){ try{ localStorage.setItem(GCAL_KEY, JSON.stringify(gcal)); }catch(e){} }
+/* the destination calendar, and — critically — the map of task→event-id/hash
+   already sent, are shared team state, not this-browser state: they live in
+   Firebase, not just localStorage. Without this, two people syncing the same
+   board from two different computers would each have their own blind spot
+   about what the other already created, and would happily re-create (and
+   re-invite guests to) each other's events. Called once, right before the
+   calendar-picker form renders, so the dialog (and the sync it kicks off)
+   works from the team's latest ledger rather than a stale local copy. Not
+   re-called right before the sync itself — every field in the form saves
+   to Firebase on change already, so re-fetching there would risk a race
+   that clobbers a selection the user just made with whatever this browser
+   last read. */
+async function loadGcalRemote(){
+  if(!fbDb) return;
+  try{
+    var res = await withTimeout(fbDb.ref(GCAL_FB_PATH).once("value"), 4000);
+    if(res.ok){
+      var v = res.value.val();
+      if(v && typeof v === "object"){
+        Object.assign(gcal, v);
+        if(!gcal.map || typeof gcal.map !== "object") gcal.map = {};
+        saveGcalLocal();
+      }
+    }
+  }catch(e){}
+}
+function saveGcalLocal(){ try{ localStorage.setItem(GCAL_KEY, JSON.stringify(gcal)); }catch(e){} }
+function saveGcal(){
+  saveGcalLocal();
+  if(fbDb) fbDb.ref(GCAL_FB_PATH).set(gcal).catch(function(){});
+}
 
 function gcalConfigured(){
   return !!(window.GOOGLE_CLIENT_ID && window.GOOGLE_CLIENT_ID.indexOf("YOUR_") < 0);
@@ -2629,6 +2671,7 @@ async function gcalRoute(){
     return;
   }
   gcalSetBody('<p style="margin:0;color:var(--muted)">'+esc(tr("gcal_reading_cals"))+'</p>', '<div class="spacer"></div><button class="btn" data-x>'+esc(tr("close"))+'</button>');
+  await loadGcalRemote();
   try{
     var res = await gcalFetch("/users/me/calendarList?maxResults=250");
     var cals = (res && res.items) || [];

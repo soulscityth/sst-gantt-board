@@ -675,7 +675,11 @@ var I18N = {
     gcal_no_cal_t:"ไม่พบปฏิทินที่แก้ไขได้",
     gcal_no_cal_d:"ตรวจสอบว่าบัญชีที่ล็อกอินมีสิทธิ์แก้ไขปฏิทินอย่างน้อย 1 ปฏิทิน",
     gcal_meanwhile:"ระหว่างนี้ยังดาวน์โหลดไฟล์ .ics แล้วนำเข้าเองได้", download_ics_btn:"ดาวน์โหลด .ics",
-    gcal_send_count:"ส่งงาน <b>{n}</b> รายการเข้า Google Calendar เป็น all-day event",
+    gcal_pick_label:"เลือกงานที่จะส่ง (all-day event)",
+    gcal_no_targets:"ไม่มีงานที่ครบเงื่อนไขส่งเข้าปฏิทินในขอบเขตนี้",
+    gcal_status_new:"ใหม่", gcal_status_changed:"มีการเปลี่ยนแปลง", gcal_status_unchanged:"ไม่เปลี่ยนแปลง",
+    gcal_select_count:"เลือกอยู่ {sel} / {total} รายการ",
+    gcal_pick_warn:"ยังไม่ได้เลือกงานเลย ติ๊กอย่างน้อย 1 รายการก่อนกดส่ง",
     gcal_dday_rule:"ยิงทั้งช่วง <b>START → DUE</b> และจองเวลาเป็น Busy",
     gcal_normal_rule:"→ ยิงเฉพาะวัน <b>DUE DATE</b> วันเดียว ไม่จองเวลา",
     gcal_done_rule:"→ <b>เก็บไว้ในปฏิทิน</b> เปลี่ยนชื่อเป็น [DONE] และปิดแจ้งเตือน",
@@ -808,7 +812,11 @@ var I18N = {
     gcal_no_cal_d:"Check that the logged-in account has edit access to at least one calendar.",
     gcal_meanwhile:"In the meantime, you can still download the .ics file and import it manually.",
     download_ics_btn:"Download .ics",
-    gcal_send_count:"Send <b>{n}</b> tasks to Google Calendar as all-day events",
+    gcal_pick_label:"Pick which tasks to send (all-day events)",
+    gcal_no_targets:"No tasks meet the criteria for calendar sync in this scope",
+    gcal_status_new:"New", gcal_status_changed:"Changed", gcal_status_unchanged:"Unchanged",
+    gcal_select_count:"{sel} / {total} selected",
+    gcal_pick_warn:"No tasks selected yet — check at least one before sending",
     gcal_dday_rule:"spans the full <b>START → DUE</b> range and blocks the time as Busy",
     gcal_normal_rule:"→ fires only on the <b>DUE DATE</b>, single day, no time blocked",
     gcal_done_rule:"→ <b>kept on the calendar</b>, renamed to [DONE], reminders turned off",
@@ -2652,6 +2660,46 @@ function gcalEventHash(x){
   var guests = gcal.invite ? gcalPicGuests(x.t).map(function(g){ return g.email.toLowerCase(); }).sort() : [];
   return JSON.stringify(body) + "|" + JSON.stringify(guests);
 }
+/* "new" (never sent), "changed" (sent before, fingerprint differs now), or
+   "unchanged" (sent before, identical) — same comparison gcalRunSync itself
+   uses to decide skip/update/create, surfaced here so the picker can show
+   it and default the checkboxes sensibly instead of guessing. */
+function gcalTargetStatus(x, calId){
+  var entry = gcal.map[calId+"|"+x.key];
+  var prevId = entry && typeof entry === "object" ? entry.id : entry;
+  if(!prevId) return "new";
+  var prevHash = entry && typeof entry === "object" ? entry.hash : null;
+  return (prevHash === gcalEventHash(x)) ? "unchanged" : "changed";
+}
+var GCAL_STATUS_VAR = {"new":"--s-done", changed:"--s-process", unchanged:"--s-notstarted"};
+var GCAL_STATUS_KEY = {"new":"gcal_status_new", changed:"gcal_status_changed", unchanged:"gcal_status_unchanged"};
+/* default checkbox state for the sync picker: pre-check anything new or
+   changed, leave already-in-sync items unchecked since there's nothing to
+   gain from re-touching them — the user can still tick one back on. */
+function gcalDefaultSelection(targets, calId){
+  var sel = {};
+  targets.forEach(function(x){ sel[x.key] = gcalTargetStatus(x, calId) !== "unchanged"; });
+  return sel;
+}
+function gcalChecklistHtml(targets, calId, selected){
+  if(!targets.length) return '<p class="hint" style="margin:0">'+esc(tr("gcal_no_targets"))+'</p>';
+  var groups = [], byKey = {};
+  targets.forEach(function(x){
+    var gk = x.b.id+"|"+x.s.id;
+    if(!byKey[gk]){ byKey[gk] = {b:x.b, s:x.s, items:[]}; groups.push(byKey[gk]); }
+    byKey[gk].items.push(x);
+  });
+  return groups.map(function(g){
+    var rows = g.items.map(function(x){
+      var st = gcalTargetStatus(x, calId);
+      var checked = selected[x.key];
+      return '<label class="chk"><input type="checkbox" data-gc-task="'+esc(x.key)+'"'+(checked?" checked":"")+'>'+
+        '<span>'+esc(x.t.title)+' <span class="hint" style="color:var('+GCAL_STATUS_VAR[st]+')">('+esc(tr(GCAL_STATUS_KEY[st]))+')</span></span>'+
+      '</label>';
+    }).join("");
+    return '<div style="font-weight:600;font-size:12px;color:var(--text-2);margin-top:8px">'+esc(g.b.name)+' › '+esc(g.s.title)+'</div>'+rows;
+  }).join("");
+}
 
 /* ---- dialog ---- */
 function openCalendarExport(){
@@ -2707,7 +2755,7 @@ async function gcalRoute(){
   }
 }
 function gcalForm(cals, err){
-  var n = gcalSyncTargets().length;
+  var targets = gcalSyncTargets();
   if(!cals || !cals.length){
     gcalSetBody(
       (err?gcalErrBox(err):gcalErrBox({t:tr("gcal_no_cal_t"), d:tr("gcal_no_cal_d")}))+
@@ -2733,9 +2781,9 @@ function gcalForm(cals, err){
   }).join("");
   var synced = Object.keys(gcal.map).length;
   var withMail = state.team.filter(function(m){ return (m.email||"").trim(); }).length;
+  var selection = gcalDefaultSelection(targets, gcal.calendarId);
 
   gcalSetBody(
-    '<p style="margin:0">'+tr("gcal_send_count",{n:n})+'</p>'+
     '<div style="border:1px solid var(--border);border-radius:8px;background:var(--surface-2);'+
       'padding:9px 11px;display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--text-2)">'+
       '<div><b style="color:var(--s-dday)">D-DAY</b> '+tr("gcal_dday_rule")+'</div>'+
@@ -2757,30 +2805,63 @@ function gcalForm(cals, err){
         '<span>'+esc(tr("gcal_invite_label",{have:withMail, total:state.team.length}))+'</span></label>'+
       (withMail<state.team.length?'<span class="hint">'+esc(tr("gcal_invite_hint"))+'</span>':'')+
     '</div>'+
+    '<div class="field">'+
+      '<label>'+esc(tr("gcal_pick_label"))+'</label>'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<button type="button" class="btn sm" id="gc-selall">'+esc(tr("tpl_select_all"))+'</button>'+
+        '<button type="button" class="btn sm" id="gc-clearall">'+esc(tr("tpl_clear_all"))+'</button>'+
+        '<span class="hint" id="gc-count" style="margin-left:auto"></span>'+
+      '</div>'+
+      '<div style="display:flex;flex-direction:column;gap:2px">'+gcalChecklistHtml(targets, gcal.calendarId, selection)+'</div>'+
+      '<span class="hint" id="gc-warn" style="display:none;color:var(--s-cancel)">'+esc(tr("gcal_pick_warn"))+'</span>'+
+    '</div>'+
     '<span class="hint">'+esc(synced?tr("gcal_resync_hint",{n:synced}):tr("gcal_first_sync_hint"))+'</span>',
     '<div class="spacer"></div><button class="btn" id="gc-ics">.ics</button>'+
     '<button class="btn" data-x>'+esc(tr("close"))+'</button><button class="btn primary" id="gc-go">'+esc(tr("send_to_calendar_btn"))+'</button>'
   );
-  document.getElementById("gc-cal").onchange = function(){ gcal.calendarId=this.value; saveGcal(); };
+  document.getElementById("gc-cal").onchange = function(){ gcal.calendarId=this.value; saveGcal(); gcalForm(cals, null); };
   document.getElementById("gc-lead").onchange = function(){ gcal.lead=+this.value; saveGcal(); };
-  document.getElementById("gc-invite").onchange = function(){ gcal.invite=this.checked; saveGcal(); };
-  document.getElementById("gc-scope").onchange = function(){
-    gcal.scope=this.value; saveGcal();
-    document.getElementById("gc-count").textContent = gcalSyncTargets().length;
+  document.getElementById("gc-invite").onchange = function(){ gcal.invite=this.checked; saveGcal(); gcalForm(cals, null); };
+  document.getElementById("gc-scope").onchange = function(){ gcal.scope=this.value; saveGcal(); gcalForm(cals, null); };
+  function updateGcCount(){
+    var n = document.querySelectorAll("[data-gc-task]:checked").length;
+    document.getElementById("gc-count").textContent = tr("gcal_select_count",{sel:n, total:targets.length});
+  }
+  document.querySelectorAll("[data-gc-task]").forEach(function(cb){ cb.onchange = updateGcCount; });
+  document.getElementById("gc-selall").onclick = function(){
+    document.querySelectorAll("[data-gc-task]").forEach(function(cb){ cb.checked = true; });
+    updateGcCount();
   };
+  document.getElementById("gc-clearall").onclick = function(){
+    document.querySelectorAll("[data-gc-task]").forEach(function(cb){ cb.checked = false; });
+    updateGcCount();
+  };
+  updateGcCount();
   document.getElementById("gc-ics").onclick = downloadIcs;
-  document.getElementById("gc-go").onclick = function(){ gcalRunSync(cals); };
+  document.getElementById("gc-go").onclick = function(){
+    var picked = {};
+    document.querySelectorAll("[data-gc-task]:checked").forEach(function(cb){ picked[cb.getAttribute("data-gc-task")] = true; });
+    if(!Object.keys(picked).length){
+      document.getElementById("gc-warn").style.display = "block";
+      return;
+    }
+    gcalRunSync(cals, picked);
+  };
 }
 
-async function gcalRunSync(cals){
-  var targets = gcalSyncTargets();
+async function gcalRunSync(cals, selectedKeys){
+  var allTargets = gcalSyncTargets();
   var calId = gcal.calendarId;
   var prefix = calId+"|";
+  /* stale-event cleanup always looks at every valid target, never just the
+     ones the user picked this round — otherwise simply not selecting a
+     still-valid task this time would get its calendar event deleted. */
   var stale = Object.keys(gcal.map).filter(function(k){
     if(k.indexOf(prefix)!==0) return false;
     var rest = k.slice(prefix.length);
-    return !targets.some(function(x){ return x.key===rest; });
+    return !allTargets.some(function(x){ return x.key===rest; });
   });
+  var targets = selectedKeys ? allTargets.filter(function(x){ return selectedKeys[x.key]; }) : allTargets;
   var total = targets.length + stale.length;
   var created=0, updated=0, removed=0, invited=0, skipped=0, failed=[];
   var done=0;

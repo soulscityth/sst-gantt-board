@@ -3000,6 +3000,16 @@ async function gcalRunSync(cals, selectedKeys){
        itself changed). Re-applying a hash check here would silently
        override that explicit choice — send it, no second-guessing. */
     var body = gcalEventBody(x);
+    /* deleting an event in Google Calendar's UI (especially one with
+       guests) usually only sets status:"cancelled" on the resource
+       rather than actually removing it — a PATCH against that id still
+       succeeds (200, counted as "updated") but the event stays invisible
+       in the UI unless the payload explicitly re-confirms it. Set only on
+       the outgoing body (not in gcalEventBody itself, which also feeds
+       the change-detection hash) so this doesn't shift every already-
+       synced task's fingerprint to "changed" and mass re-notify guests
+       on the next ordinary sync. */
+    body.status = "confirmed";
     var guests = gcal.invite ? gcalPicGuests(x.t) : [];
     if(guests.length) body.attendees = guests;
     var sendUpdates = gcal.invite ? "all" : "none";

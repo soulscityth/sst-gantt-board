@@ -597,10 +597,14 @@ var I18N = {
     undo_hint:"การลบย้อนกลับไม่ได้",
     status_all:"ทั้งหมด", zoom_compact:"กระชับ", zoom_normal:"ปกติ", zoom_wide:"กว้าง",
     show_all_cols:"แสดงทุกคอลัมน์", collapse_cols:"ย่อคอลัมน์", today_btn:"วันนี้",
+    show_old_done:"แสดงงานเก่าที่เสร็จแล้ว ({n})", hide_old_done:"ซ่อนงานเก่าที่เสร็จแล้ว",
+    show_done_projects:"แสดงหัวข้อที่เสร็จแล้ว ({n})", hide_done_projects:"ซ่อนหัวข้อที่เสร็จแล้ว",
     add_project_btn:"+ หัวข้อ", add_task_btn:"+ เพิ่มงาน",
     board_empty_title:"ยังไม่มีหัวข้องานในบอร์ดนี้",
     board_empty_body:"เริ่มจากสร้างหัวข้อ (เช่น Selling product to school) แล้วค่อยเพิ่มงานเข้าไปข้างใน",
     create_first_project:"+ สร้างหัวข้อแรก",
+    all_projects_done_title:"ทุกหัวข้อเสร็จสมบูรณ์แล้ว",
+    all_projects_done_body:'กดปุ่ม "แสดงหัวข้อที่เสร็จแล้ว" ที่แถบเครื่องมือด้านบนเพื่อดู',
     expand_project:"ขยายหัวข้อ", collapse_project:"ย่อหัวข้อ", expand_short:"ขยาย", collapse_short:"ย่อ",
     move_project_up:"ย้ายหัวข้อขึ้น", move_project_down:"ย้ายหัวข้อลง",
     tpl_open_title:"เพิ่มงานจาก Workflow Template",
@@ -620,6 +624,8 @@ var I18N = {
     prop_brief_btn:"คัดลอกสรุปเพื่อขอ Proposal จาก Claude",
     prop_brief_hint:"คัดลอกสรุปนี้ไปวางแชทกับ Claude เพื่อให้ช่วยร่าง Proposal (ใช้ skill soulscity-proposal) แล้วนำลิงก์เอกสารที่ได้มาใส่ในช่อง Link ด้านบน",
     pic_hint:"เลือกได้หลายคน — เลือกครบทุกคนจะแสดงเป็น ALL",
+    task_color_label:"สี Google Calendar (เฉพาะงานนี้)",
+    task_color_hint:"ไม่บังคับ — ถ้าเลือกไว้จะใช้สีนี้แทนสีของหัวข้อ (Auto = ใช้สีหัวข้อ หรือสีแดงถ้าเป็น D-DAY)",
     section_label:"หัวข้อ", optional_hint:"(ไม่บังคับ)",
     d2sales_label:"ยอดขาย (บาท)", d2part_label:"ผู้เข้าร่วม (คน)", d2work_label:"นับเป็น Workshop (ครั้ง)",
     d2027_hint:"งาน D-DAY ที่ครบกำหนดในปี 2026 จะถูกรวมเข้าแถบเป้าหมายปี 2026 ด้านบนของบอร์ดอัตโนมัติจากตัวเลขนี้",
@@ -685,8 +691,7 @@ var I18N = {
     gcal_resend_hint:"แก้บอร์ดแล้วกดส่งใหม่ได้เรื่อยๆ — event เดิมจะถูกอัปเดต ไม่สร้างซ้ำ",
     open_gcal_link:"เปิด Google Calendar", done_btn:"เสร็จแล้ว",
     gis_not_ready:"Google Identity Services ยังไม่พร้อม", permission_denied:"ไม่ได้รับสิทธิ์",
-    connection_cancelled:"การเชื่อมต่อถูกยกเลิก",
-    days_suffix:" วัน", due_tomorrow_prefix:"พรุ่งนี้ครบกำหนด: "
+    connection_cancelled:"การเชื่อมต่อถูกยกเลิก"
   },
   en: {
     customers_tab:"Customers", team_btn:"Team",
@@ -723,10 +728,14 @@ var I18N = {
     undo_hint:"This cannot be undone.",
     status_all:"All", zoom_compact:"Compact", zoom_normal:"Normal", zoom_wide:"Wide",
     show_all_cols:"Show All Columns", collapse_cols:"Collapse Columns", today_btn:"Today",
+    show_old_done:"Show old completed tasks ({n})", hide_old_done:"Hide old completed tasks",
+    show_done_projects:"Show completed projects ({n})", hide_done_projects:"Hide completed projects",
     add_project_btn:"+ Project", add_task_btn:"+ Add Task",
     board_empty_title:"No projects in this board yet",
     board_empty_body:"Start by creating a project (e.g. Selling product to school), then add tasks inside it.",
     create_first_project:"+ Create First Project",
+    all_projects_done_title:"All projects are complete",
+    all_projects_done_body:'Click "Show completed projects" in the toolbar above to see them',
     expand_project:"Expand Project", collapse_project:"Collapse Project", expand_short:"Expand", collapse_short:"Collapse",
     move_project_up:"Move Project Up", move_project_down:"Move Project Down",
     tpl_open_title:"Add Tasks From Workflow Template",
@@ -746,6 +755,8 @@ var I18N = {
     prop_brief_btn:"Copy Summary to Request a Proposal from Claude",
     prop_brief_hint:"Copy this summary into a chat with Claude to help draft the Proposal (uses the soulscity-proposal skill), then paste the resulting document link into the Link field above.",
     pic_hint:"You can select multiple people — selecting everyone shows as ALL",
+    task_color_label:"Google Calendar Color (this task only)",
+    task_color_hint:"Optional — if set, this color is used instead of the project's color (Auto = use the project's color, or red for D-DAY)",
     section_label:"Project", optional_hint:"(optional)",
     d2sales_label:"Sales (THB)", d2part_label:"Participants (people)", d2work_label:"Counts as Workshop (times)",
     d2027_hint:"D-DAY tasks due in 2026 are automatically included in the 2026 goals bar at the top of the board using this number.",
@@ -812,8 +823,7 @@ var I18N = {
     gcal_resend_hint:"Edit the board and resend anytime — existing events will be updated, not duplicated.",
     open_gcal_link:"Open Google Calendar", done_btn:"Done",
     gis_not_ready:"Google Identity Services not ready", permission_denied:"Permission not granted",
-    connection_cancelled:"Connection was cancelled",
-    days_suffix:" days", due_tomorrow_prefix:"Due tomorrow: "
+    connection_cancelled:"Connection was cancelled"
   }
 };
 /* named tr() rather than t() — this codebase's convention uses `t` as the
@@ -915,7 +925,7 @@ var saveState = "connecting";
 /* Per-viewer view state — which board is open, zoom, compact columns.
    Kept in this browser only, so browsing never publishes a new version
    and never collides with a teammate's edits. */
-var view = {activeBoard:null, dayW:24, compact:false, collapsed:{}, lang:"th"};
+var view = {activeBoard:null, dayW:24, compact:false, collapsed:{}, lang:"th", showOldDone:false, showDoneProjects:false};
 var VIEW_KEY = "sst-gantt-view";
 function loadView(){
   try{
@@ -1092,13 +1102,28 @@ function rangeOf(b){
 }
 
 /* ============ filtering ============ */
+/* a task done more than a month ago is clutter, not a decision anyone needs
+   to see day to day — hidden by default, but never deleted; the "show old
+   completed tasks" toggle brings them straight back. */
+function isOldDone(t){
+  if(t.status !== "Done") return false;
+  var du = dueOf(t);
+  return !!(du && diffDays(du, todayUTC()) > 30);
+}
 function visible(t){
   if(filters.status && t.status !== filters.status) return false;
   if(filters.pic.length){
     var hit = (t.pic||[]).some(function(p){ return filters.pic.indexOf(p) >= 0; });
     if(!hit) return false;
   }
+  if(!view.showOldDone && isOldDone(t)) return false;
   return true;
+}
+/* a project whose tasks are all Done is finished business — hidden from the
+   default view like an old-done task, but findable via the same kind of
+   toggle rather than actually removed. */
+function isProjectDone(s){
+  return s.tasks.length > 0 && s.tasks.every(function(t){ return t.status === "Done"; });
 }
 
 /* ============ render ============ */
@@ -1373,13 +1398,17 @@ function confirmDeleteCustomer(id){
 }
 
 function toolbar(b){
-  var all = [], done = 0, proc = 0, late = 0;
-  b.sections.forEach(function(s){ s.tasks.forEach(function(t){
-    all.push(t);
-    if(t.status==="Done") done++;
-    else if(t.status==="In process") proc++;
-    else if(t.status==="Overdue") late++;
-  });});
+  var all = [], done = 0, proc = 0, late = 0, oldDoneCount = 0, doneProjectsCount = 0;
+  b.sections.forEach(function(s){
+    if(isProjectDone(s)) doneProjectsCount++;
+    s.tasks.forEach(function(t){
+      all.push(t);
+      if(t.status==="Done") done++;
+      else if(t.status==="In process") proc++;
+      else if(t.status==="Overdue") late++;
+      if(isOldDone(t)) oldDoneCount++;
+    });
+  });
 
   var pills = '<button class="picpill allpill" data-pic-all="1" aria-pressed="'+(filters.pic.length===0)+'">ALL</button>' +
     state.team.map(function(m){
@@ -1405,6 +1434,10 @@ function toolbar(b){
     '<div class="tgroup"><span class="tlabel">Zoom</span><select class="ctl" id="f-zoom">'+zoom+'</select></div>'+
     '<div class="tgroup"><button class="btn sm" id="btn-compact" aria-pressed="'+(!!view.compact)+'">'+esc(view.compact?tr("show_all_cols"):tr("collapse_cols"))+'</button>'+
     '<button class="btn sm" id="btn-today">'+esc(tr("today_btn"))+'</button>'+
+      (oldDoneCount>0 || view.showOldDone ? '<button class="btn sm" id="btn-show-olddone" aria-pressed="'+(!!view.showOldDone)+'">'+
+        esc(view.showOldDone?tr("hide_old_done"):tr("show_old_done",{n:oldDoneCount}))+'</button>' : '')+
+      (doneProjectsCount>0 || view.showDoneProjects ? '<button class="btn sm" id="btn-show-doneproj" aria-pressed="'+(!!view.showDoneProjects)+'">'+
+        esc(view.showDoneProjects?tr("hide_done_projects"):tr("show_done_projects",{n:doneProjectsCount}))+'</button>' : '')+
       (readOnly?"":'<button class="btn sm" id="btn-section">'+esc(tr("add_project_btn"))+'</button><button class="btn primary sm" id="btn-add">'+esc(tr("add_task_btn"))+'</button>')+
     '</div>'+
     '<div class="stats">'+
@@ -1483,7 +1516,14 @@ function rows(b, r, dayW, trackW){
       (readOnly?"":'<button class="btn primary" id="btn-section-empty">'+esc(tr("create_first_project"))+'</button>')+'</div>';
   }
   var bg = trackBg(r, dayW);
-  return b.sections.map(function(s, si){
+  var shown = b.sections.map(function(s, si){ return {s:s, si:si}; })
+    .filter(function(x){ return view.showDoneProjects || !isProjectDone(x.s); });
+  if(!shown.length){
+    return '<div class="emptyboard"><h3>'+esc(tr("all_projects_done_title"))+'</h3>'+
+      '<p>'+esc(tr("all_projects_done_body"))+'</p></div>';
+  }
+  return shown.map(function(x){
+    var s = x.s, si = x.si;
     var ts = s.tasks.filter(visible);
     var ddayRange = sectionDdayRange(s);
     var collapsed = !!view.collapsed[s.id];
@@ -1624,6 +1664,11 @@ function wire(b, r, dayW){
 
   var bt = document.getElementById("btn-today");
   if(bt) bt.onclick = function(){ jumpToday(true); };
+
+  var bod = document.getElementById("btn-show-olddone");
+  if(bod) bod.onclick = function(){ view.showOldDone = !view.showOldDone; saveView(); render(); };
+  var bdp = document.getElementById("btn-show-doneproj");
+  if(bdp) bdp.onclick = function(){ view.showDoneProjects = !view.showDoneProjects; saveView(); render(); };
 
   var ba = document.getElementById("btn-add");
   if(ba) ba.onclick = function(){ openTask(null, (b && b.sections[0]) ? b.sections[0].id : null); };
@@ -1787,10 +1832,18 @@ function openTask(id, sectId){
   if(readOnly) return;
   var b = board();
   var found = id ? findTask(id) : null;
-  var t = found ? found.task : {id:uid("t"), pic:[], title:"", remark:"", status:"Not started", start:ymd(todayUTC()), dur:1, link:"", isProposal:false, proposal:{}, d2027:{}};
+  var t = found ? found.task : {id:uid("t"), pic:[], title:"", remark:"", status:"Not started", start:ymd(todayUTC()), dur:1, link:"", isProposal:false, proposal:{}, d2027:{}, gcalColor:""};
   var sid = found ? found.sect.id : (sectId || (b.sections[0] && b.sections[0].id));
   if(!sid){ openSection(null); return; }
   if(!t.proposal || typeof t.proposal !== "object") t.proposal = {};
+
+  var curTColor = t.gcalColor||"";
+  var tswatches = '<button type="button" class="colorsw" data-tcolor="" aria-pressed="'+(!curTColor)+'" '+
+      'style="background:var(--surface-3);color:var(--text-2);font-size:10px" title="'+esc(tr("auto_title"))+'">Auto</button>'+
+    GCAL_COLORS.map(function(c){
+      return '<button type="button" class="colorsw" data-tcolor="'+c[0]+'" aria-pressed="'+(curTColor===c[0])+'" '+
+        'style="background:'+c[2]+'" title="'+c[1]+'"></button>';
+    }).join("");
 
   var allOn = state.team.length > 0 && (t.pic||[]).length === state.team.length;
   var picks = '<button type="button" class="pickbtn allpick" id="pick-all" aria-pressed="'+allOn+'">'+esc(tr("pick_all_btn"))+'</button>' +
@@ -1830,6 +1883,8 @@ function openTask(id, sectId){
     '</div>'+
     '<div class="field"><label>PIC</label><div class="picks">'+picks+'</div>'+
       '<span class="hint">'+esc(tr("pic_hint"))+'</span></div>'+
+    '<div class="field"><label>'+esc(tr("task_color_label"))+'</label><div class="colorswatches">'+tswatches+'</div>'+
+      '<span class="hint">'+esc(tr("task_color_hint"))+'</span></div>'+
     '<div class="grid2">'+
       '<div class="field"><label>'+esc(tr("section_label"))+'</label><select id="f-sect">'+sects+'</select></div>'+
       '<div class="field"><label>Status</label><select id="f-st">'+sts+'</select></div>'+
@@ -1878,6 +1933,16 @@ function openTask(id, sectId){
     picked = (picked.length === state.team.length) ? [] : state.team.map(function(m){ return m.code; });
     syncPicks();
   };
+
+  var pickedTColor = curTColor;
+  document.querySelectorAll("[data-tcolor]").forEach(function(el){
+    el.onclick = function(){
+      pickedTColor = el.getAttribute("data-tcolor");
+      document.querySelectorAll("[data-tcolor]").forEach(function(x){
+        x.setAttribute("aria-pressed", x.getAttribute("data-tcolor")===pickedTColor);
+      });
+    };
+  });
 
   var fIsProp = document.getElementById("f-isprop");
   var propBlock = document.getElementById("prop-block");
@@ -1931,6 +1996,7 @@ function openTask(id, sectId){
     t.remark = document.getElementById("f-remark").value.trim();
     t.link = document.getElementById("f-link").value.trim();
     t.isProposal = fIsProp.checked;
+    t.gcalColor = pickedTColor;
     t.proposal = {
       client: document.getElementById("f-pclient").value.trim(),
       contact: document.getElementById("f-pcontact").value.trim(),
@@ -2255,13 +2321,19 @@ function dueTasks(b){
   });
   return out;
 }
+/* Calendar-facing text — deliberately NOT run through tr(): this description
+   is shared team-wide content, not tied to whoever happens to click sync, and
+   letting it follow the clicking viewer's UI language would change the event
+   body (and therefore its gcalEventHash) every time someone syncs in a
+   different language than last time, defeating the unchanged-task skip and
+   re-notifying guests for nothing. Keep it a fixed, always-English label set. */
 function taskDetails(t, s, b){
   var who = (t.pic||[]).map(function(c){ return member(c).name; }).join(", ");
   return [
     b.name + " › " + s.title,
     "PIC: " + (who || "—"),
     "Status: " + t.status,
-    "Start: " + fmtShort(t.start) + (t.startTime?" "+t.startTime:"") + "  ·  Duration: " + (t.dur||1) + tr("days_suffix") +
+    "Start: " + fmtShort(t.start) + (t.startTime?" "+t.startTime:"") + "  ·  Duration: " + (t.dur||1) + " days" +
       (t.dueTime?"  ·  Due time: "+t.dueTime:""),
     t.remark ? "Remark: " + t.remark : ""
   ].filter(Boolean).join("\n");
@@ -2306,7 +2378,7 @@ function buildIcs(b){
       L.push("BEGIN:VALARM");
       L.push("ACTION:DISPLAY");
       L.push("TRIGGER:-P1D");
-      L.push("DESCRIPTION:"+icsEsc(tr("due_tomorrow_prefix")+x.t.title));
+      L.push("DESCRIPTION:"+icsEsc("Due tomorrow: "+x.t.title));
       L.push("END:VALARM");
     }
     L.push("END:VEVENT");
@@ -2492,7 +2564,7 @@ function gcalEventBody(x){
     summary: eventTitle(x.t, x.s),
     description: taskDetails(x.t, x.s, x.b),
     transparency: sp.span ? "opaque" : "transparent",
-    colorId: isSpanStatus(x.t.status) ? "11" : sectionColorId(x.s),
+    colorId: x.t.gcalColor || (isSpanStatus(x.t.status) ? "11" : sectionColorId(x.s)),
     reminders: x.t.status==="Done" ? {useDefault:false, overrides:[]} : {useDefault:false, overrides:[{method:"popup", minutes: gcal.lead}]}
   };
   if(isHHMM(x.t.startTime) || isHHMM(x.t.dueTime)){

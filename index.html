@@ -2517,8 +2517,13 @@ function gcalConnected(){
    (a real, direct gesture, so an interactive popup here is far more
    likely to actually open if one turns out to be necessary). */
 async function ensureFreshToken(){
-  if(gcalToken && gcalToken.access_token && gcalToken.expiresAt > Date.now()+300000) return;
+  if(gcalToken && gcalToken.access_token && gcalToken.expiresAt > Date.now()+300000){
+    console.log("[gcal-diag] ensureFreshToken: token already fresh, skipping");
+    return;
+  }
+  console.log("[gcal-diag] ensureFreshToken: requesting interactive token");
   await requestToken(true);
+  console.log("[gcal-diag] ensureFreshToken: interactive token settled");
 }
 function ensureTokenClient(){
   if(!gcalConfigured() || !window.google || !google.accounts || !google.accounts.oauth2) return null;
@@ -2558,13 +2563,15 @@ function withDeadline(promise, ms){
   return new Promise(function(resolve, reject){
     var done = false;
     var timer = setTimeout(function(){
+      console.log("[gcal-diag] withDeadline TIMEOUT fired after "+ms+"ms");
       if(!done){ done = true; reject(new Error(tr("gcal_timeout_msg"))); }
     }, ms);
-    promise.then(function(v){ if(!done){ done=true; clearTimeout(timer); resolve(v); } },
-                 function(e){ if(!done){ done=true; clearTimeout(timer); reject(e); } });
+    promise.then(function(v){ console.log("[gcal-diag] withDeadline inner promise RESOLVED"); if(!done){ done=true; clearTimeout(timer); resolve(v); } },
+                 function(e){ console.log("[gcal-diag] withDeadline inner promise REJECTED", e); if(!done){ done=true; clearTimeout(timer); reject(e); } });
   });
 }
 function gcalFetch(path, opts){
+  console.log("[gcal-diag] gcalFetch called", path);
   return withDeadline(gcalFetchNow(path, opts), 15000);
 }
 /* Both re-auth points below use requestToken(false) — a SILENT refresh
@@ -2581,13 +2588,18 @@ function gcalFetch(path, opts){
    fails fast — surfacing as one failed item instead of a stuck dialog. */
 async function gcalFetchNow(path, opts){
   opts = opts || {};
-  if(!gcalConnected()) await requestToken(false);
+  console.log("[gcal-diag] gcalFetchNow start, gcalConnected=", gcalConnected());
+  if(!gcalConnected()){ console.log("[gcal-diag] not connected, awaiting silent requestToken(false)"); await requestToken(false); console.log("[gcal-diag] silent requestToken(false) settled"); }
   var headers = Object.assign({"Authorization":"Bearer "+gcalToken.access_token, "Content-Type":"application/json"}, opts.headers||{});
+  console.log("[gcal-diag] about to call fetch()", opts.method||"GET");
   var res = await fetch("https://www.googleapis.com/calendar/v3"+path, Object.assign({}, opts, {headers:headers}));
+  console.log("[gcal-diag] fetch() resolved with status", res.status);
   if(res.status === 401){
+    console.log("[gcal-diag] got 401, retrying with fresh silent token");
     await requestToken(false);
     headers.Authorization = "Bearer "+gcalToken.access_token;
     res = await fetch("https://www.googleapis.com/calendar/v3"+path, Object.assign({}, opts, {headers:headers}));
+    console.log("[gcal-diag] retry fetch() resolved with status", res.status);
   }
   if(!res.ok){
     var body = await res.json().catch(function(){ return null; });

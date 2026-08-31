@@ -2465,6 +2465,7 @@ function loadGcal(){
   try{ var r = localStorage.getItem(GCAL_KEY);
        if(r){ var v = JSON.parse(r); if(v && typeof v==="object") Object.assign(gcal, v); } }catch(e){}
   if(!gcal.map || typeof gcal.map !== "object") gcal.map = {};
+  if(migrateGcalMapKeys()) saveGcalLocal();
 }
 /* the destination calendar, and — critically — the map of task→event-id/hash
    already sent, are shared team state, not this-browser state: they live in
@@ -2487,6 +2488,7 @@ async function loadGcalRemote(){
       if(v && typeof v === "object"){
         Object.assign(gcal, v);
         if(!gcal.map || typeof gcal.map !== "object") gcal.map = {};
+        migrateGcalMapKeys();
         saveGcalLocal();
       }
     }
@@ -2495,7 +2497,46 @@ async function loadGcalRemote(){
 function saveGcalLocal(){ try{ localStorage.setItem(GCAL_KEY, JSON.stringify(gcal)); }catch(e){} }
 function saveGcal(){
   saveGcalLocal();
-  if(fbDb) fbDb.ref(GCAL_FB_PATH).set(gcal).catch(function(){});
+  /* the .catch() below only guards an async rejection — Firebase's SDK
+     validates the object tree for bad keys synchronously and throws
+     immediately on a bad one, before set() ever returns a promise to
+     attach .catch to. Since saveGcal() is called unawaited from inside
+     gcalRunSync's loop, an uncaught synchronous throw here silently
+     killed the whole sync (see fbEscape above) — wrap it so a write
+     failure can never again abort mid-sync. */
+  try{ if(fbDb) fbDb.ref(GCAL_FB_PATH).set(gcal).catch(function(){}); }catch(e){}
+}
+/* Firebase Realtime Database keys can't contain ".", "#", "$", "/", "[", "]"
+   — a personal Google Calendar's ID is the account's own email address,
+   which always has a "." in it. Used raw as a gcal.map key, set() on the
+   whole gcal object throws synchronously (Firebase validates the object
+   tree's property names before writing), which — since gcalRunSync calls
+   saveGcal() unawaited and uncaught — silently killed the entire sync loop
+   right after the very first item, no matter how many were queued. */
+function fbEscape(s){
+  return String(s).replace(/[.#$\/\[\]]/g, function(c){ return "~"+c.charCodeAt(0).toString(16); });
+}
+/* one-time cleanup: before fbEscape existed, gcal.map was keyed by the raw,
+   unescaped calendar id — for a personal calendar (id = the account email,
+   which always has a ".") every first-item entry saved locally right before
+   saveGcal() started throwing (see above) ended up filed under that raw
+   key. Rewrite any such legacy entries to the escaped key so they're still
+   found on the next sync instead of orphaning and creating a duplicate
+   event for the same task. */
+function migrateGcalMapKeys(){
+  var map = gcal.map, changed = false;
+  Object.keys(map).forEach(function(k){
+    var i = k.indexOf("|");
+    if(i < 0) return;
+    var calPart = k.slice(0, i), rest = k.slice(i);
+    var esc = fbEscape(calPart);
+    if(esc !== calPart && !map.hasOwnProperty(esc+rest)){
+      map[esc+rest] = map[k];
+      delete map[k];
+      changed = true;
+    }
+  });
+  return changed;
 }
 
 function gcalConfigured(){
@@ -2517,13 +2558,8 @@ function gcalConnected(){
    (a real, direct gesture, so an interactive popup here is far more
    likely to actually open if one turns out to be necessary). */
 async function ensureFreshToken(){
-  if(gcalToken && gcalToken.access_token && gcalToken.expiresAt > Date.now()+300000){
-    console.log("[gcal-diag] ensureFreshToken: token already fresh, skipping");
-    return;
-  }
-  console.log("[gcal-diag] ensureFreshToken: requesting interactive token");
+  if(gcalToken && gcalToken.access_token && gcalToken.expiresAt > Date.now()+300000) return;
   await requestToken(true);
-  console.log("[gcal-diag] ensureFreshToken: interactive token settled");
 }
 function ensureTokenClient(){
   if(!gcalConfigured() || !window.google || !google.accounts || !google.accounts.oauth2) return null;
@@ -2563,15 +2599,13 @@ function withDeadline(promise, ms){
   return new Promise(function(resolve, reject){
     var done = false;
     var timer = setTimeout(function(){
-      console.log("[gcal-diag] withDeadline TIMEOUT fired after "+ms+"ms");
       if(!done){ done = true; reject(new Error(tr("gcal_timeout_msg"))); }
     }, ms);
-    promise.then(function(v){ console.log("[gcal-diag] withDeadline inner promise RESOLVED"); if(!done){ done=true; clearTimeout(timer); resolve(v); } },
-                 function(e){ console.log("[gcal-diag] withDeadline inner promise REJECTED", e); if(!done){ done=true; clearTimeout(timer); reject(e); } });
+    promise.then(function(v){ if(!done){ done=true; clearTimeout(timer); resolve(v); } },
+                 function(e){ if(!done){ done=true; clearTimeout(timer); reject(e); } });
   });
 }
 function gcalFetch(path, opts){
-  console.log("[gcal-diag] gcalFetch called", path);
   return withDeadline(gcalFetchNow(path, opts), 15000);
 }
 /* Both re-auth points below use requestToken(false) — a SILENT refresh
@@ -2588,18 +2622,13 @@ function gcalFetch(path, opts){
    fails fast — surfacing as one failed item instead of a stuck dialog. */
 async function gcalFetchNow(path, opts){
   opts = opts || {};
-  console.log("[gcal-diag] gcalFetchNow start, gcalConnected=", gcalConnected());
-  if(!gcalConnected()){ console.log("[gcal-diag] not connected, awaiting silent requestToken(false)"); await requestToken(false); console.log("[gcal-diag] silent requestToken(false) settled"); }
+  if(!gcalConnected()) await requestToken(false);
   var headers = Object.assign({"Authorization":"Bearer "+gcalToken.access_token, "Content-Type":"application/json"}, opts.headers||{});
-  console.log("[gcal-diag] about to call fetch()", opts.method||"GET");
   var res = await fetch("https://www.googleapis.com/calendar/v3"+path, Object.assign({}, opts, {headers:headers}));
-  console.log("[gcal-diag] fetch() resolved with status", res.status);
   if(res.status === 401){
-    console.log("[gcal-diag] got 401, retrying with fresh silent token");
     await requestToken(false);
     headers.Authorization = "Bearer "+gcalToken.access_token;
     res = await fetch("https://www.googleapis.com/calendar/v3"+path, Object.assign({}, opts, {headers:headers}));
-    console.log("[gcal-diag] retry fetch() resolved with status", res.status);
   }
   if(!res.ok){
     var body = await res.json().catch(function(){ return null; });
@@ -2637,7 +2666,7 @@ function gcalSyncTargets(){
    the next sync regardless of what's ticked in the picker; a deleted task
    was never going to show up in that list to tick in the first place. */
 function gcalStaleKeys(calId, allTargets){
-  var prefix = calId+"|";
+  var prefix = fbEscape(calId)+"|";
   return Object.keys(gcal.map).filter(function(k){
     if(k.indexOf(prefix)!==0) return false;
     var rest = k.slice(prefix.length);
@@ -2725,7 +2754,7 @@ function gcalEventHash(x){
    uses to decide skip/update/create, surfaced here so the picker can show
    it and default the checkboxes sensibly instead of guessing. */
 function gcalTargetStatus(x, calId){
-  var entry = gcal.map[calId+"|"+x.key];
+  var entry = gcal.map[fbEscape(calId)+"|"+x.key];
   var prevId = entry && typeof entry === "object" ? entry.id : entry;
   if(!prevId) return "new";
   var prevHash = entry && typeof entry === "object" ? entry.hash : null;
@@ -2959,7 +2988,7 @@ async function gcalRunSync(cals, selectedKeys){
 
   for(var i=0;i<targets.length;i++){
     var x = targets[i];
-    var mk = calId+"|"+x.key;
+    var mk = fbEscape(calId)+"|"+x.key;
     var entry = gcal.map[mk];
     var prevId = entry && typeof entry === "object" ? entry.id : entry;
     var hash = gcalEventHash(x);

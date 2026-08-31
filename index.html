@@ -673,11 +673,12 @@ var I18N = {
     gcal_attendees_label:"ผู้ร่วมงาน",
     gcal_invite_label:"เชิญ PIC ของแต่ละงานเป็น guest ({have}/{total} คนมีอีเมลแล้ว)",
     gcal_invite_hint:'ใส่อีเมลที่เหลือได้ที่ปุ่ม "ทีม"',
-    gcal_resync_hint:"เคยส่งไปแล้ว {n} รายการ — กดส่งอีกครั้งจะอัปเดตของเดิม ไม่สร้างซ้ำ",
-    gcal_first_sync_hint:"ส่งซ้ำได้เรื่อยๆ ระบบจำ event ที่สร้างไว้ในเบราว์เซอร์นี้ แล้วอัปเดตของเดิมแทนการสร้างใหม่",
+    gcal_resync_hint:"เคยส่งไปแล้ว {n} รายการ — กดส่งอีกครั้งจะอัปเดตเฉพาะรายการที่มีการเปลี่ยนแปลง ไม่ยิงซ้ำรายการที่เหมือนเดิม",
+    gcal_first_sync_hint:"ส่งซ้ำได้เรื่อยๆ ระบบจำ event ที่สร้างไว้ในเบราว์เซอร์นี้ แล้วอัปเดตเฉพาะรายการที่เปลี่ยนแปลง ไม่สร้างซ้ำ",
     send_to_calendar_btn:"ส่งเข้าปฏิทิน", gcal_syncing:"กำลังซิงก์กับ Google Calendar…", sending_btn:"กำลังส่ง…",
     gcal_send_fail_t:"ส่งไม่สำเร็จ",
     gcal_created:"สร้างใหม่", gcal_updated:"อัปเดต", gcal_removed:"ลบออก (Cancel)", gcal_invited:"เชิญ PIC เป็น guest",
+    gcal_skipped:"ไม่เปลี่ยนแปลง (ข้าม)",
     gcal_nothing_changed:"ไม่มีอะไรต้องเปลี่ยน", gcal_sync_success:"ซิงก์กับปฏิทิน <b>{cal}</b> เรียบร้อย",
     gcal_fail_count_t:"ส่งไม่สำเร็จ {n} รายการ", gcal_fail_more:" และอีก {n} รายการ",
     gcal_fail_check:" · เช็กในปฏิทินก่อนกดส่งซ้ำ",
@@ -799,11 +800,12 @@ var I18N = {
     gcal_attendees_label:"Attendees",
     gcal_invite_label:"Invite each task's PIC as a guest ({have}/{total} people have an email)",
     gcal_invite_hint:'Add the remaining emails from the "Team" button',
-    gcal_resync_hint:"Already sent {n} item(s) before — sending again will update the existing ones, not duplicate them.",
-    gcal_first_sync_hint:"You can send repeatedly — the system remembers events created from this browser and updates them instead of creating duplicates.",
+    gcal_resync_hint:"Already sent {n} item(s) before — sending again will only update the ones that changed, not resend items that are still the same.",
+    gcal_first_sync_hint:"You can send repeatedly — the system remembers events created from this browser and only updates the ones that changed, never duplicating them.",
     send_to_calendar_btn:"Send to Calendar", gcal_syncing:"Syncing with Google Calendar…", sending_btn:"Sending…",
     gcal_send_fail_t:"Send failed",
     gcal_created:"Created", gcal_updated:"Updated", gcal_removed:"Removed (Cancel)", gcal_invited:"Invited PIC as guest",
+    gcal_skipped:"Unchanged (skipped)",
     gcal_nothing_changed:"Nothing to change", gcal_sync_success:"Synced with calendar <b>{cal}</b> successfully",
     gcal_fail_count_t:"Failed to send {n} item(s)", gcal_fail_more:" and {n} more",
     gcal_fail_check:" · Check the calendar before resending",
@@ -2503,6 +2505,16 @@ function gcalEventBody(x){
   }
   return body;
 }
+/* fingerprint of everything that would actually change on Google's side for
+   this task (event body + guest list) — lets gcalRunSync skip the API call
+   entirely for a task that's identical to what was last successfully sent,
+   instead of PATCHing (and re-notifying guests on) every synced task on
+   every run. */
+function gcalEventHash(x){
+  var body = gcalEventBody(x);
+  var guests = gcal.invite ? gcalPicGuests(x.t).map(function(g){ return g.email.toLowerCase(); }).sort() : [];
+  return JSON.stringify(body) + "|" + JSON.stringify(guests);
+}
 
 /* ---- dialog ---- */
 function openCalendarExport(){
@@ -2632,7 +2644,7 @@ async function gcalRunSync(cals){
     return !targets.some(function(x){ return x.key===rest; });
   });
   var total = targets.length + stale.length;
-  var created=0, updated=0, removed=0, invited=0, failed=[];
+  var created=0, updated=0, removed=0, invited=0, skipped=0, failed=[];
   var done=0;
   function progress(){
     gcalSetBody(
@@ -2648,30 +2660,39 @@ async function gcalRunSync(cals){
   for(var i=0;i<targets.length;i++){
     var x = targets[i];
     var mk = calId+"|"+x.key;
+    var entry = gcal.map[mk];
+    var prevId = entry && typeof entry === "object" ? entry.id : entry;
+    var prevHash = entry && typeof entry === "object" ? entry.hash : null;
+    var hash = gcalEventHash(x);
+    if(prevId && prevHash === hash){
+      skipped++;
+      done++; progress();
+      continue;
+    }
     var body = gcalEventBody(x);
     var guests = gcal.invite ? gcalPicGuests(x.t) : [];
     if(guests.length) body.attendees = guests;
     var sendUpdates = gcal.invite ? "all" : "none";
-    var prevId = gcal.map[mk];
     try{
       if(prevId){
         try{
           await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events/"+encodeURIComponent(prevId)+"?sendUpdates="+sendUpdates,
             {method:"PATCH", body:JSON.stringify(body)});
+          gcal.map[mk] = {id:prevId, hash:hash};
           updated++; invited += guests.length;
         }catch(e1){
           if(e1 && (e1.status===404 || e1.status===410)){
             delete gcal.map[mk];
             var r1 = await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events?sendUpdates="+sendUpdates,
               {method:"POST", body:JSON.stringify(body)});
-            gcal.map[mk] = r1.id;
+            gcal.map[mk] = {id:r1.id, hash:hash};
             created++; invited += guests.length;
           } else throw e1;
         }
       }else{
         var r2 = await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events?sendUpdates="+sendUpdates,
           {method:"POST", body:JSON.stringify(body)});
-        gcal.map[mk] = r2.id;
+        gcal.map[mk] = {id:r2.id, hash:hash};
         created++; invited += guests.length;
       }
     }catch(e){
@@ -2682,8 +2703,10 @@ async function gcalRunSync(cals){
   }
   for(var j=0;j<stale.length;j++){
     var k = stale[j];
+    var staleEntry = gcal.map[k];
+    var staleId = staleEntry && typeof staleEntry === "object" ? staleEntry.id : staleEntry;
     try{
-      await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events/"+encodeURIComponent(gcal.map[k])+"?sendUpdates=none", {method:"DELETE"});
+      await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events/"+encodeURIComponent(staleId)+"?sendUpdates=none", {method:"DELETE"});
       removed++;
     }catch(e2){ /* already gone upstream — drop it either way */ }
     delete gcal.map[k];
@@ -2691,7 +2714,7 @@ async function gcalRunSync(cals){
     done++; progress();
   }
 
-  gcalResult(cals, {created:created, updated:updated, removed:removed, invited:invited, failed:failed,
+  gcalResult(cals, {created:created, updated:updated, removed:removed, invited:invited, skipped:skipped, failed:failed,
     cal:(cals.filter(function(c){return c.id===calId;})[0]||{}).summary || calId});
 }
 function gcalResult(cals, r){
@@ -2699,7 +2722,8 @@ function gcalResult(cals, r){
     [tr("gcal_created"), r.created, "--s-done"],
     [tr("gcal_updated"), r.updated, "--s-process"],
     [tr("gcal_removed"), r.removed, "--s-notstarted"],
-    [tr("gcal_invited"), r.invited, "--s-dday"]
+    [tr("gcal_invited"), r.invited, "--s-dday"],
+    [tr("gcal_skipped"), r.skipped, "--s-notstarted"]
   ].filter(function(x){ return x[1]>0; });
   if(!rows.length && !r.failed.length) rows = [[tr("gcal_nothing_changed"), 0, "--s-notstarted"]];
 

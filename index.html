@@ -695,6 +695,8 @@ var I18N = {
     gcal_resync_hint:"เคยส่งไปแล้ว {n} รายการ — กดส่งอีกครั้งจะอัปเดตเฉพาะรายการที่มีการเปลี่ยนแปลง ไม่ยิงซ้ำรายการที่เหมือนเดิม",
     gcal_first_sync_hint:"ส่งซ้ำได้เรื่อยๆ ระบบจำ event ที่สร้างไว้ในเบราว์เซอร์นี้ แล้วอัปเดตเฉพาะรายการที่เปลี่ยนแปลง ไม่สร้างซ้ำ",
     send_to_calendar_btn:"ส่งเข้าปฏิทิน", gcal_syncing:"กำลังซิงก์กับ Google Calendar…", sending_btn:"กำลังส่ง…",
+    gcal_stay_on_tab:"อยู่ในแท็บนี้จนกว่าจะส่งเสร็จ — ถ้าสลับแท็บ เบราว์เซอร์อาจพักการทำงานชั่วคราวจนดูเหมือนค้าง",
+    gcal_close_keep_going:"ปิด (ทำต่อเบื้องหลัง)",
     gcal_send_fail_t:"ส่งไม่สำเร็จ",
     gcal_timeout_msg:"หมดเวลารอการตอบกลับจาก Google — ลองกดส่งใหม่อีกครั้ง",
     gcal_created:"สร้างใหม่", gcal_updated:"อัปเดต", gcal_removed:"ลบออก (Cancel)", gcal_invited:"เชิญ PIC เป็น guest",
@@ -832,6 +834,8 @@ var I18N = {
     gcal_resync_hint:"Already sent {n} item(s) before — sending again will only update the ones that changed, not resend items that are still the same.",
     gcal_first_sync_hint:"You can send repeatedly — the system remembers events created from this browser and only updates the ones that changed, never duplicating them.",
     send_to_calendar_btn:"Send to Calendar", gcal_syncing:"Syncing with Google Calendar…", sending_btn:"Sending…",
+    gcal_stay_on_tab:"Stay on this tab until sending finishes — switching tabs may pause the browser's work and make it look stuck.",
+    gcal_close_keep_going:"Close (keep sending in background)",
     gcal_send_fail_t:"Send failed",
     gcal_timeout_msg:"Timed out waiting for a response from Google — try sending again.",
     gcal_created:"Created", gcal_updated:"Updated", gcal_removed:"Removed (Cancel)", gcal_invited:"Invited PIC as guest",
@@ -2541,7 +2545,7 @@ function withDeadline(promise, ms){
   });
 }
 function gcalFetch(path, opts){
-  return withDeadline(gcalFetchNow(path, opts), 25000);
+  return withDeadline(gcalFetchNow(path, opts), 15000);
 }
 async function gcalFetchNow(path, opts){
   opts = opts || {};
@@ -2870,8 +2874,9 @@ async function gcalRunSync(cals, selectedKeys){
       '<p style="margin:0">'+esc(tr("gcal_syncing"))+'</p>'+
       '<div style="height:6px;border-radius:999px;background:var(--surface-3);overflow:hidden">'+
         '<div style="height:100%;width:'+Math.round(done/Math.max(1,total)*100)+'%;background:var(--accent)"></div></div>'+
-      '<span class="hint">'+done+' / '+total+'</span>',
-      '<div class="spacer"></div><button class="btn" disabled>'+esc(tr("sending_btn"))+'</button>'
+      '<span class="hint">'+done+' / '+total+'</span>'+
+      '<span class="hint" style="display:block;color:var(--s-postponed)">'+esc(tr("gcal_stay_on_tab"))+'</span>',
+      '<div class="spacer"></div><button class="btn" data-x>'+esc(tr("gcal_close_keep_going"))+'</button><button class="btn" disabled>'+esc(tr("sending_btn"))+'</button>'
     );
   }
   progress();

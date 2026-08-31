@@ -692,6 +692,7 @@ var I18N = {
     gcal_first_sync_hint:"ส่งซ้ำได้เรื่อยๆ ระบบจำ event ที่สร้างไว้ในเบราว์เซอร์นี้ แล้วอัปเดตเฉพาะรายการที่เปลี่ยนแปลง ไม่สร้างซ้ำ",
     send_to_calendar_btn:"ส่งเข้าปฏิทิน", gcal_syncing:"กำลังซิงก์กับ Google Calendar…", sending_btn:"กำลังส่ง…",
     gcal_send_fail_t:"ส่งไม่สำเร็จ",
+    gcal_timeout_msg:"หมดเวลารอการตอบกลับจาก Google — ลองกดส่งใหม่อีกครั้ง",
     gcal_created:"สร้างใหม่", gcal_updated:"อัปเดต", gcal_removed:"ลบออก (Cancel)", gcal_invited:"เชิญ PIC เป็น guest",
     gcal_skipped:"ไม่เปลี่ยนแปลง (ข้าม)",
     gcal_nothing_changed:"ไม่มีอะไรต้องเปลี่ยน", gcal_sync_success:"ซิงก์กับปฏิทิน <b>{cal}</b> เรียบร้อย",
@@ -824,6 +825,7 @@ var I18N = {
     gcal_first_sync_hint:"You can send repeatedly — the system remembers events created from this browser and only updates the ones that changed, never duplicating them.",
     send_to_calendar_btn:"Send to Calendar", gcal_syncing:"Syncing with Google Calendar…", sending_btn:"Sending…",
     gcal_send_fail_t:"Send failed",
+    gcal_timeout_msg:"Timed out waiting for a response from Google — try sending again.",
     gcal_created:"Created", gcal_updated:"Updated", gcal_removed:"Removed (Cancel)", gcal_invited:"Invited PIC as guest",
     gcal_skipped:"Unchanged (skipped)",
     gcal_nothing_changed:"Nothing to change", gcal_sync_success:"Synced with calendar <b>{cal}</b> successfully",
@@ -2512,7 +2514,28 @@ function requestToken(interactive){
     catch(e){ reject(e); }
   });
 }
-async function gcalFetch(path, opts){
+/* Races `promise` against a hard deadline instead of resolving {ok:false}
+   like withTimeout() — callers here already have their own try/catch and
+   need a real rejection, not a sentinel value. Exists because a stalled
+   network fetch, or an interactive OAuth popup that gets silently blocked
+   (browsers stop treating requestAccessToken() as a trusted user gesture
+   once it's several `await`s deep inside an async loop rather than a
+   direct click handler), would otherwise hang the whole sync forever with
+   no way out except reloading the page. */
+function withDeadline(promise, ms){
+  return new Promise(function(resolve, reject){
+    var done = false;
+    var timer = setTimeout(function(){
+      if(!done){ done = true; reject(new Error(tr("gcal_timeout_msg"))); }
+    }, ms);
+    promise.then(function(v){ if(!done){ done=true; clearTimeout(timer); resolve(v); } },
+                 function(e){ if(!done){ done=true; clearTimeout(timer); reject(e); } });
+  });
+}
+function gcalFetch(path, opts){
+  return withDeadline(gcalFetchNow(path, opts), 25000);
+}
+async function gcalFetchNow(path, opts){
   opts = opts || {};
   if(!gcalConnected()) await requestToken(true);
   var headers = Object.assign({"Authorization":"Bearer "+gcalToken.access_token, "Content-Type":"application/json"}, opts.headers||{});

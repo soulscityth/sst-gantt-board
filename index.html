@@ -698,6 +698,8 @@ var I18N = {
     send_to_calendar_btn:"ส่งเข้าปฏิทิน", gcal_syncing:"กำลังซิงก์กับ Google Calendar…", sending_btn:"กำลังส่ง…",
     gcal_stay_on_tab:"อยู่ในแท็บนี้จนกว่าจะส่งเสร็จ — ถ้าสลับแท็บ เบราว์เซอร์อาจพักการทำงานชั่วคราวจนดูเหมือนค้าง",
     gcal_close_keep_going:"ปิด (ทำต่อเบื้องหลัง)",
+    gcal_step_updating:"กำลังอัปเดต: {title}", gcal_step_creating:"กำลังสร้างใหม่: {title}",
+    gcal_step_removing:"กำลังลบ event เก่าที่ไม่ใช้แล้ว",
     gcal_send_fail_t:"ส่งไม่สำเร็จ",
     gcal_timeout_msg:"หมดเวลารอการตอบกลับจาก Google — ลองกดส่งใหม่อีกครั้ง",
     gcal_created:"สร้างใหม่", gcal_updated:"อัปเดต", gcal_removed:"ลบออก (Cancel)", gcal_invited:"เชิญ PIC เป็น guest",
@@ -837,6 +839,8 @@ var I18N = {
     send_to_calendar_btn:"Send to Calendar", gcal_syncing:"Syncing with Google Calendar…", sending_btn:"Sending…",
     gcal_stay_on_tab:"Stay on this tab until sending finishes — switching tabs may pause the browser's work and make it look stuck.",
     gcal_close_keep_going:"Close (keep sending in background)",
+    gcal_step_updating:"Updating: {title}", gcal_step_creating:"Creating: {title}",
+    gcal_step_removing:"Removing an old, unused event",
     gcal_send_fail_t:"Send failed",
     gcal_timeout_msg:"Timed out waiting for a response from Google — try sending again.",
     gcal_created:"Created", gcal_updated:"Updated", gcal_removed:"Removed (Cancel)", gcal_invited:"Invited PIC as guest",
@@ -2500,6 +2504,22 @@ function gcalConfigured(){
 function gcalConnected(){
   return !!(gcalToken && gcalToken.access_token && gcalToken.expiresAt > Date.now()+30000);
 }
+/* Google's token popup API (requestAccessToken) always tries to open an
+   actual popup window to get/refresh a token — prompt:"" only changes
+   what's shown inside it if one opens, it does NOT make the call popup-
+   free. So refreshing mid-sync, several `await`s deep inside an async
+   loop, was never going to reliably work no matter which prompt value was
+   used: browsers stop treating that as a trusted user gesture and block
+   the popup outright ("Failed to open popup window"), which is exactly
+   what was leaving syncs stuck. The real fix is to never need a refresh
+   mid-loop at all — ensure the token has a healthy amount of runway
+   *before* the loop starts, called from the "send" click handler itself
+   (a real, direct gesture, so an interactive popup here is far more
+   likely to actually open if one turns out to be necessary). */
+async function ensureFreshToken(){
+  if(gcalToken && gcalToken.access_token && gcalToken.expiresAt > Date.now()+300000) return;
+  await requestToken(true);
+}
 function ensureTokenClient(){
   if(!gcalConfigured() || !window.google || !google.accounts || !google.accounts.oauth2) return null;
   if(!gcalTokenClient){
@@ -2868,7 +2888,7 @@ function gcalForm(cals, err){
   };
   updateGcCount();
   document.getElementById("gc-ics").onclick = downloadIcs;
-  document.getElementById("gc-go").onclick = function(){
+  document.getElementById("gc-go").onclick = async function(){
     var picked = {};
     document.querySelectorAll("[data-gc-task]:checked").forEach(function(cb){ picked[cb.getAttribute("data-gc-task")] = true; });
     /* only block on an empty pick if there's also no stale cleanup pending —
@@ -2877,6 +2897,18 @@ function gcalForm(cals, err){
        ticking something unrelated first. */
     if(!Object.keys(picked).length && !staleCount){
       document.getElementById("gc-warn").style.display = "block";
+      return;
+    }
+    /* refresh the token here, as the very first thing after the click,
+       while this is still a direct user gesture — this is the one point
+       in the flow where an interactive auth popup is reliably allowed to
+       open. do this instead of refreshing mid-sync-loop, where the same
+       popup call gets silently blocked by the browser. */
+    try{ await ensureFreshToken(); }
+    catch(e){
+      gcalSetBody(gcalErrBox({t:tr("gcal_connect_fail_t"), d:(e&&e.message)||tr("gcal_connect_fail_d")}),
+        '<div class="spacer"></div><button class="btn" data-x>'+esc(tr("close"))+'</button><button class="btn primary" id="gc-retry">'+esc(tr("retry_btn"))+'</button>');
+      document.getElementById("gc-retry").onclick = gcalRoute;
       return;
     }
     gcalRunSync(cals, picked);
@@ -2894,9 +2926,16 @@ async function gcalRunSync(cals, selectedKeys){
   var total = targets.length + stale.length;
   var created=0, updated=0, removed=0, invited=0, failed=[];
   var done=0;
+  /* shown under the progress bar so a screenshot of a stuck sync says
+     exactly which task and which network call it's waiting on, instead of
+     just a bare counter — this is how the user actually reports this
+     (a screenshot), not via devtools, so make the screenshot itself
+     diagnostic. */
+  var stepLabel = "";
   function progress(){
     gcalSetBody(
       '<p style="margin:0">'+esc(tr("gcal_syncing"))+'</p>'+
+      (stepLabel?'<p class="hint" style="margin:0;font-weight:600;color:var(--text)">'+esc(stepLabel)+'</p>':'')+
       '<div style="height:6px;border-radius:999px;background:var(--surface-3);overflow:hidden">'+
         '<div style="height:100%;width:'+Math.round(done/Math.max(1,total)*100)+'%;background:var(--accent)"></div></div>'+
       '<span class="hint">'+done+' / '+total+'</span>'+
@@ -2926,6 +2965,7 @@ async function gcalRunSync(cals, selectedKeys){
     try{
       if(prevId){
         try{
+          stepLabel = tr("gcal_step_updating",{title:x.t.title}); progress();
           await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events/"+encodeURIComponent(prevId)+"?sendUpdates="+sendUpdates,
             {method:"PATCH", body:JSON.stringify(body)});
           gcal.map[mk] = {id:prevId, hash:hash};
@@ -2933,6 +2973,7 @@ async function gcalRunSync(cals, selectedKeys){
         }catch(e1){
           if(e1 && (e1.status===404 || e1.status===410)){
             delete gcal.map[mk];
+            stepLabel = tr("gcal_step_creating",{title:x.t.title}); progress();
             var r1 = await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events?sendUpdates="+sendUpdates,
               {method:"POST", body:JSON.stringify(body)});
             gcal.map[mk] = {id:r1.id, hash:hash};
@@ -2940,6 +2981,7 @@ async function gcalRunSync(cals, selectedKeys){
           } else throw e1;
         }
       }else{
+        stepLabel = tr("gcal_step_creating",{title:x.t.title}); progress();
         var r2 = await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events?sendUpdates="+sendUpdates,
           {method:"POST", body:JSON.stringify(body)});
         gcal.map[mk] = {id:r2.id, hash:hash};
@@ -2956,6 +2998,7 @@ async function gcalRunSync(cals, selectedKeys){
     var staleEntry = gcal.map[k];
     var staleId = staleEntry && typeof staleEntry === "object" ? staleEntry.id : staleEntry;
     try{
+      stepLabel = tr("gcal_step_removing"); progress();
       await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events/"+encodeURIComponent(staleId)+"?sendUpdates=none", {method:"DELETE"});
       removed++;
       delete gcal.map[k];

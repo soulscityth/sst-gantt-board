@@ -2549,13 +2549,25 @@ function withDeadline(promise, ms){
 function gcalFetch(path, opts){
   return withDeadline(gcalFetchNow(path, opts), 15000);
 }
+/* Both re-auth points below use requestToken(false) — a SILENT refresh
+   (prompt:"") — never requestToken(true). By the time any of this runs,
+   the user already connected explicitly via the "Connect Google Calendar"
+   button (a real click, a real user gesture); these two spots only fire
+   later, mid-sync, if the token happens to expire between items. Forcing
+   an interactive prompt:"consent" popup at that point — several `await`s
+   deep inside an async loop, not in direct response to a click — is
+   exactly the kind of popup a browser may block outright, or that a user
+   watching a progress bar simply never notices, either way hanging the
+   sync with no visible cause. A silent refresh either succeeds invisibly
+   (the common case, if the browser's Google session is still active) or
+   fails fast — surfacing as one failed item instead of a stuck dialog. */
 async function gcalFetchNow(path, opts){
   opts = opts || {};
-  if(!gcalConnected()) await requestToken(true);
+  if(!gcalConnected()) await requestToken(false);
   var headers = Object.assign({"Authorization":"Bearer "+gcalToken.access_token, "Content-Type":"application/json"}, opts.headers||{});
   var res = await fetch("https://www.googleapis.com/calendar/v3"+path, Object.assign({}, opts, {headers:headers}));
   if(res.status === 401){
-    await requestToken(true);
+    await requestToken(false);
     headers.Authorization = "Bearer "+gcalToken.access_token;
     res = await fetch("https://www.googleapis.com/calendar/v3"+path, Object.assign({}, opts, {headers:headers}));
   }

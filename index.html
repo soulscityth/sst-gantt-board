@@ -680,6 +680,7 @@ var I18N = {
     gcal_status_new:"ใหม่", gcal_status_changed:"มีการเปลี่ยนแปลง", gcal_status_unchanged:"ไม่เปลี่ยนแปลง",
     gcal_select_count:"เลือกอยู่ {sel} / {total} รายการ",
     gcal_pick_warn:"ยังไม่ได้เลือกงานเลย ติ๊กอย่างน้อย 1 รายการก่อนกดส่ง",
+    gcal_stale_note:"พบ {n} รายการที่เคยส่งไว้แต่งานถูกลบ/ยกเลิกไปแล้ว — จะถูกลบออกจากปฏิทินให้อัตโนมัติตอนกดส่ง ไม่ต้องเลือกอะไรเพิ่ม",
     gcal_dday_rule:"ยิงทั้งช่วง <b>START → DUE</b> และจองเวลาเป็น Busy",
     gcal_normal_rule:"→ ยิงเฉพาะวัน <b>DUE DATE</b> วันเดียว ไม่จองเวลา",
     gcal_done_rule:"→ <b>เก็บไว้ในปฏิทิน</b> เปลี่ยนชื่อเป็น [DONE] และปิดแจ้งเตือน",
@@ -819,6 +820,7 @@ var I18N = {
     gcal_status_new:"New", gcal_status_changed:"Changed", gcal_status_unchanged:"Unchanged",
     gcal_select_count:"{sel} / {total} selected",
     gcal_pick_warn:"No tasks selected yet — check at least one before sending",
+    gcal_stale_note:"Found {n} event(s) previously sent whose task was deleted/cancelled — they'll be removed from the calendar automatically when you send, no need to pick anything else.",
     gcal_dday_rule:"spans the full <b>START → DUE</b> range and blocks the time as Busy",
     gcal_normal_rule:"→ fires only on the <b>DUE DATE</b>, single day, no time blocked",
     gcal_done_rule:"→ <b>kept on the calendar</b>, renamed to [DONE], reminders turned off",
@@ -2588,6 +2590,18 @@ function gcalSyncTargets(){
   });
   return out;
 }
+/* map entries whose task no longer exists as a valid sync target — deleted,
+   cancelled, or its due date cleared. Their calendar events get removed on
+   the next sync regardless of what's ticked in the picker; a deleted task
+   was never going to show up in that list to tick in the first place. */
+function gcalStaleKeys(calId, allTargets){
+  var prefix = calId+"|";
+  return Object.keys(gcal.map).filter(function(k){
+    if(k.indexOf(prefix)!==0) return false;
+    var rest = k.slice(prefix.length);
+    return !allTargets.some(function(x){ return x.key===rest; });
+  });
+}
 function gcalPicGuests(t){
   var seen = {}, out = [];
   (t.pic||[]).forEach(function(c){
@@ -2786,6 +2800,7 @@ function gcalForm(cals, err){
   var synced = Object.keys(gcal.map).length;
   var withMail = state.team.filter(function(m){ return (m.email||"").trim(); }).length;
   var selection = gcalDefaultSelection(targets, gcal.calendarId);
+  var staleCount = gcalStaleKeys(gcal.calendarId, targets).length;
 
   gcalSetBody(
     '<div style="border:1px solid var(--border);border-radius:8px;background:var(--surface-2);'+
@@ -2817,6 +2832,7 @@ function gcalForm(cals, err){
         '<span class="hint" id="gc-count" style="margin-left:auto"></span>'+
       '</div>'+
       '<div style="display:flex;flex-direction:column;gap:2px">'+gcalChecklistHtml(targets, gcal.calendarId, selection)+'</div>'+
+      (staleCount>0?'<span class="hint" style="display:block">'+esc(tr("gcal_stale_note",{n:staleCount}))+'</span>':'')+
       '<span class="hint" id="gc-warn" style="display:none;color:var(--s-cancel)">'+esc(tr("gcal_pick_warn"))+'</span>'+
     '</div>'+
     '<span class="hint">'+esc(synced?tr("gcal_resync_hint",{n:synced}):tr("gcal_first_sync_hint"))+'</span>',
@@ -2845,7 +2861,11 @@ function gcalForm(cals, err){
   document.getElementById("gc-go").onclick = function(){
     var picked = {};
     document.querySelectorAll("[data-gc-task]:checked").forEach(function(cb){ picked[cb.getAttribute("data-gc-task")] = true; });
-    if(!Object.keys(picked).length){
+    /* only block on an empty pick if there's also no stale cleanup pending —
+       a deleted task never appears in this checklist to begin with, so
+       requiring a tick here would make "just remove the deleted one" mean
+       ticking something unrelated first. */
+    if(!Object.keys(picked).length && !staleCount){
       document.getElementById("gc-warn").style.display = "block";
       return;
     }
@@ -2856,15 +2876,10 @@ function gcalForm(cals, err){
 async function gcalRunSync(cals, selectedKeys){
   var allTargets = gcalSyncTargets();
   var calId = gcal.calendarId;
-  var prefix = calId+"|";
   /* stale-event cleanup always looks at every valid target, never just the
      ones the user picked this round — otherwise simply not selecting a
      still-valid task this time would get its calendar event deleted. */
-  var stale = Object.keys(gcal.map).filter(function(k){
-    if(k.indexOf(prefix)!==0) return false;
-    var rest = k.slice(prefix.length);
-    return !allTargets.some(function(x){ return x.key===rest; });
-  });
+  var stale = gcalStaleKeys(calId, allTargets);
   var targets = selectedKeys ? allTargets.filter(function(x){ return selectedKeys[x.key]; }) : allTargets;
   var total = targets.length + stale.length;
   var created=0, updated=0, removed=0, invited=0, skipped=0, failed=[];
@@ -2932,8 +2947,18 @@ async function gcalRunSync(cals, selectedKeys){
     try{
       await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events/"+encodeURIComponent(staleId)+"?sendUpdates=none", {method:"DELETE"});
       removed++;
-    }catch(e2){ /* already gone upstream — drop it either way */ }
-    delete gcal.map[k];
+      delete gcal.map[k];
+    }catch(e2){
+      if(e2 && (e2.status===404 || e2.status===410)){
+        /* already gone upstream, nothing left to track */
+        delete gcal.map[k];
+      }else{
+        /* a real failure (network/auth/timeout) — keep tracking it so the
+           next sync retries the delete, instead of silently forgetting an
+           event that's still sitting on the calendar. */
+        failed.push({title:k, info:{t:tr("gcal_send_fail_t"), d:(e2&&e2.message)||tr("unknown_reason")}});
+      }
+    }
     saveGcal();
     done++; progress();
   }

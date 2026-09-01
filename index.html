@@ -645,8 +645,8 @@ var I18N = {
     brief_to:" ถึง ", brief_notes:"รายละเอียดเพิ่มเติม: ",
     tpl_everyone:"ทุกคน", tpl_modal_title:"เลือกงานจาก Workflow Template — {name}",
     tpl_select_all:"เลือกทั้งหมด", tpl_clear_all:"ล้างทั้งหมด",
-    tpl_start_label:"วันที่เริ่ม (งานแรกที่เลือก)",
-    tpl_seq_hint:"งานที่เลือกจะถูกเพิ่มเรียงต่อกันทีละ 1 วัน เริ่มจากวันที่นี้ — ไปปรับวันที่/ระยะเวลา/มอบหมายคนของแต่ละงานทีหลังได้ตามปกติ",
+    tpl_dday_label:"วันจริง (D-Day)", tpl_dday_dur_label:"ระยะเวลา (วัน)",
+    tpl_seq_hint:"วันที่กับระยะเวลานี้ใส่ให้เฉพาะงาน \"วันจริง (Event Day)\" เท่านั้น — งานอื่นจะถูกเพิ่มโดยยังไม่มีวันที่ ไปกำหนดวันที่/ระยะเวลาของแต่ละงานเองทีหลังได้ตามปกติ",
     tpl_warn:"ยังไม่ได้เลือกงานเลย ติ๊กอย่างน้อย 1 รายการก่อนกดเพิ่ม", tpl_add_submit:"เพิ่มงานที่เลือก",
     tpl_count:"เลือกอยู่ {n} / {total}",
     auto_title:"อัตโนมัติ", no_customer_opt:"— ไม่มีลูกค้า —",
@@ -785,8 +785,8 @@ var I18N = {
     brief_to:" to ", brief_notes:"Additional details: ",
     tpl_everyone:"Everyone", tpl_modal_title:"Select Tasks from Workflow Template — {name}",
     tpl_select_all:"Select All", tpl_clear_all:"Clear All",
-    tpl_start_label:"Start Date (first selected task)",
-    tpl_seq_hint:"Selected tasks will be added one day apart starting from this date — you can adjust each task's date/duration/assignee afterward as usual.",
+    tpl_dday_label:"Event Day (D-Day)", tpl_dday_dur_label:"Duration (days)",
+    tpl_seq_hint:"This date and duration apply only to the \"Event Day\" task — every other task is added with no date, so you can set each one's date and duration yourself afterward.",
     tpl_warn:"No tasks selected yet — check at least one before adding.", tpl_add_submit:"Add Selected Tasks",
     tpl_count:"{n} / {total} selected",
     auto_title:"Automatic", no_customer_opt:"— No customer —",
@@ -2129,7 +2129,10 @@ function openTemplatePicker(sectId){
       '<span class="hint" id="tpl-count" style="margin-left:auto"></span>'+
     '</div>'+
     '<div class="field" style="gap:2px">'+rows+'</div>'+
-    '<div class="field"><label>'+esc(tr("tpl_start_label"))+'</label><input type="date" id="tpl-start" value="'+ymd(todayUTC())+'"></div>'+
+    '<div class="grid2">'+
+      '<div class="field"><label>'+esc(tr("tpl_dday_label"))+'</label><input type="date" id="tpl-dday" value="'+ymd(todayUTC())+'"></div>'+
+      '<div class="field"><label>'+esc(tr("tpl_dday_dur_label"))+'</label><input type="number" id="tpl-dday-dur" min="1" step="1" value="1"></div>'+
+    '</div>'+
     '<span class="hint">'+esc(tr("tpl_seq_hint"))+'</span>'+
     '<span class="hint" id="tpl-warn" style="display:none;color:var(--s-cancel)">'+esc(tr("tpl_warn"))+'</span>',
     '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
@@ -2155,8 +2158,14 @@ function openTemplatePicker(sectId){
       document.getElementById("tpl-warn").style.display = "block";
       return;
     }
-    var startBase = document.getElementById("tpl-start").value || ymd(todayUTC());
-    var cur = parse(startBase) || todayUTC();
+    /* only the Event Day task gets scheduled here — the rest of the workflow
+       hangs off the event date in ways that vary per project, so guessing a
+       one-day-apart sequence for them just created dates that all had to be
+       corrected by hand. They come in dateless instead; a task with no start
+       renders "—", draws no bar, is skipped by the auto-status pass, and is
+       excluded from calendar sync until someone gives it a real date. */
+    var ddayDate = document.getElementById("tpl-dday").value || "";
+    var ddayDur = Math.max(1, parseInt(document.getElementById("tpl-dday-dur").value, 10) || 1);
     var added = 0;
     WORKFLOW_TEMPLATE.forEach(function(item, i){
       var cb = document.querySelector('[data-tpl="'+i+'"]');
@@ -2165,10 +2174,11 @@ function openTemplatePicker(sectId){
         id: uid("t"),
         pic: item.dday ? state.team.map(function(m){return m.code;}) : picsForRoles(item.remark),
         title:tplTitle(item), remark:"",
-        status: item.dday ? "D-DAY" : "Not started", start: ymd(cur), dur:1,
+        status: item.dday ? "D-DAY" : "Not started",
+        start: item.dday ? ddayDate : "",
+        dur: item.dday ? ddayDur : 1,
         link:"", isProposal:false, proposal:{}, d2027:{}
       });
-      cur = addDays(cur, 1);
       added++;
     });
     closeModal();

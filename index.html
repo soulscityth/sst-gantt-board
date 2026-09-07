@@ -530,7 +530,23 @@ select.statussel option{background:var(--surface);color:var(--text)}
    the td itself flex would drop it out of the table layout */
 .triptable .acts .iconbtn{display:inline-grid;vertical-align:middle;opacity:.5}
 .triptable tr:hover .acts .iconbtn{opacity:1}
-.tripnote{color:var(--text-2);max-width:260px}
+.tripnote{color:var(--text-2);max-width:220px}
+.tripproj{color:var(--text-2);max-width:190px}
+/* each leg on its own line, with its own distance trailing in muted type */
+.triproutes{min-width:190px}
+.triproute{display:block;white-space:nowrap}
+.triproute+.triproute{margin-top:2px}
+.triproute i{
+  font-style:normal;color:var(--muted);margin-left:6px;font-size:11px;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+}
+/* route editor rows inside the trip dialog */
+.rtrow{display:grid;grid-template-columns:1fr 14px 1fr 82px 24px;gap:6px;align-items:center}
+.rtrow+.rtrow{margin-top:6px}
+.rtarrow{color:var(--muted);text-align:center;font-size:12px}
+.rtrow .rt-del{opacity:.55}
+.rtrow .rt-del:hover{opacity:1}
+.rtrow .rt-del[disabled]{opacity:.2;pointer-events:none}
 .tripowner{display:flex;align-items:center;gap:7px;white-space:nowrap}
 .triptot td{border-bottom:0;padding-top:12px;font-weight:600}
 
@@ -648,6 +664,11 @@ var I18N = {
     trip_add_title:"เพิ่มการเดินทาง", trip_edit_title:"แก้ไขการเดินทาง",
     trip_from_ph:"เช่น ออฟฟิศ", trip_to_ph:"เช่น โรงเรียนสวนกุหลาบ",
     trip_note:"หมายเหตุ", trip_note_ph:"เช่น ไปส่งอุปกรณ์ / ค่าทางด่วน 50 บาท",
+    trip_project:"โปรเจกต์", trip_no_project:"— ไม่ระบุโปรเจกต์ —",
+    trip_vehicle:"ยานพาหนะ", trip_v_car:"รถยนต์", trip_v_ev:"รถยนต์ไฟฟ้า", trip_v_moto:"มอเตอร์ไซค์",
+    trip_routes:"เส้นทาง", trip_add_route:"+ เพิ่มเส้นทาง", trip_del_route:"ลบเส้นทางนี้",
+    trip_baht:"เป็นเงิน (บาท)", trip_baht_unit:"บาท", trip_rate_note:"เรต: รถยนต์ {car} · รถยนต์ไฟฟ้า {ev} · มอเตอร์ไซค์ {moto} บาท/กม.",
+    trip_route_warn:"ใส่ต้นทางและปลายทางอย่างน้อย 1 เส้นทาง",
     trip_form_hint:"ระยะทางใส่เป็นกิโลเมตร ใส่ทศนิยมได้ เช่น 12.5",
     trip_add_submit:"เพิ่ม", trip_delete_this:"ลบรายการนี้",
     trip_delete_title:"ลบการเดินทาง",
@@ -806,6 +827,11 @@ var I18N = {
     trip_add_title:"Add Trip", trip_edit_title:"Edit Trip",
     trip_from_ph:"e.g. Office", trip_to_ph:"e.g. Suankularb School",
     trip_note:"Note", trip_note_ph:"e.g. delivering equipment / 50 THB tolls",
+    trip_project:"Project", trip_no_project:"— No project —",
+    trip_vehicle:"Vehicle", trip_v_car:"Car", trip_v_ev:"EV car", trip_v_moto:"Motorcycle",
+    trip_routes:"Routes", trip_add_route:"+ Add route", trip_del_route:"Remove this route",
+    trip_baht:"Amount (THB)", trip_baht_unit:"THB", trip_rate_note:"Rates: car {car} · EV {ev} · motorcycle {moto} THB/km",
+    trip_route_warn:"Fill in at least one route with an origin and a destination.",
     trip_form_hint:"Distance in kilometres; decimals are fine, e.g. 12.5",
     trip_add_submit:"Add", trip_delete_this:"Delete this trip",
     trip_delete_title:"Delete Trip",
@@ -1090,6 +1116,9 @@ function initFirebase(){
 /* Firebase Realtime Database drops empty arrays/objects entirely (a section
    with zero tasks comes back as undefined, not []) — patch that back in
    wherever state is loaded, so the rest of the app can assume arrays exist. */
+/* Reimbursement rate per kilometre by vehicle. Edit here to change what the
+   travel board pays out; the keys are what's stored on each trip. */
+var TRIP_RATES = {car:6, ev:4, moto:3};
 function normalizeState(s){
   if(!s) return s;
   s.boards = s.boards || [];
@@ -1106,6 +1135,18 @@ function normalizeState(s){
   /* travel log — flat list, not boards/sections/tasks: a trip is a one-off
      record for month-end reimbursement, not a scheduled piece of work */
   s.trips = s.trips || [];
+  /* a trip used to be a single from/to/km; it now carries a list of routes,
+     so one outing with several legs is one claim. Fold the old shape into
+     the new one on the way in — this runs over the remote snapshot too, so
+     a client still on the previous version can't reintroduce the old shape. */
+  s.trips.forEach(function(t){
+    if(!t.routes || !t.routes.length){
+      t.routes = [{from: t.from || "", to: t.to || "", km: Math.max(0, parseFloat(t.km) || 0)}];
+    }
+    delete t.from; delete t.to; delete t.km;
+    if(!TRIP_RATES[t.vehicle]) t.vehicle = "car";
+    if(typeof t.sectId !== "string") t.sectId = "";
+  });
   /* named goals2027 historically — now tracks 2026, kept the key so live data isn't migrated */
   s.goals2027 = s.goals2027 || {salesTarget:0, participantsTarget:0, workshopsTarget:0};
   if(s.goals2027.salesBase == null) s.goals2027.salesBase = 1028970;
@@ -1566,10 +1607,36 @@ function tripsInMonth(key){
     .slice()
     .sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });
 }
-function tripKm(t){ return Math.max(0, parseFloat(t.km) || 0); }
+/* a trip's distance is the sum of its legs */
+function tripKm(t){
+  return (t.routes||[]).reduce(function(a, r){ return a + Math.max(0, parseFloat(r.km) || 0); }, 0);
+}
+function tripRate(t){ return TRIP_RATES[t.vehicle] || TRIP_RATES.car; }
+/* money is rounded once, per trip, not per leg and not on the running total —
+   so what's paid out always matches the per-trip figures someone can check
+   by hand against the table */
+function tripBaht(t){ return Math.round(tripKm(t) * tripRate(t)); }
 /* trailing zeros look wrong on a distance ("12.50 km"), but so does dropping
    a real decimal — so only show one when the value actually has one */
 function fmtKm(n){ return (Math.round(n*10)/10).toLocaleString(undefined, {maximumFractionDigits:1}); }
+function fmtBaht(n){ return Math.round(n).toLocaleString(); }
+function vehicleLabel(v){
+  return tr(v === "ev" ? "trip_v_ev" : v === "moto" ? "trip_v_moto" : "trip_v_car");
+}
+/* every project across every board, for the trip's project picker — a trip
+   isn't tied to the board you happen to be looking at */
+function allProjects(){
+  var out = [];
+  state.boards.forEach(function(b){
+    b.sections.forEach(function(s){ out.push({board:b, section:s}); });
+  });
+  return out;
+}
+function projectLabel(sectId){
+  if(!sectId) return "";
+  var hit = allProjects().filter(function(p){ return p.section.id === sectId; })[0];
+  return hit ? hit.board.name + " › " + hit.section.title : "";
+}
 function tripsView(){
   var monthKey = activeTripMonth();
   var months = tripMonths();
@@ -1590,26 +1657,32 @@ function tripsView(){
   /* per-person totals are the actual month-end deliverable, so they lead the
      page; everyone on the team is listed even at 0 km so a person who simply
      forgot to log anything is visible rather than silently missing */
-  var totalKm = 0, byCode = {};
+  var totalKm = 0, totalBaht = 0, byCode = {};
   trips.forEach(function(t){
-    totalKm += tripKm(t);
-    if(!byCode[t.pic]) byCode[t.pic] = {km:0, n:0};
-    byCode[t.pic].km += tripKm(t);
+    var km = tripKm(t), baht = tripBaht(t);
+    totalKm += km; totalBaht += baht;
+    if(!byCode[t.pic]) byCode[t.pic] = {km:0, baht:0, n:0};
+    byCode[t.pic].km += km;
+    byCode[t.pic].baht += baht;
     byCode[t.pic].n++;
   });
   var codes = state.team.map(function(m){ return m.code; });
   Object.keys(byCode).forEach(function(c){ if(codes.indexOf(c) < 0) codes.push(c); });
+  /* baht leads on each card — it's the figure that gets paid; the kilometres
+     behind it are what it was worked out from */
   var sum = codes.map(function(c){
-    var m = member(c), agg = byCode[c] || {km:0, n:0};
+    var m = member(c), agg = byCode[c] || {km:0, baht:0, n:0};
     return '<div class="tripsumcard">'+
       '<span class="pic" style="--m:'+esc(m.color)+'" title="'+esc(m.name)+'">'+esc(c.slice(0,2))+'</span>'+
-      '<div><b>'+esc(fmtKm(agg.km))+'<span class="unit">'+esc(tr("trip_km_unit"))+'</span></b>'+
-        '<span class="nm">'+esc(m.name)+' · '+agg.n+' '+esc(tr("trip_trips_unit"))+'</span></div>'+
+      '<div><b>'+esc(fmtBaht(agg.baht))+'<span class="unit">'+esc(tr("trip_baht_unit"))+'</span></b>'+
+        '<span class="nm">'+esc(m.name)+' · '+esc(fmtKm(agg.km))+' '+esc(tr("trip_km_unit"))+
+        ' · '+agg.n+' '+esc(tr("trip_trips_unit"))+'</span></div>'+
     '</div>';
   }).join("") +
-  '<div class="tripsumcard tripsumtot"><div><b>'+esc(fmtKm(totalKm))+
-    '<span class="unit">'+esc(tr("trip_km_unit"))+'</span></b>'+
-    '<span class="nm">'+esc(tr("trip_total_row"))+' · '+trips.length+' '+esc(tr("trip_trips_unit"))+'</span></div></div>';
+  '<div class="tripsumcard tripsumtot"><div><b>'+esc(fmtBaht(totalBaht))+
+    '<span class="unit">'+esc(tr("trip_baht_unit"))+'</span></b>'+
+    '<span class="nm">'+esc(tr("trip_total_row"))+' · '+esc(fmtKm(totalKm))+' '+esc(tr("trip_km_unit"))+
+    ' · '+trips.length+' '+esc(tr("trip_trips_unit"))+'</span></div></div>';
 
   if(!trips.length){
     return '<div class="viewport" id="viewport"><div class="tripwrap">'+bar+
@@ -1624,9 +1697,14 @@ function tripsView(){
       '<td><span class="tripowner"><span class="pic" style="--m:'+esc(m.color)+'" title="'+esc(m.name)+'">'+
         esc(String(t.pic||"").slice(0,2))+'</span>'+esc(m.name)+'</span></td>'+
       '<td class="num">'+esc(fmtShort(t.date))+'</td>'+
-      '<td>'+esc(t.from||"")+'</td>'+
-      '<td>'+esc(t.to||"")+'</td>'+
+      '<td class="tripproj">'+esc(projectLabel(t.sectId))+'</td>'+
+      '<td class="triproutes">'+(t.routes||[]).map(function(rt){
+        return '<span class="triproute">'+esc(rt.from||"")+' &rarr; '+esc(rt.to||"")+
+          '<i>'+esc(fmtKm(Math.max(0, parseFloat(rt.km)||0)))+'</i></span>';
+      }).join("")+'</td>'+
+      '<td>'+esc(vehicleLabel(t.vehicle))+'</td>'+
       '<td class="num">'+esc(fmtKm(tripKm(t)))+'</td>'+
+      '<td class="num">'+esc(fmtBaht(tripBaht(t)))+'</td>'+
       '<td class="tripnote">'+esc(t.note||"")+'</td>'+
       '<td class="acts">'+(readOnly?'':
         '<button class="iconbtn" data-trip-dup="'+esc(t.id)+'" aria-label="'+esc(tr("duplicate"))+'" title="'+esc(tr("duplicate"))+'">&#10697;</button>'+
@@ -1639,13 +1717,18 @@ function tripsView(){
     '<div class="tripsum">'+sum+'</div>'+
     '<table class="triptable"><thead><tr>'+
       '<th>'+esc(tr("trip_owner"))+'</th><th>'+esc(tr("trip_date"))+'</th>'+
-      '<th>'+esc(tr("trip_from"))+'</th><th>'+esc(tr("trip_to"))+'</th>'+
+      '<th>'+esc(tr("trip_project"))+'</th><th>'+esc(tr("trip_routes"))+'</th>'+
+      '<th>'+esc(tr("trip_vehicle"))+'</th>'+
       '<th style="text-align:right">'+esc(tr("trip_km"))+'</th>'+
+      '<th style="text-align:right">'+esc(tr("trip_baht"))+'</th>'+
       '<th>'+esc(tr("trip_note"))+'</th><th></th>'+
     '</tr></thead><tbody>'+rows+
-      '<tr class="triptot"><td colspan="4" style="text-align:right">'+esc(tr("trip_total_row"))+'</td>'+
-      '<td class="num">'+esc(fmtKm(totalKm))+'</td><td></td><td></td></tr>'+
+      '<tr class="triptot"><td colspan="5" style="text-align:right">'+esc(tr("trip_total_row"))+'</td>'+
+      '<td class="num">'+esc(fmtKm(totalKm))+'</td>'+
+      '<td class="num">'+esc(fmtBaht(totalBaht))+'</td><td></td><td></td></tr>'+
     '</tbody></table>'+
+    '<span class="hint" style="display:block;margin-top:10px">'+
+      esc(tr("trip_rate_note",{car:TRIP_RATES.car, ev:TRIP_RATES.ev, moto:TRIP_RATES.moto}))+'</span>'+
   '</div></div>';
 }
 function wireTrips(){
@@ -1673,40 +1756,106 @@ function openTrip(id){
      normally filling in a month's worth of trips after the fact */
   if(isNew){
     var mk = activeTripMonth(), tod = ymd(todayUTC());
-    t = {id:uid("tr"), pic:(state.team[0]||{}).code||"", date:(tripMonthKey(tod)===mk?tod:mk+"-01"), from:"", to:"", km:0, note:""};
+    t = {id:uid("tr"), pic:(state.team[0]||{}).code||"", date:(tripMonthKey(tod)===mk?tod:mk+"-01"),
+         sectId:"", vehicle:"car", routes:[{from:"", to:"", km:0}], note:""};
   }
+  /* edited on a copy so cancelling out of the dialog leaves the stored trip
+     untouched — routes are nested, and the row editor mutates them live */
+  var draft = JSON.parse(JSON.stringify(t.routes && t.routes.length ? t.routes : [{from:"",to:"",km:0}]));
+
   var picOpts = state.team.map(function(m){
     return '<option value="'+esc(m.code)+'"'+(t.pic===m.code?" selected":"")+'>'+esc(m.name)+' ('+esc(m.code)+')</option>';
   }).join("");
+  var projOpts = '<option value="">'+esc(tr("trip_no_project"))+'</option>' +
+    allProjects().map(function(p){
+      var label = p.board.name+" › "+p.section.title;
+      return '<option value="'+esc(p.section.id)+'"'+(t.sectId===p.section.id?" selected":"")+'>'+esc(label)+'</option>';
+    }).join("");
+  var vehOpts = [["car","trip_v_car"],["ev","trip_v_ev"],["moto","trip_v_moto"]].map(function(v){
+    return '<option value="'+v[0]+'"'+(t.vehicle===v[0]?" selected":"")+'>'+esc(tr(v[1]))+
+      ' ('+TRIP_RATES[v[0]]+' '+esc(tr("trip_baht_unit"))+'/'+esc(tr("trip_km_unit"))+')</option>';
+  }).join("");
+
   modal(isNew?tr("trip_add_title"):tr("trip_edit_title"),
     '<div class="grid2">'+
       '<div class="field"><label>'+esc(tr("trip_owner"))+'</label><select id="f-tr-pic">'+picOpts+'</select></div>'+
       '<div class="field"><label>'+esc(tr("trip_date"))+'</label><input type="date" id="f-tr-date" value="'+esc(t.date||"")+'"></div>'+
     '</div>'+
-    '<div class="field"><label>'+esc(tr("trip_from"))+'</label><input id="f-tr-from" value="'+esc(t.from||"")+'" placeholder="'+esc(tr("trip_from_ph"))+'"></div>'+
-    '<div class="field"><label>'+esc(tr("trip_to"))+'</label><input id="f-tr-to" value="'+esc(t.to||"")+'" placeholder="'+esc(tr("trip_to_ph"))+'"></div>'+
-    '<div class="field"><label>'+esc(tr("trip_km"))+'</label><input type="number" id="f-tr-km" min="0" step="0.1" value="'+esc(String(tripKm(t)))+'"></div>'+
+    '<div class="grid2">'+
+      '<div class="field"><label>'+esc(tr("trip_project"))+'</label><select id="f-tr-proj">'+projOpts+'</select></div>'+
+      '<div class="field"><label>'+esc(tr("trip_vehicle"))+'</label><select id="f-tr-veh">'+vehOpts+'</select></div>'+
+    '</div>'+
+    '<div class="field"><label>'+esc(tr("trip_routes"))+'</label><div id="f-tr-routes"></div>'+
+      '<button type="button" class="btn sm" id="f-tr-addroute" style="align-self:flex-start;margin-top:6px">'+esc(tr("trip_add_route"))+'</button>'+
+    '</div>'+
     '<div class="field"><label>'+esc(tr("trip_note"))+'</label><input id="f-tr-note" value="'+esc(t.note||"")+'" placeholder="'+esc(tr("trip_note_ph"))+'"></div>'+
     '<span class="hint">'+esc(tr("trip_form_hint"))+'</span>'+
-    '<span class="hint" id="tr-warn" style="display:none;color:var(--s-cancel)">'+esc(tr("trip_warn"))+'</span>',
+    '<span class="hint" id="tr-warn" style="display:none;color:var(--s-cancel)">'+esc(tr("trip_route_warn"))+'</span>',
     (isNew?"":'<button class="btn danger" id="m-del">'+esc(tr("trip_delete_this"))+'</button>')+
     '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
     '<button class="btn primary" id="m-ok">'+(isNew?esc(tr("trip_add_submit")):esc(tr("save_btn")))+'</button>'
   );
+
+  /* Route rows are re-rendered from `draft` on every add/remove, so the
+     current field values have to be read back into it first — otherwise
+     adding a second leg would wipe what was typed into the first. */
+  function readRoutes(){
+    document.querySelectorAll("[data-route-i]").forEach(function(row){
+      var i = +row.getAttribute("data-route-i");
+      if(!draft[i]) return;
+      draft[i].from = row.querySelector(".rt-from").value;
+      draft[i].to   = row.querySelector(".rt-to").value;
+      draft[i].km   = Math.max(0, parseFloat(row.querySelector(".rt-km").value) || 0);
+    });
+  }
+  function renderRoutes(){
+    document.getElementById("f-tr-routes").innerHTML = draft.map(function(r, i){
+      return '<div class="rtrow" data-route-i="'+i+'">'+
+        '<input class="rt-from" value="'+esc(r.from||"")+'" placeholder="'+esc(tr("trip_from_ph"))+'">'+
+        '<span class="rtarrow">&rarr;</span>'+
+        '<input class="rt-to" value="'+esc(r.to||"")+'" placeholder="'+esc(tr("trip_to_ph"))+'">'+
+        '<input class="rt-km" type="number" min="0" step="0.1" value="'+esc(String(Math.max(0, parseFloat(r.km)||0)))+'">'+
+        '<button type="button" class="iconbtn rt-del" data-route-del="'+i+'" title="'+esc(tr("trip_del_route"))+'"'+
+          (draft.length>1?'':' disabled')+'>&#10005;</button>'+
+      '</div>';
+    }).join("");
+    document.querySelectorAll("[data-route-del]").forEach(function(b){
+      b.onclick = function(){
+        readRoutes();
+        draft.splice(+b.getAttribute("data-route-del"), 1);
+        if(!draft.length) draft.push({from:"",to:"",km:0});
+        renderRoutes();
+      };
+    });
+  }
+  renderRoutes();
+  document.getElementById("f-tr-addroute").onclick = function(){
+    readRoutes();
+    draft.push({from:"", to:"", km:0});
+    renderRoutes();
+    var rows = document.querySelectorAll(".rtrow .rt-from");
+    if(rows.length) rows[rows.length-1].focus();
+  };
+
   document.getElementById("m-cancel").onclick = closeModal;
   var del = document.getElementById("m-del");
   if(del) del.onclick = function(){ confirmDeleteTrip(t.id); };
   document.getElementById("m-ok").onclick = function(){
     var date = document.getElementById("f-tr-date").value;
-    var from = document.getElementById("f-tr-from").value.trim();
-    var to = document.getElementById("f-tr-to").value.trim();
-    if(!date || !from || !to){
+    readRoutes();
+    /* a half-filled extra leg is a slip, not data — drop blanks, then insist
+       on at least one real route so a trip can't be saved with no journey */
+    var routes = draft.filter(function(r){ return r.from.trim() && r.to.trim(); })
+                      .map(function(r){ return {from:r.from.trim(), to:r.to.trim(), km:r.km}; });
+    if(!date || !routes.length){
       document.getElementById("tr-warn").style.display = "block";
       return;
     }
     t.pic = document.getElementById("f-tr-pic").value;
-    t.date = date; t.from = from; t.to = to;
-    t.km = Math.max(0, parseFloat(document.getElementById("f-tr-km").value) || 0);
+    t.date = date;
+    t.sectId = document.getElementById("f-tr-proj").value;
+    t.vehicle = document.getElementById("f-tr-veh").value;
+    t.routes = routes;
     t.note = document.getElementById("f-tr-note").value.trim();
     if(isNew) state.trips.push(t);
     /* jump the view to the month the trip actually lands in, so a trip
@@ -1715,7 +1864,7 @@ function openTrip(id){
     saveView();
     closeModal(); touch(); render();
   };
-  setTimeout(function(){ var el=document.getElementById("f-tr-from"); if(el) el.focus(); }, 30);
+  setTimeout(function(){ var el=document.querySelector(".rt-from"); if(el) el.focus(); }, 30);
 }
 /* the same route usually repeats — a weekly run to the same school, a return
    leg — so duplicating and changing only the date beats retyping it. Opens
@@ -1751,22 +1900,41 @@ function confirmDeleteTrip(id){
 function exportTripsCsv(){
   var monthKey = activeTripMonth();
   var trips = tripsInMonth(monthKey);
-  var lines = [["Traveller","Code","Date","From","To","Distance (km)","Note"]];
-  var total = 0;
+  /* one line per leg, with the trip's details repeated: whoever processes
+     this needs to see the individual journeys, but the money is settled per
+     trip (that's where the rounding happens), so the baht column carries the
+     trip total on its first leg and is left blank on the rest rather than
+     being split into figures that don't add up. */
+  var lines = [["Traveller","Code","Date","Project","From","To","Distance (km)","Vehicle","Rate (THB/km)","Amount (THB)","Note"]];
+  var totalKm = 0, totalBaht = 0;
   trips.forEach(function(t){
-    total += tripKm(t);
-    lines.push([member(t.pic).name, t.pic||"", fmtShort(t.date), t.from||"", t.to||"", fmtKm(tripKm(t)), t.note||""]);
+    totalKm += tripKm(t); totalBaht += tripBaht(t);
+    (t.routes||[]).forEach(function(rt, i){
+      lines.push([
+        i===0 ? member(t.pic).name : "", i===0 ? (t.pic||"") : "",
+        i===0 ? fmtShort(t.date) : "", i===0 ? projectLabel(t.sectId) : "",
+        rt.from||"", rt.to||"", fmtKm(Math.max(0, parseFloat(rt.km)||0)),
+        i===0 ? vehicleLabel(t.vehicle) : "", i===0 ? String(tripRate(t)) : "",
+        i===0 ? fmtBaht(tripBaht(t)) : "", i===0 ? (t.note||"") : ""
+      ]);
+    });
   });
-  lines.push(["","","","","","",""]);
+  function blank(){ return ["","","","","","","","","","",""]; }
+  lines.push(blank());
   /* per-person totals repeated in the export — this file is what actually
      goes to whoever cuts the reimbursements */
   state.team.forEach(function(m){
-    var km = 0;
-    trips.forEach(function(t){ if(t.pic===m.code) km += tripKm(t); });
-    lines.push([m.name, m.code, "TOTAL", "", "", fmtKm(km), ""]);
+    var km = 0, baht = 0;
+    trips.forEach(function(t){ if(t.pic===m.code){ km += tripKm(t); baht += tripBaht(t); } });
+    var row = blank();
+    row[0] = m.name; row[1] = m.code; row[2] = "TOTAL";
+    row[6] = fmtKm(km); row[9] = fmtBaht(baht);
+    lines.push(row);
   });
-  lines.push(["","","MONTH TOTAL","","",fmtKm(total),""]);
-  var csv = "﻿" + lines.map(function(r){
+  var last = blank();
+  last[2] = "MONTH TOTAL"; last[6] = fmtKm(totalKm); last[9] = fmtBaht(totalBaht);
+  lines.push(last);
+  var csv = "\ufeff" + lines.map(function(r){
     return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(",");
   }).join("\r\n");
   downloadBlob("trips-"+monthKey+".csv", csv, "text/csv;charset=utf-8");

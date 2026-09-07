@@ -622,6 +622,7 @@ var I18N = {
     rename_btn:"แก้ชื่อ", add_task_to:"+ เพิ่มงานใน {name}",
     proposal_title:"งาน Proposal", open_link_title:"เปิดลิงก์: {link}",
     move_up:"ย้ายขึ้น", move_down:"ย้ายลง", edit_title_aria:"แก้ไข {title}",
+    duplicate:"ทำสำเนา", dup_title_aria:"ทำสำเนา {title}",
     footer_legend_note:"DUE = START + DURATION − 1 · แถบทึบ = กำลังทำ/เสร็จ · แถบเส้นประ = ยังไม่เริ่ม/ยกเลิก",
     task_edit_title:"แก้ไขงาน", task_add_title:"เพิ่มงานใหม่",
     pick_all_btn:"ALL · ทั้งทีม", title_ph:"ชื่องาน เช่น ส่งอีเมลเสนอโครงการ",
@@ -762,6 +763,7 @@ var I18N = {
     rename_btn:"Rename", add_task_to:"+ Add task to {name}",
     proposal_title:"Proposal Task", open_link_title:"Open link: {link}",
     move_up:"Move Up", move_down:"Move Down", edit_title_aria:"Edit {title}",
+    duplicate:"Duplicate", dup_title_aria:"Duplicate {title}",
     footer_legend_note:"DUE = START + DURATION − 1 · Solid bar = in progress/done · Dashed bar = not started/cancelled",
     task_edit_title:"Edit Task", task_add_title:"Add New Task",
     pick_all_btn:"ALL · Whole Team", title_ph:"Task name, e.g. Send project proposal email",
@@ -863,10 +865,13 @@ function tr(key, vars){
   return s;
 }
 
-var COLS_FULL = "72px 232px 152px 104px 78px 44px 78px 78px";
-var COLS_SLIM = "72px 288px 106px 78px";
+/* last column holds the per-row action buttons: 4 x 22px + 3 x 1px gap = 91px,
+   plus .rowact's 8px side padding = 107px, so 108px keeps them off the edge */
+var COLS_FULL = "72px 232px 152px 104px 78px 44px 78px 108px";
+var COLS_SLIM = "72px 288px 106px 108px";
 function colsDef(){ return view.compact ? COLS_SLIM : COLS_FULL; }
-function leftW(){ return view.compact ? 544 : 838; }
+/* must stay equal to the sum of the widths above */
+function leftW(){ return view.compact ? 574 : 868; }
 var MON_BY_LANG = {
   th: ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"],
   en: ["January","February","March","April","May","June","July","August","September","October","November","December"]
@@ -1636,6 +1641,7 @@ function taskRow(t, s, r, dayW, trackW, bg){
         var ti = s.tasks.indexOf(t);
         return (ti>0?'<button class="iconbtn" data-task-up="'+esc(t.id)+'" data-sect="'+esc(s.id)+'" aria-label="'+esc(tr("move_up"))+'" title="'+esc(tr("move_up"))+'">&#8593;</button>':'')+
           (ti<s.tasks.length-1?'<button class="iconbtn" data-task-down="'+esc(t.id)+'" data-sect="'+esc(s.id)+'" aria-label="'+esc(tr("move_down"))+'" title="'+esc(tr("move_down"))+'">&#8595;</button>':'')+
+          '<button class="iconbtn" data-task-dup="'+esc(t.id)+'" data-sect="'+esc(s.id)+'" aria-label="'+esc(tr("dup_title_aria",{title:t.title}))+'" title="'+esc(tr("duplicate"))+'">&#10697;</button>'+
           '<button class="iconbtn" data-edit="'+esc(t.id)+'" aria-label="'+esc(tr("edit_title_aria",{title:t.title}))+'">&#9998;</button>';
       })())+'</div>'+
     '</div>'+
@@ -1764,6 +1770,9 @@ function wire(b, r, dayW){
   app.querySelectorAll("[data-task-up]").forEach(function(el){
     el.onclick = function(){ moveTask(el.getAttribute("data-task-up"), el.getAttribute("data-sect"), -1); };
   });
+  app.querySelectorAll("[data-task-dup]").forEach(function(el){
+    el.onclick = function(){ duplicateTask(el.getAttribute("data-task-dup"), el.getAttribute("data-sect")); };
+  });
   app.querySelectorAll("[data-task-down]").forEach(function(el){
     el.onclick = function(){ moveTask(el.getAttribute("data-task-down"), el.getAttribute("data-sect"), 1); };
   });
@@ -1786,6 +1795,26 @@ function moveTask(taskId, sectId, dir){
   var j = i + dir;
   if(i<0 || j<0 || j>=s.tasks.length) return;
   var tmp = s.tasks[i]; s.tasks[i] = s.tasks[j]; s.tasks[j] = tmp;
+  touch(); render();
+}
+/* copy of a task dropped directly below the original, so the common case —
+   same shape of work, different date or owner — doesn't mean retyping it.
+   Deep-cloned via JSON (tasks are already plain JSON state, persisted as-is)
+   because a shallow copy would leave the two sharing the same `pic` array
+   and `proposal`/`d2027` objects: editing one would silently edit the other.
+   The copy gets a fresh id, so it's a task the calendar ledger has never
+   seen and syncs as a new event rather than colliding with the original's. */
+function duplicateTask(taskId, sectId){
+  if(readOnly) return;
+  var b = board(), s = null;
+  for(var k=0;k<b.sections.length;k++) if(b.sections[k].id===sectId){ s=b.sections[k]; break; }
+  if(!s) return;
+  var i = -1;
+  for(var n=0;n<s.tasks.length;n++) if(s.tasks[n].id===taskId){ i=n; break; }
+  if(i<0) return;
+  var copy = JSON.parse(JSON.stringify(s.tasks[i]));
+  copy.id = uid("t");
+  s.tasks.splice(i+1, 0, copy);
   touch(); render();
 }
 /* sorts a section's tasks by start or due date (ascending); tasks with no

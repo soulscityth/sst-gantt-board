@@ -368,6 +368,30 @@ select.ctl:hover,input.ctl:hover{border-color:var(--border-strong)}
 .row .left>div{padding:5px 8px;min-width:0;overflow:hidden}
 .row .track{flex:0 0 auto;position:relative;border-bottom:1px solid var(--grid)}
 
+/* Drag handles. In .sect .left (a flex row) the grip is just another child;
+   in .row .left it can't be — that's a grid locked to --cols, and a ninth
+   child would knock every column out of line with the header — so there it
+   is absolutely positioned over the left edge instead. */
+.grip{
+  width:12px;flex:0 0 auto;display:grid;place-items:center;
+  color:var(--muted);font-size:10px;line-height:1;cursor:grab;
+  opacity:0;transition:opacity .12s;background:none;border:0;padding:0;
+}
+/* 8px = exactly the left padding of the first cell, so the grip sits in dead
+   space instead of clipping the PIC chips; it spans the full row height, so
+   the target is still comfortable to hit */
+.row .grip{position:absolute;left:0;top:0;bottom:0;z-index:4;height:auto;width:8px;font-size:9px}
+.row:hover .grip,.sect:hover .grip,.grip:focus-visible{opacity:.6}
+.grip:hover{opacity:1;color:var(--text)}
+.grip:active{cursor:grabbing}
+.dragsrc{opacity:.35}
+/* insertion line — drawn inset so it shows above the sticky left pane */
+.dropbefore .left,.dropbefore .track{box-shadow:inset 0 2px 0 0 var(--accent)}
+.dropafter .left,.dropafter .track{box-shadow:inset 0 -2px 0 0 var(--accent)}
+.dropinto .left{background:var(--accent-soft)}
+.bar[data-bar]{cursor:grab}
+.bar[data-bar]:active{cursor:grabbing}
+
 .c-act{font-weight:500;white-space:nowrap;text-overflow:ellipsis}
 .c-rem{color:var(--muted);font-size:11.5px;white-space:nowrap;text-overflow:ellipsis}
 .c-num{
@@ -672,6 +696,8 @@ var I18N = {
     all_projects_done_body:'กดปุ่ม "แสดงหัวข้อที่เสร็จแล้ว" ที่แถบเครื่องมือด้านบนเพื่อดู',
     expand_project:"ขยายหัวข้อ", collapse_project:"ย่อหัวข้อ", expand_short:"ขยาย", collapse_short:"ย่อ",
     move_project_up:"ย้ายหัวข้อขึ้น", move_project_down:"ย้ายหัวข้อลง",
+    drag_task_handle:"ลากเพื่อย้ายงาน", drag_sect_handle:"ลากเพื่อย้ายหัวข้อ",
+    drag_bar_hint:"ลากแถบเพื่อเลื่อนวัน",
     tpl_open_title:"เพิ่มงานจาก Workflow Template",
     sort_select_title:"จัดเรียงงานในหัวข้อนี้ตามวันที่", sort_placeholder:"จัดเรียง...",
     sort_by_start:"เรียงตาม Start date", sort_by_due:"เรียงตาม Due date",
@@ -828,6 +854,8 @@ var I18N = {
     all_projects_done_body:'Click "Show completed projects" in the toolbar above to see them',
     expand_project:"Expand Project", collapse_project:"Collapse Project", expand_short:"Expand", collapse_short:"Collapse",
     move_project_up:"Move Project Up", move_project_down:"Move Project Down",
+    drag_task_handle:"Drag to move task", drag_sect_handle:"Drag to move project",
+    drag_bar_hint:"Drag the bar to shift dates",
     tpl_open_title:"Add Tasks From Workflow Template",
     sort_select_title:"Sort this project's tasks by date", sort_placeholder:"Sort...",
     sort_by_start:"Sort by Start date", sort_by_due:"Sort by Due date",
@@ -1192,23 +1220,16 @@ async function save(){
 }
 
 /* ============ range ============ */
+/* Fixed rolling window: last month through three months ahead, rather than
+   stretching to fit whatever the furthest-out task happens to be. That kept
+   the board a predictable width and always framed the part of the plan
+   anyone actually works in — but it does mean a task outside the window
+   draws no bar. Its row still lists start/duration/due, so nothing is
+   hidden, just not plotted. */
 function rangeOf(b){
-  var lo = null, hi = null;
-  b.sections.forEach(function(s){
-    s.tasks.forEach(function(t){
-      var st = parse(t.start), du = dueOf(t);
-      if(st && (!lo || st < lo)) lo = st;
-      if(du && (!hi || du > hi)) hi = du;
-    });
-  });
   var tod = todayUTC();
-  if(!lo) lo = tod;
-  if(!hi) hi = addDays(tod, 60);
-  if(tod < lo) lo = tod;
-  if(tod > hi) hi = tod;
-  var start = new Date(Date.UTC(lo.getUTCFullYear(), lo.getUTCMonth(), 1));
-  var end = new Date(Date.UTC(hi.getUTCFullYear(), hi.getUTCMonth()+1, 0));
-  if(diffDays(start,end) < 80) end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth()+3, 0));
+  var start = new Date(Date.UTC(tod.getUTCFullYear(), tod.getUTCMonth()-1, 1));
+  var end = new Date(Date.UTC(tod.getUTCFullYear(), tod.getUTCMonth()+4, 0));
   return {start:start, end:end, days: diffDays(start,end)+1};
 }
 
@@ -1883,6 +1904,7 @@ function rows(b, r, dayW, trackW){
     var collapsed = !!view.collapsed[s.id];
     var out = '<div class="sect" data-sect="'+esc(s.id)+'">'+
       '<div class="left">'+
+        (readOnly?'':'<button class="grip" draggable="true" data-grip-sect="'+esc(s.id)+'" title="'+esc(tr("drag_sect_handle"))+'" aria-label="'+esc(tr("drag_sect_handle"))+'">&#8942;&#8942;</button>')+
         '<button class="collapsebtn" data-collapse="'+esc(s.id)+'" aria-label="'+esc(collapsed?tr("expand_project"):tr("collapse_project"))+'" title="'+esc(collapsed?tr("expand_short"):tr("collapse_short"))+'">'+(collapsed?"&#9656;":"&#9662;")+'</button>'+
         '<h2>'+esc(s.title)+'</h2>'+
         (ddayRange?'<span class="sectdday">'+esc(ddayRange)+'</span>':'')+
@@ -1906,7 +1928,9 @@ function rows(b, r, dayW, trackW){
     if(!collapsed){
       ts.forEach(function(t){ out += taskRow(t, s, r, dayW, trackW, bg); });
       if(!readOnly){
-        out += '<div class="addrow"><div class="left">'+
+        /* data-sect here is what lets a task be dropped onto the "+ add task"
+           row to land at the end of that project */
+        out += '<div class="addrow" data-sect="'+esc(s.id)+'"><div class="left">'+
           '<button class="linkbtn" data-addto="'+esc(s.id)+'">'+esc(tr("add_task_to",{name:s.title}))+'</button>'+
           '</div><div class="track" style="width:'+trackW+'px;'+bg+'"></div></div>';
       }
@@ -1941,12 +1965,15 @@ function taskRow(t, s, r, dayW, trackW, bg){
       var ghost = (t.status==="Cancel" || t.status==="Not started") ? " ghost" : "";
       var dd = t.status==="D-DAY" ? " dday" : "";
       var lbl = w > 58 ? esc(t.title) : "";
-      bar = '<div class="bar'+ghost+dd+'" style="left:'+(left+1)+'px;width:'+w+'px;--c:var('+svar+')" title="'+esc(t.title)+'">'+lbl+'</div>';
+      bar = '<div class="bar'+ghost+dd+'"'+(readOnly?'':' data-bar="'+esc(t.id)+'"')+
+        ' style="left:'+(left+1)+'px;width:'+w+'px;--c:var('+svar+')" title="'+
+        esc(t.title)+(readOnly?'':' — '+tr("drag_bar_hint"))+'">'+lbl+'</div>';
     }
   }
 
   return '<div class="row" data-task="'+esc(t.id)+'" data-sect="'+esc(s.id)+'">'+
     '<div class="left">'+
+      (readOnly?'':'<button class="grip" draggable="true" data-grip-task="'+esc(t.id)+'" data-sect="'+esc(s.id)+'" title="'+esc(tr("drag_task_handle"))+'" aria-label="'+esc(tr("drag_task_handle"))+'">&#8942;&#8942;</button>')+
       '<div class="pics">'+picHtml+'</div>'+
       '<div class="c-act"><button data-edit="'+esc(t.id)+'" title="'+esc(t.title)+'">'+esc(t.title)+'</button>'+
         (t.isProposal ? '<span class="propbadge" title="'+esc(tr("proposal_title"))+'">Proposal</span>' : '')+
@@ -2097,6 +2124,173 @@ function wire(b, r, dayW){
   });
   app.querySelectorAll("[data-task-down]").forEach(function(el){
     el.onclick = function(){ moveTask(el.getAttribute("data-task-down"), el.getAttribute("data-sect"), 1); };
+  });
+  wireRowDrag();
+  wireBarDrag(dayW);
+}
+
+/* ---------- drag to reorder rows / move a task between projects ----------
+   HTML5 drag-and-drop rather than pointer tracking: the browser handles the
+   drag image and auto-scrolling at the viewport edge for free, which matters
+   on a board that is several screens wide. Only the small grip is draggable,
+   so dragging still selects text and the row's buttons/selects keep working.
+   The dragged thing is held in a module variable — dataTransfer only carries
+   strings, and we need to know the source section too. */
+var dragging = null;   /* {kind:"task"|"sect", id, sectId} */
+function clearDropMarks(){
+  document.querySelectorAll(".dropbefore,.dropafter,.dropinto").forEach(function(el){
+    el.classList.remove("dropbefore","dropafter","dropinto");
+  });
+}
+/* where a drop at this point would land: the row/section under the pointer,
+   and whether it goes above or below it */
+function dropTargetAt(e){
+  var el = document.elementFromPoint(e.clientX, e.clientY);
+  if(!el) return null;
+  var host = el.closest(".row,.sect,.addrow");
+  if(!host) return null;
+  var box = host.getBoundingClientRect();
+  var after = (e.clientY - box.top) > box.height/2;
+  return {host:host, after:after};
+}
+function wireRowDrag(){
+  if(readOnly) return;
+  document.querySelectorAll("[data-grip-task],[data-grip-sect]").forEach(function(g){
+    g.ondragstart = function(e){
+      var taskId = g.getAttribute("data-grip-task");
+      dragging = taskId
+        ? {kind:"task", id:taskId, sectId:g.getAttribute("data-sect")}
+        : {kind:"sect", id:g.getAttribute("data-grip-sect"), sectId:null};
+      /* Firefox refuses to start a drag unless some data is set */
+      try{ e.dataTransfer.setData("text/plain", dragging.id); }catch(err){}
+      e.dataTransfer.effectAllowed = "move";
+      var host = g.closest(".row,.sect");
+      if(host) host.classList.add("dragsrc");
+    };
+    g.ondragend = function(){
+      dragging = null;
+      clearDropMarks();
+      document.querySelectorAll(".dragsrc").forEach(function(el){ el.classList.remove("dragsrc"); });
+    };
+  });
+
+  var rowsEl = document.querySelector(".rows");
+  if(!rowsEl) return;
+  rowsEl.ondragover = function(e){
+    if(!dragging) return;
+    var tgt = dropTargetAt(e);
+    if(!tgt) return;
+    e.preventDefault();                 /* required, or drop never fires */
+    e.dataTransfer.dropEffect = "move";
+    clearDropMarks();
+    var host = tgt.host;
+    /* dropping a task onto a project header means "put it in this project",
+       which reads better as a highlight than as an insertion line */
+    if(dragging.kind === "task" && host.classList.contains("sect")){
+      host.classList.add("dropinto");
+    }else{
+      host.classList.add(tgt.after ? "dropafter" : "dropbefore");
+    }
+  };
+  rowsEl.ondrop = function(e){
+    if(!dragging) return;
+    e.preventDefault();
+    var tgt = dropTargetAt(e);
+    clearDropMarks();
+    if(!tgt){ dragging = null; return; }
+    if(dragging.kind === "task") dropTask(dragging, tgt);
+    else dropSection(dragging, tgt);
+    dragging = null;
+  };
+}
+function sectionById(id){
+  var b = board();
+  for(var i=0;i<b.sections.length;i++) if(b.sections[i].id===id) return b.sections[i];
+  return null;
+}
+function dropTask(drag, tgt){
+  var from = sectionById(drag.sectId);
+  if(!from) return;
+  var idx = -1;
+  for(var i=0;i<from.tasks.length;i++) if(from.tasks[i].id===drag.id){ idx=i; break; }
+  if(idx < 0) return;
+
+  var host = tgt.host;
+  var toId = host.getAttribute("data-sect");
+  var to = sectionById(toId);
+  if(!to) return;
+  var refTaskId = host.classList.contains("row") ? host.getAttribute("data-task") : null;
+  if(refTaskId === drag.id) return;                    /* dropped on itself */
+
+  /* pull it out first, then resolve the target index against the resulting
+     array — computing the index up front goes off by one whenever the item
+     was removed from earlier in the same section */
+  var moved = from.tasks.splice(idx, 1)[0];
+  var at;
+  if(refTaskId){
+    at = to.tasks.length;
+    for(var j=0;j<to.tasks.length;j++) if(to.tasks[j].id===refTaskId){ at = j + (tgt.after?1:0); break; }
+  }else if(host.classList.contains("sect")){
+    at = 0;                                            /* onto the header: top of that project */
+  }else{
+    at = to.tasks.length;                              /* onto the "+ add task" row: the end */
+  }
+  to.tasks.splice(at, 0, moved);
+  touch(); render();
+}
+function dropSection(drag, tgt){
+  var b = board();
+  var idx = -1;
+  for(var i=0;i<b.sections.length;i++) if(b.sections[i].id===drag.id){ idx=i; break; }
+  if(idx < 0) return;
+  var refId = tgt.host.getAttribute("data-sect");
+  if(!refId || refId === drag.id) return;
+  var moved = b.sections.splice(idx, 1)[0];
+  var at = b.sections.length;
+  for(var j=0;j<b.sections.length;j++) if(b.sections[j].id===refId){ at = j + (tgt.after?1:0); break; }
+  b.sections.splice(at, 0, moved);
+  touch(); render();
+}
+
+/* ---------- drag a bar along the timeline to shift its dates ----------
+   Pointer events, not HTML5 drag-and-drop: this needs continuous positional
+   feedback, and the shift is computed from how far the pointer moved rather
+   than from where the bar ended up — a bar for a task starting before the
+   visible window is drawn clipped, so its rendered left edge isn't its real
+   start date. Duration is untouched; the whole bar slides. */
+function wireBarDrag(dayW){
+  if(readOnly || !dayW) return;
+  document.querySelectorAll("[data-bar]").forEach(function(el){
+    el.onpointerdown = function(e){
+      if(e.button !== 0) return;
+      var found = findTask(el.getAttribute("data-bar"));
+      if(!found || !parse(found.task.start)) return;
+      var t = found.task;
+      var startX = e.clientX;
+      var origLeft = parseFloat(el.style.left) || 0;
+      var moved = false;
+      try{ el.setPointerCapture(e.pointerId); }catch(err){}
+      e.preventDefault();
+
+      el.onpointermove = function(ev){
+        var dx = ev.clientX - startX;
+        if(!moved && Math.abs(dx) < 3) return;   /* let a plain click stay a click */
+        moved = true;
+        el.style.left = (origLeft + Math.round(dx/dayW)*dayW) + "px";
+        el.style.opacity = ".7";
+      };
+      el.onpointerup = el.onpointercancel = function(ev){
+        try{ el.releasePointerCapture(ev.pointerId); }catch(err){}
+        el.onpointermove = el.onpointerup = el.onpointercancel = null;
+        if(!moved){ el.style.opacity = ""; return; }
+        var days = Math.round((ev.clientX - startX)/dayW);
+        if(days){
+          t.start = ymd(addDays(parse(t.start), days));
+          touch();
+        }
+        render();
+      };
+    };
   });
 }
 

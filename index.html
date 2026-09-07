@@ -506,6 +506,7 @@ select.statussel option{background:var(--surface);color:var(--text)}
    the td itself flex would drop it out of the table layout */
 .triptable .acts .iconbtn{display:inline-grid;vertical-align:middle;opacity:.5}
 .triptable tr:hover .acts .iconbtn{opacity:1}
+.tripnote{color:var(--text-2);max-width:260px}
 .tripowner{display:flex;align-items:center;gap:7px;white-space:nowrap}
 .triptot td{border-bottom:0;padding-top:12px;font-weight:600}
 
@@ -622,6 +623,7 @@ var I18N = {
     trip_empty_body:"บันทึกการเดินทางของทีมไว้ที่นี่ แล้วสรุปยอดรวมรายคนตอนสิ้นเดือนเพื่อเบิกค่าเดินทาง",
     trip_add_title:"เพิ่มการเดินทาง", trip_edit_title:"แก้ไขการเดินทาง",
     trip_from_ph:"เช่น ออฟฟิศ", trip_to_ph:"เช่น โรงเรียนสวนกุหลาบ",
+    trip_note:"หมายเหตุ", trip_note_ph:"เช่น ไปส่งอุปกรณ์ / ค่าทางด่วน 50 บาท",
     trip_form_hint:"ระยะทางใส่เป็นกิโลเมตร ใส่ทศนิยมได้ เช่น 12.5",
     trip_add_submit:"เพิ่ม", trip_delete_this:"ลบรายการนี้",
     trip_delete_title:"ลบการเดินทาง",
@@ -777,6 +779,7 @@ var I18N = {
     trip_empty_body:"Log the team's trips here, then read off each person's monthly total when it's time to reimburse travel.",
     trip_add_title:"Add Trip", trip_edit_title:"Edit Trip",
     trip_from_ph:"e.g. Office", trip_to_ph:"e.g. Suankularb School",
+    trip_note:"Note", trip_note_ph:"e.g. delivering equipment / 50 THB tolls",
     trip_form_hint:"Distance in kilometres; decimals are fine, e.g. 12.5",
     trip_add_submit:"Add", trip_delete_this:"Delete this trip",
     trip_delete_title:"Delete Trip",
@@ -1603,7 +1606,9 @@ function tripsView(){
       '<td>'+esc(t.from||"")+'</td>'+
       '<td>'+esc(t.to||"")+'</td>'+
       '<td class="num">'+esc(fmtKm(tripKm(t)))+'</td>'+
+      '<td class="tripnote">'+esc(t.note||"")+'</td>'+
       '<td class="acts">'+(readOnly?'':
+        '<button class="iconbtn" data-trip-dup="'+esc(t.id)+'" aria-label="'+esc(tr("duplicate"))+'" title="'+esc(tr("duplicate"))+'">&#10697;</button>'+
         '<button class="iconbtn" data-trip-edit="'+esc(t.id)+'" aria-label="'+esc(tr("trip_edit_title"))+'" title="'+esc(tr("edit"))+'">&#9998;</button>'+
         '<button class="iconbtn" data-trip-del="'+esc(t.id)+'" aria-label="'+esc(tr("trip_delete_title"))+'" title="'+esc(tr("delete"))+'">&#10005;</button>')+'</td>'+
     '</tr>';
@@ -1614,10 +1619,11 @@ function tripsView(){
     '<table class="triptable"><thead><tr>'+
       '<th>'+esc(tr("trip_owner"))+'</th><th>'+esc(tr("trip_date"))+'</th>'+
       '<th>'+esc(tr("trip_from"))+'</th><th>'+esc(tr("trip_to"))+'</th>'+
-      '<th style="text-align:right">'+esc(tr("trip_km"))+'</th><th></th>'+
+      '<th style="text-align:right">'+esc(tr("trip_km"))+'</th>'+
+      '<th>'+esc(tr("trip_note"))+'</th><th></th>'+
     '</tr></thead><tbody>'+rows+
       '<tr class="triptot"><td colspan="4" style="text-align:right">'+esc(tr("trip_total_row"))+'</td>'+
-      '<td class="num">'+esc(fmtKm(totalKm))+'</td><td></td></tr>'+
+      '<td class="num">'+esc(fmtKm(totalKm))+'</td><td></td><td></td></tr>'+
     '</tbody></table>'+
   '</div></div>';
 }
@@ -1628,6 +1634,9 @@ function wireTrips(){
   if(add) add.onclick = function(){ openTrip(null); };
   var csv = document.getElementById("btn-trip-csv");
   if(csv) csv.onclick = exportTripsCsv;
+  document.querySelectorAll("[data-trip-dup]").forEach(function(el){
+    el.onclick = function(){ duplicateTrip(el.getAttribute("data-trip-dup")); };
+  });
   document.querySelectorAll("[data-trip-edit]").forEach(function(el){
     el.onclick = function(){ openTrip(el.getAttribute("data-trip-edit")); };
   });
@@ -1643,7 +1652,7 @@ function openTrip(id){
      normally filling in a month's worth of trips after the fact */
   if(isNew){
     var mk = activeTripMonth(), tod = ymd(todayUTC());
-    t = {id:uid("tr"), pic:(state.team[0]||{}).code||"", date:(tripMonthKey(tod)===mk?tod:mk+"-01"), from:"", to:"", km:0};
+    t = {id:uid("tr"), pic:(state.team[0]||{}).code||"", date:(tripMonthKey(tod)===mk?tod:mk+"-01"), from:"", to:"", km:0, note:""};
   }
   var picOpts = state.team.map(function(m){
     return '<option value="'+esc(m.code)+'"'+(t.pic===m.code?" selected":"")+'>'+esc(m.name)+' ('+esc(m.code)+')</option>';
@@ -1656,6 +1665,7 @@ function openTrip(id){
     '<div class="field"><label>'+esc(tr("trip_from"))+'</label><input id="f-tr-from" value="'+esc(t.from||"")+'" placeholder="'+esc(tr("trip_from_ph"))+'"></div>'+
     '<div class="field"><label>'+esc(tr("trip_to"))+'</label><input id="f-tr-to" value="'+esc(t.to||"")+'" placeholder="'+esc(tr("trip_to_ph"))+'"></div>'+
     '<div class="field"><label>'+esc(tr("trip_km"))+'</label><input type="number" id="f-tr-km" min="0" step="0.1" value="'+esc(String(tripKm(t)))+'"></div>'+
+    '<div class="field"><label>'+esc(tr("trip_note"))+'</label><input id="f-tr-note" value="'+esc(t.note||"")+'" placeholder="'+esc(tr("trip_note_ph"))+'"></div>'+
     '<span class="hint">'+esc(tr("trip_form_hint"))+'</span>'+
     '<span class="hint" id="tr-warn" style="display:none;color:var(--s-cancel)">'+esc(tr("trip_warn"))+'</span>',
     (isNew?"":'<button class="btn danger" id="m-del">'+esc(tr("trip_delete_this"))+'</button>')+
@@ -1676,6 +1686,7 @@ function openTrip(id){
     t.pic = document.getElementById("f-tr-pic").value;
     t.date = date; t.from = from; t.to = to;
     t.km = Math.max(0, parseFloat(document.getElementById("f-tr-km").value) || 0);
+    t.note = document.getElementById("f-tr-note").value.trim();
     if(isNew) state.trips.push(t);
     /* jump the view to the month the trip actually lands in, so a trip
        entered for another month doesn't look like it vanished */
@@ -1684,6 +1695,21 @@ function openTrip(id){
     closeModal(); touch(); render();
   };
   setTimeout(function(){ var el=document.getElementById("f-tr-from"); if(el) el.focus(); }, 30);
+}
+/* the same route usually repeats — a weekly run to the same school, a return
+   leg — so duplicating and changing only the date beats retyping it. Opens
+   the copy for editing straight away, since the date is nearly always the
+   thing that differs and an exact same-date twin is rarely what's wanted. */
+function duplicateTrip(id){
+  if(readOnly) return;
+  var i = -1;
+  for(var n=0;n<state.trips.length;n++) if(state.trips[n].id===id){ i=n; break; }
+  if(i<0) return;
+  var copy = JSON.parse(JSON.stringify(state.trips[i]));
+  copy.id = uid("tr");
+  state.trips.splice(i+1, 0, copy);
+  touch(); render();
+  openTrip(copy.id);
 }
 function doDeleteTrip(id){
   state.trips = state.trips.filter(function(x){ return x.id!==id; });
@@ -1704,21 +1730,21 @@ function confirmDeleteTrip(id){
 function exportTripsCsv(){
   var monthKey = activeTripMonth();
   var trips = tripsInMonth(monthKey);
-  var lines = [["Traveller","Code","Date","From","To","Distance (km)"]];
+  var lines = [["Traveller","Code","Date","From","To","Distance (km)","Note"]];
   var total = 0;
   trips.forEach(function(t){
     total += tripKm(t);
-    lines.push([member(t.pic).name, t.pic||"", fmtShort(t.date), t.from||"", t.to||"", fmtKm(tripKm(t))]);
+    lines.push([member(t.pic).name, t.pic||"", fmtShort(t.date), t.from||"", t.to||"", fmtKm(tripKm(t)), t.note||""]);
   });
-  lines.push(["","","","","",""]);
+  lines.push(["","","","","","",""]);
   /* per-person totals repeated in the export — this file is what actually
      goes to whoever cuts the reimbursements */
   state.team.forEach(function(m){
     var km = 0;
     trips.forEach(function(t){ if(t.pic===m.code) km += tripKm(t); });
-    lines.push([m.name, m.code, "TOTAL", "", "", fmtKm(km)]);
+    lines.push([m.name, m.code, "TOTAL", "", "", fmtKm(km), ""]);
   });
-  lines.push(["","","MONTH TOTAL","","",fmtKm(total)]);
+  lines.push(["","","MONTH TOTAL","","",fmtKm(total),""]);
   var csv = "﻿" + lines.map(function(r){
     return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(",");
   }).join("\r\n");

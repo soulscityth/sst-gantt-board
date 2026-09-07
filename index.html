@@ -697,7 +697,7 @@ var I18N = {
     expand_project:"ขยายหัวข้อ", collapse_project:"ย่อหัวข้อ", expand_short:"ขยาย", collapse_short:"ย่อ",
     move_project_up:"ย้ายหัวข้อขึ้น", move_project_down:"ย้ายหัวข้อลง",
     drag_task_handle:"ลากเพื่อย้ายงาน", drag_sect_handle:"ลากเพื่อย้ายหัวข้อ",
-    drag_bar_hint:"ลากแถบเพื่อเลื่อนวัน",
+    drag_bar_hint:"ลากกลางแถบเพื่อเลื่อนวัน · ลากขอบเพื่อปรับจำนวนวัน",
     tpl_open_title:"เพิ่มงานจาก Workflow Template",
     sort_select_title:"จัดเรียงงานในหัวข้อนี้ตามวันที่", sort_placeholder:"จัดเรียง...",
     sort_by_start:"เรียงตาม Start date", sort_by_due:"เรียงตาม Due date",
@@ -855,7 +855,7 @@ var I18N = {
     expand_project:"Expand Project", collapse_project:"Collapse Project", expand_short:"Expand", collapse_short:"Collapse",
     move_project_up:"Move Project Up", move_project_down:"Move Project Down",
     drag_task_handle:"Drag to move task", drag_sect_handle:"Drag to move project",
-    drag_bar_hint:"Drag the bar to shift dates",
+    drag_bar_hint:"Drag the middle to shift dates · drag an edge to change duration",
     tpl_open_title:"Add Tasks From Workflow Template",
     sort_select_title:"Sort this project's tasks by date", sort_placeholder:"Sort...",
     sort_by_start:"Sort by Start date", sort_by_due:"Sort by Due date",
@@ -2258,40 +2258,94 @@ function dropSection(drag, tgt){
    than from where the bar ended up — a bar for a task starting before the
    visible window is drawn clipped, so its rendered left edge isn't its real
    start date. Duration is untouched; the whole bar slides. */
+/* Which of the three gestures a press on the bar starts. The edge zones are
+   capped at a third of the width so a one-day bar (~22px) — or a D-DAY
+   marker, which CSS floors at 12px — still leaves something in the middle to
+   grab for a move. */
+function barMode(el, clientX){
+  var box = el.getBoundingClientRect();
+  var zone = Math.min(7, box.width/3);
+  if(clientX - box.left <= zone) return "start";
+  if(box.right - clientX <= zone) return "end";
+  return "move";
+}
 function wireBarDrag(dayW){
   if(readOnly || !dayW) return;
   document.querySelectorAll("[data-bar]").forEach(function(el){
+    var active = null;
+
+    el.onpointermove = function(ev){
+      /* not dragging yet: just advertise what a press here would do */
+      if(!active){
+        el.style.cursor = barMode(el, ev.clientX) === "move" ? "grab" : "ew-resize";
+        return;
+      }
+      var dx = ev.clientX - active.startX;
+      if(!active.moved && Math.abs(dx) < 3) return;  /* let a plain click stay a click */
+      active.moved = true;
+      el.style.opacity = ".7";
+      var d = clampDays(active, Math.round(dx/dayW));
+      if(active.mode === "move"){
+        el.style.left = (active.left + d*dayW) + "px";
+      }else if(active.mode === "end"){
+        el.style.width = Math.max(dayW - 2, active.width + d*dayW) + "px";
+      }else{
+        el.style.left = (active.left + d*dayW) + "px";
+        el.style.width = Math.max(dayW - 2, active.width - d*dayW) + "px";
+      }
+    };
+
     el.onpointerdown = function(e){
       if(e.button !== 0) return;
       var found = findTask(el.getAttribute("data-bar"));
       if(!found || !parse(found.task.start)) return;
-      var t = found.task;
-      var startX = e.clientX;
-      var origLeft = parseFloat(el.style.left) || 0;
-      var moved = false;
+      active = {
+        task: found.task,
+        mode: barMode(el, e.clientX),
+        startX: e.clientX,
+        left: parseFloat(el.style.left) || 0,
+        width: parseFloat(el.style.width) || 0,
+        dur: Math.max(1, found.task.dur || 1),
+        moved: false
+      };
       try{ el.setPointerCapture(e.pointerId); }catch(err){}
       e.preventDefault();
+    };
 
-      el.onpointermove = function(ev){
-        var dx = ev.clientX - startX;
-        if(!moved && Math.abs(dx) < 3) return;   /* let a plain click stay a click */
-        moved = true;
-        el.style.left = (origLeft + Math.round(dx/dayW)*dayW) + "px";
-        el.style.opacity = ".7";
-      };
-      el.onpointerup = el.onpointercancel = function(ev){
-        try{ el.releasePointerCapture(ev.pointerId); }catch(err){}
-        el.onpointermove = el.onpointerup = el.onpointercancel = null;
-        if(!moved){ el.style.opacity = ""; return; }
-        var days = Math.round((ev.clientX - startX)/dayW);
-        if(days){
-          t.start = ymd(addDays(parse(t.start), days));
-          touch();
+    el.onpointerup = el.onpointercancel = function(ev){
+      if(!active) return;
+      try{ el.releasePointerCapture(ev.pointerId); }catch(err){}
+      var a = active;
+      active = null;
+      el.style.opacity = "";
+      if(!a.moved) return;
+      var t = a.task;
+      var d = clampDays(a, Math.round((ev.clientX - a.startX)/dayW));
+      if(d){
+        /* committed from the stored dates, never from where the bar ended up
+           on screen — a bar for a task starting before the window is drawn
+           clipped, so its rendered geometry isn't its real span */
+        if(a.mode === "move"){
+          t.start = ymd(addDays(parse(t.start), d));
+        }else if(a.mode === "end"){
+          t.dur = a.dur + d;
+        }else{
+          /* dragging the left edge holds the due date still: start moves in,
+             duration shrinks by the same number of days */
+          t.start = ymd(addDays(parse(t.start), d));
+          t.dur = a.dur - d;
         }
-        render();
-      };
+        touch();
+      }
+      render();
     };
   });
+}
+/* keeps a resize from inverting the bar — a task is at least one day long */
+function clampDays(a, d){
+  if(a.mode === "end") return Math.max(d, 1 - a.dur);
+  if(a.mode === "start") return Math.min(d, a.dur - 1);
+  return d;
 }
 
 function moveSection(id, dir){

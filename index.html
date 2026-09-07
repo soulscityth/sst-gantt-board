@@ -1623,19 +1623,26 @@ function fmtBaht(n){ return Math.round(n).toLocaleString(); }
 function vehicleLabel(v){
   return tr(v === "ev" ? "trip_v_ev" : v === "moto" ? "trip_v_moto" : "trip_v_car");
 }
-/* every project across every board, for the trip's project picker — a trip
-   isn't tied to the board you happen to be looking at */
-function allProjects(){
-  var out = [];
-  state.boards.forEach(function(b){
-    b.sections.forEach(function(s){ out.push({board:b, section:s}); });
-  });
-  return out;
+/* Trips are filed against the main board's projects only — the PR and Sales
+   boards track their own streams of work, not the client jobs people travel
+   for. Matched by id rather than name so renaming the board doesn't empty
+   the picker, with a fall back to the first board if the id ever changes. */
+var TRIP_PROJECT_BOARD = "b-master";
+function tripProjectBoard(){
+  var hit = state.boards.filter(function(b){ return b.id === TRIP_PROJECT_BOARD; })[0];
+  return hit || state.boards[0] || null;
 }
+function allProjects(){
+  var b = tripProjectBoard();
+  if(!b) return [];
+  return b.sections.map(function(s){ return {board:b, section:s}; });
+}
+/* just the project name: every trip is on the same board, so naming it on
+   each row would be the same words repeated down the column */
 function projectLabel(sectId){
   if(!sectId) return "";
   var hit = allProjects().filter(function(p){ return p.section.id === sectId; })[0];
-  return hit ? hit.board.name + " › " + hit.section.title : "";
+  return hit ? hit.section.title : "";
 }
 function tripsView(){
   var monthKey = activeTripMonth();
@@ -1768,8 +1775,7 @@ function openTrip(id){
   }).join("");
   var projOpts = '<option value="">'+esc(tr("trip_no_project"))+'</option>' +
     allProjects().map(function(p){
-      var label = p.board.name+" › "+p.section.title;
-      return '<option value="'+esc(p.section.id)+'"'+(t.sectId===p.section.id?" selected":"")+'>'+esc(label)+'</option>';
+      return '<option value="'+esc(p.section.id)+'"'+(t.sectId===p.section.id?" selected":"")+'>'+esc(p.section.title)+'</option>';
     }).join("");
   var vehOpts = [["car","trip_v_car"],["ev","trip_v_ev"],["moto","trip_v_moto"]].map(function(v){
     return '<option value="'+v[0]+'"'+(t.vehicle===v[0]?" selected":"")+'>'+esc(tr(v[1]))+

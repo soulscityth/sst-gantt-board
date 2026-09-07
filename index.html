@@ -469,6 +469,46 @@ select.statussel option{background:var(--surface);color:var(--text)}
   border:1px solid var(--border);color:var(--text-2);
 }
 .custjobdate{color:var(--s-dday);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+
+/* ---------- travel board ---------- */
+.tripwrap{padding:20px 24px 40px;max-width:1100px;margin:0 auto}
+.tripbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.tripbar .spacer{flex:1 1 auto}
+.tripsum{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));
+  gap:10px;margin-bottom:18px;
+}
+.tripsumcard{
+  background:var(--surface);border:1px solid var(--border);border-radius:12px;
+  padding:11px 13px;display:flex;align-items:center;gap:10px;
+}
+.tripsumcard b{
+  display:block;font-family:"IBM Plex Mono",monospace;font-size:16px;
+  font-weight:600;font-variant-numeric:tabular-nums;
+}
+.tripsumcard .unit{font-size:10px;color:var(--muted);font-weight:400;margin-left:3px}
+.tripsumcard span.nm{font-size:11.5px;color:var(--muted);display:block}
+.tripsumtot{border-color:var(--accent)}
+.triptable{width:100%;border-collapse:collapse;font-size:12.5px}
+.triptable th{
+  text-align:left;font-size:10px;letter-spacing:.04em;text-transform:uppercase;
+  color:var(--muted);font-weight:600;padding:0 10px 7px;border-bottom:1px solid var(--border);
+}
+.triptable td{padding:9px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.triptable tr:hover td{background:var(--surface-2)}
+.triptable .num{
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+  text-align:right;white-space:nowrap;
+}
+.triptable .acts{text-align:right;white-space:nowrap;width:1%}
+/* .iconbtn is display:grid, which is block-level — in the Gantt rows a flex
+   parent (.rowact) keeps them in a line, but here they'd stack, and making
+   the td itself flex would drop it out of the table layout */
+.triptable .acts .iconbtn{display:inline-grid;vertical-align:middle;opacity:.5}
+.triptable tr:hover .acts .iconbtn{opacity:1}
+.tripowner{display:flex;align-items:center;gap:7px;white-space:nowrap}
+.triptot td{border-bottom:0;padding-top:12px;font-weight:600}
+
 .colorswatches{display:flex;flex-wrap:wrap;gap:7px}
 .colorsw{
   width:26px;height:26px;border-radius:8px;border:2px solid transparent;cursor:pointer;
@@ -573,6 +613,20 @@ var SVAR = {
 var I18N = {
   th: {
     customers_tab:"ลูกค้า", team_btn:"ทีม",
+    trips_tab:"ค่าเดินทาง",
+    trip_month_label:"เดือน", trip_add_btn:"+ เพิ่มการเดินทาง", trip_csv_btn:"CSV เดือนนี้",
+    trip_owner:"ผู้เดินทาง", trip_date:"วันที่", trip_from:"ต้นทาง", trip_to:"ปลายทาง",
+    trip_km:"ระยะทาง (กม.)", trip_km_unit:"กม.", trip_trips_unit:"เที่ยว",
+    trip_total_row:"รวมทั้งเดือน",
+    trip_empty_title:"ยังไม่มีข้อมูลการเดินทางในเดือนนี้",
+    trip_empty_body:"บันทึกการเดินทางของทีมไว้ที่นี่ แล้วสรุปยอดรวมรายคนตอนสิ้นเดือนเพื่อเบิกค่าเดินทาง",
+    trip_add_title:"เพิ่มการเดินทาง", trip_edit_title:"แก้ไขการเดินทาง",
+    trip_from_ph:"เช่น ออฟฟิศ", trip_to_ph:"เช่น โรงเรียนสวนกุหลาบ",
+    trip_form_hint:"ระยะทางใส่เป็นกิโลเมตร ใส่ทศนิยมได้ เช่น 12.5",
+    trip_add_submit:"เพิ่ม", trip_delete_this:"ลบรายการนี้",
+    trip_delete_title:"ลบการเดินทาง",
+    trip_delete_body:"ลบการเดินทางวันที่ {date} ({from} → {to}) ออกจากบันทึกใช่ไหม",
+    trip_warn:"กรอกวันที่ ต้นทาง และปลายทางให้ครบก่อน",
     gcal_btn_title:"ส่งกำหนดส่ง (DUE DATE) เข้า Google Calendar อัตโนมัติ",
     ics_btn_title:"ดาวน์โหลดกำหนดส่ง (DUE DATE) เป็นไฟล์ .ics เพื่อนำเข้าปฏิทิน",
     csv_btn_title:"ดาวน์โหลดบอร์ดนี้เป็นไฟล์ CSV",
@@ -714,6 +768,20 @@ var I18N = {
   },
   en: {
     customers_tab:"Customers", team_btn:"Team",
+    trips_tab:"Travel",
+    trip_month_label:"Month", trip_add_btn:"+ Add Trip", trip_csv_btn:"CSV for month",
+    trip_owner:"Traveller", trip_date:"Date", trip_from:"From", trip_to:"To",
+    trip_km:"Distance (km)", trip_km_unit:"km", trip_trips_unit:"trips",
+    trip_total_row:"Month total",
+    trip_empty_title:"No trips logged for this month yet",
+    trip_empty_body:"Log the team's trips here, then read off each person's monthly total when it's time to reimburse travel.",
+    trip_add_title:"Add Trip", trip_edit_title:"Edit Trip",
+    trip_from_ph:"e.g. Office", trip_to_ph:"e.g. Suankularb School",
+    trip_form_hint:"Distance in kilometres; decimals are fine, e.g. 12.5",
+    trip_add_submit:"Add", trip_delete_this:"Delete this trip",
+    trip_delete_title:"Delete Trip",
+    trip_delete_body:"Delete the trip on {date} ({from} → {to}) from the log?",
+    trip_warn:"Fill in the date, origin and destination first.",
     gcal_btn_title:"Automatically send due dates to Google Calendar",
     ics_btn_title:"Download due dates as an .ics file to import into your calendar",
     csv_btn_title:"Download this board as a CSV file",
@@ -957,7 +1025,11 @@ var saveState = "connecting";
 /* Per-viewer view state — which board is open, zoom, compact columns.
    Kept in this browser only, so browsing never publishes a new version
    and never collides with a teammate's edits. */
-var view = {activeBoard:null, dayW:24, compact:false, collapsed:{}, lang:"th", showOldDone:false, showDoneProjects:false};
+var view = {activeBoard:null, dayW:24, compact:false, collapsed:{}, lang:"th", showOldDone:false, showDoneProjects:false, tripMonth:""};
+/* tabs that render their own view instead of a Gantt board — they live
+   alongside state.boards ids in view.activeBoard, so anything validating
+   that value has to accept them too */
+var VIRTUAL_TABS = ["customers", "trips"];
 var VIEW_KEY = "sst-gantt-view";
 function loadView(){
   try{
@@ -1000,6 +1072,9 @@ function normalizeState(s){
   });
   s.team = s.team || [];
   s.customers = s.customers || [];
+  /* travel log — flat list, not boards/sections/tasks: a trip is a one-off
+     record for month-end reimbursement, not a scheduled piece of work */
+  s.trips = s.trips || [];
   /* named goals2027 historically — now tracks 2026, kept the key so live data isn't migrated */
   s.goals2027 = s.goals2027 || {salesTarget:0, participantsTarget:0, workshopsTarget:0};
   if(s.goals2027.salesBase == null) s.goals2027.salesBase = 1028970;
@@ -1051,6 +1126,7 @@ function mergeState(remote){
   });
   mergeByKey(state.team, remote.team, "code");
   mergeByKey(state.customers, remote.customers, "id");
+  mergeByKey(state.trips, remote.trips, "id");
   state.dayW = remote.dayW;
   state.goals2027 = remote.goals2027;
   state.activeBoard = remote.activeBoard;
@@ -1172,6 +1248,12 @@ function render(){
     wireCustomers();
     return;
   }
+  if(view.activeBoard === "trips"){
+    app.innerHTML = topbar("trips") + goalsPanel() + tripsView();
+    wire(null, null, null);
+    wireTrips();
+    return;
+  }
 
   var b = board();
   var r = rangeOf(b);
@@ -1211,8 +1293,10 @@ function topbar(activeId){
       esc(x.name)+' <i>'+n+'</i></button>';
   }).join("") +
     '<button class="tab" role="tab" data-board="customers" aria-selected="'+(activeId==="customers")+'">'+
-      esc(tr("customers_tab"))+' <i>'+state.customers.length+'</i></button>';
-  var isBoard = activeId !== "customers";
+      esc(tr("customers_tab"))+' <i>'+state.customers.length+'</i></button>'+
+    '<button class="tab" role="tab" data-board="trips" aria-selected="'+(activeId==="trips")+'">'+
+      esc(tr("trips_tab"))+' <i>'+state.trips.length+'</i></button>';
+  var isBoard = VIRTUAL_TABS.indexOf(activeId) < 0;
   return '<div class="topbar">'+
     '<div class="brand"><div class="mark">SSt</div><div>'+
       '<b>SSt Gantt Board</b><span>SoulScity Learning</span>'+
@@ -1427,6 +1511,218 @@ function confirmDeleteCustomer(id){
   );
   document.getElementById("m-cancel").onclick = closeModal;
   document.getElementById("m-ok").onclick = function(){ doDeleteCustomer(id); };
+}
+
+/* ============ travel log ============ */
+/* Trips are reimbursed per calendar month, so the whole view is scoped to one
+   month: the month picker offers every month that actually has trips (plus
+   the current one), rather than a fixed window, so old months stay reachable
+   for as long as their records are kept. `<input type="month">` isn't
+   supported in Safari — which is what this team uses — hence a plain select. */
+function tripMonthKey(dateStr){ return String(dateStr||"").slice(0,7); }
+function curMonthKey(){ var d = todayUTC(); return d.getUTCFullYear()+"-"+pad2(d.getUTCMonth()+1); }
+function tripMonths(){
+  var seen = {};
+  state.trips.forEach(function(t){ var k = tripMonthKey(t.date); if(k) seen[k] = 1; });
+  seen[curMonthKey()] = 1;
+  return Object.keys(seen).sort().reverse();
+}
+function activeTripMonth(){
+  var months = tripMonths();
+  if(months.indexOf(view.tripMonth) < 0) view.tripMonth = months[0];
+  return view.tripMonth;
+}
+function tripMonthLabel(key){
+  var p = key.split("-");
+  var mi = (parseInt(p[1],10)||1) - 1;
+  return MON()[mi] + " " + p[0];
+}
+function tripsInMonth(key){
+  return state.trips.filter(function(t){ return tripMonthKey(t.date) === key; })
+    .slice()
+    .sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });
+}
+function tripKm(t){ return Math.max(0, parseFloat(t.km) || 0); }
+/* trailing zeros look wrong on a distance ("12.50 km"), but so does dropping
+   a real decimal — so only show one when the value actually has one */
+function fmtKm(n){ return (Math.round(n*10)/10).toLocaleString(undefined, {maximumFractionDigits:1}); }
+function tripsView(){
+  var monthKey = activeTripMonth();
+  var months = tripMonths();
+  var trips = tripsInMonth(monthKey);
+
+  var monthOpts = months.map(function(k){
+    return '<option value="'+esc(k)+'"'+(k===monthKey?" selected":"")+'>'+esc(tripMonthLabel(k))+'</option>';
+  }).join("");
+
+  var bar = '<div class="tripbar">'+
+    '<label class="hint" for="trip-month">'+esc(tr("trip_month_label"))+'</label>'+
+    '<select id="trip-month">'+monthOpts+'</select>'+
+    '<div class="spacer"></div>'+
+    (trips.length?'<button class="btn sm" id="btn-trip-csv">'+esc(tr("trip_csv_btn"))+'</button>':'')+
+    (readOnly?'':'<button class="btn primary sm" id="btn-trip-add">'+esc(tr("trip_add_btn"))+'</button>')+
+  '</div>';
+
+  /* per-person totals are the actual month-end deliverable, so they lead the
+     page; everyone on the team is listed even at 0 km so a person who simply
+     forgot to log anything is visible rather than silently missing */
+  var totalKm = 0, byCode = {};
+  trips.forEach(function(t){
+    totalKm += tripKm(t);
+    if(!byCode[t.pic]) byCode[t.pic] = {km:0, n:0};
+    byCode[t.pic].km += tripKm(t);
+    byCode[t.pic].n++;
+  });
+  var codes = state.team.map(function(m){ return m.code; });
+  Object.keys(byCode).forEach(function(c){ if(codes.indexOf(c) < 0) codes.push(c); });
+  var sum = codes.map(function(c){
+    var m = member(c), agg = byCode[c] || {km:0, n:0};
+    return '<div class="tripsumcard">'+
+      '<span class="pic" style="--m:'+esc(m.color)+'" title="'+esc(m.name)+'">'+esc(c.slice(0,2))+'</span>'+
+      '<div><b>'+esc(fmtKm(agg.km))+'<span class="unit">'+esc(tr("trip_km_unit"))+'</span></b>'+
+        '<span class="nm">'+esc(m.name)+' · '+agg.n+' '+esc(tr("trip_trips_unit"))+'</span></div>'+
+    '</div>';
+  }).join("") +
+  '<div class="tripsumcard tripsumtot"><div><b>'+esc(fmtKm(totalKm))+
+    '<span class="unit">'+esc(tr("trip_km_unit"))+'</span></b>'+
+    '<span class="nm">'+esc(tr("trip_total_row"))+' · '+trips.length+' '+esc(tr("trip_trips_unit"))+'</span></div></div>';
+
+  if(!trips.length){
+    return '<div class="viewport" id="viewport"><div class="tripwrap">'+bar+
+      '<div class="tripsum">'+sum+'</div>'+
+      '<div class="emptyboard"><h3>'+esc(tr("trip_empty_title"))+'</h3>'+
+      '<p>'+esc(tr("trip_empty_body"))+'</p></div></div></div>';
+  }
+
+  var rows = trips.map(function(t){
+    var m = member(t.pic);
+    return '<tr>'+
+      '<td><span class="tripowner"><span class="pic" style="--m:'+esc(m.color)+'" title="'+esc(m.name)+'">'+
+        esc(String(t.pic||"").slice(0,2))+'</span>'+esc(m.name)+'</span></td>'+
+      '<td class="num">'+esc(fmtShort(t.date))+'</td>'+
+      '<td>'+esc(t.from||"")+'</td>'+
+      '<td>'+esc(t.to||"")+'</td>'+
+      '<td class="num">'+esc(fmtKm(tripKm(t)))+'</td>'+
+      '<td class="acts">'+(readOnly?'':
+        '<button class="iconbtn" data-trip-edit="'+esc(t.id)+'" aria-label="'+esc(tr("trip_edit_title"))+'" title="'+esc(tr("edit"))+'">&#9998;</button>'+
+        '<button class="iconbtn" data-trip-del="'+esc(t.id)+'" aria-label="'+esc(tr("trip_delete_title"))+'" title="'+esc(tr("delete"))+'">&#10005;</button>')+'</td>'+
+    '</tr>';
+  }).join("");
+
+  return '<div class="viewport" id="viewport"><div class="tripwrap">'+bar+
+    '<div class="tripsum">'+sum+'</div>'+
+    '<table class="triptable"><thead><tr>'+
+      '<th>'+esc(tr("trip_owner"))+'</th><th>'+esc(tr("trip_date"))+'</th>'+
+      '<th>'+esc(tr("trip_from"))+'</th><th>'+esc(tr("trip_to"))+'</th>'+
+      '<th style="text-align:right">'+esc(tr("trip_km"))+'</th><th></th>'+
+    '</tr></thead><tbody>'+rows+
+      '<tr class="triptot"><td colspan="4" style="text-align:right">'+esc(tr("trip_total_row"))+'</td>'+
+      '<td class="num">'+esc(fmtKm(totalKm))+'</td><td></td></tr>'+
+    '</tbody></table>'+
+  '</div></div>';
+}
+function wireTrips(){
+  var sel = document.getElementById("trip-month");
+  if(sel) sel.onchange = function(){ view.tripMonth = sel.value; saveView(); render(); };
+  var add = document.getElementById("btn-trip-add");
+  if(add) add.onclick = function(){ openTrip(null); };
+  var csv = document.getElementById("btn-trip-csv");
+  if(csv) csv.onclick = exportTripsCsv;
+  document.querySelectorAll("[data-trip-edit]").forEach(function(el){
+    el.onclick = function(){ openTrip(el.getAttribute("data-trip-edit")); };
+  });
+  document.querySelectorAll("[data-trip-del]").forEach(function(el){
+    el.onclick = function(){ confirmDeleteTrip(el.getAttribute("data-trip-del")); };
+  });
+}
+function openTrip(id){
+  if(readOnly) return;
+  var t = id ? state.trips.filter(function(x){return x.id===id;})[0] : null;
+  var isNew = !t;
+  /* a new trip defaults into the month being viewed, not today — you're
+     normally filling in a month's worth of trips after the fact */
+  if(isNew){
+    var mk = activeTripMonth(), tod = ymd(todayUTC());
+    t = {id:uid("tr"), pic:(state.team[0]||{}).code||"", date:(tripMonthKey(tod)===mk?tod:mk+"-01"), from:"", to:"", km:0};
+  }
+  var picOpts = state.team.map(function(m){
+    return '<option value="'+esc(m.code)+'"'+(t.pic===m.code?" selected":"")+'>'+esc(m.name)+' ('+esc(m.code)+')</option>';
+  }).join("");
+  modal(isNew?tr("trip_add_title"):tr("trip_edit_title"),
+    '<div class="grid2">'+
+      '<div class="field"><label>'+esc(tr("trip_owner"))+'</label><select id="f-tr-pic">'+picOpts+'</select></div>'+
+      '<div class="field"><label>'+esc(tr("trip_date"))+'</label><input type="date" id="f-tr-date" value="'+esc(t.date||"")+'"></div>'+
+    '</div>'+
+    '<div class="field"><label>'+esc(tr("trip_from"))+'</label><input id="f-tr-from" value="'+esc(t.from||"")+'" placeholder="'+esc(tr("trip_from_ph"))+'"></div>'+
+    '<div class="field"><label>'+esc(tr("trip_to"))+'</label><input id="f-tr-to" value="'+esc(t.to||"")+'" placeholder="'+esc(tr("trip_to_ph"))+'"></div>'+
+    '<div class="field"><label>'+esc(tr("trip_km"))+'</label><input type="number" id="f-tr-km" min="0" step="0.1" value="'+esc(String(tripKm(t)))+'"></div>'+
+    '<span class="hint">'+esc(tr("trip_form_hint"))+'</span>'+
+    '<span class="hint" id="tr-warn" style="display:none;color:var(--s-cancel)">'+esc(tr("trip_warn"))+'</span>',
+    (isNew?"":'<button class="btn danger" id="m-del">'+esc(tr("trip_delete_this"))+'</button>')+
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn primary" id="m-ok">'+(isNew?esc(tr("trip_add_submit")):esc(tr("save_btn")))+'</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  var del = document.getElementById("m-del");
+  if(del) del.onclick = function(){ confirmDeleteTrip(t.id); };
+  document.getElementById("m-ok").onclick = function(){
+    var date = document.getElementById("f-tr-date").value;
+    var from = document.getElementById("f-tr-from").value.trim();
+    var to = document.getElementById("f-tr-to").value.trim();
+    if(!date || !from || !to){
+      document.getElementById("tr-warn").style.display = "block";
+      return;
+    }
+    t.pic = document.getElementById("f-tr-pic").value;
+    t.date = date; t.from = from; t.to = to;
+    t.km = Math.max(0, parseFloat(document.getElementById("f-tr-km").value) || 0);
+    if(isNew) state.trips.push(t);
+    /* jump the view to the month the trip actually lands in, so a trip
+       entered for another month doesn't look like it vanished */
+    view.tripMonth = tripMonthKey(t.date);
+    saveView();
+    closeModal(); touch(); render();
+  };
+  setTimeout(function(){ var el=document.getElementById("f-tr-from"); if(el) el.focus(); }, 30);
+}
+function doDeleteTrip(id){
+  state.trips = state.trips.filter(function(x){ return x.id!==id; });
+  closeModal(); touch(); render();
+}
+function confirmDeleteTrip(id){
+  var t = state.trips.filter(function(x){return x.id===id;})[0];
+  if(!t) return;
+  modal(tr("trip_delete_title"),
+    '<p style="margin:0">'+esc(tr("trip_delete_body",{date:fmtShort(t.date), from:t.from||"", to:t.to||""}))+'</p>'+
+    '<span class="hint">'+esc(tr("undo_hint"))+'</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn danger" id="m-ok">'+esc(tr("trip_delete_title"))+'</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  document.getElementById("m-ok").onclick = function(){ doDeleteTrip(id); };
+}
+function exportTripsCsv(){
+  var monthKey = activeTripMonth();
+  var trips = tripsInMonth(monthKey);
+  var lines = [["Traveller","Code","Date","From","To","Distance (km)"]];
+  var total = 0;
+  trips.forEach(function(t){
+    total += tripKm(t);
+    lines.push([member(t.pic).name, t.pic||"", fmtShort(t.date), t.from||"", t.to||"", fmtKm(tripKm(t))]);
+  });
+  lines.push(["","","","","",""]);
+  /* per-person totals repeated in the export — this file is what actually
+     goes to whoever cuts the reimbursements */
+  state.team.forEach(function(m){
+    var km = 0;
+    trips.forEach(function(t){ if(t.pic===m.code) km += tripKm(t); });
+    lines.push([m.name, m.code, "TOTAL", "", "", fmtKm(km)]);
+  });
+  lines.push(["","","MONTH TOTAL","","",fmtKm(total)]);
+  var csv = "﻿" + lines.map(function(r){
+    return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(",");
+  }).join("\r\n");
+  downloadBlob("trips-"+monthKey+".csv", csv, "text/csv;charset=utf-8");
 }
 
 function toolbar(b){
@@ -3176,7 +3472,9 @@ async function boot(){
 
   if(fbDb && (remoteConfirmedEmpty || backfillEmails())) touch();
   if(!view.dayW) view.dayW = 24;
-  var ids = state.boards.map(function(b){ return b.id; });
+  /* the customers/travel tabs aren't entries in state.boards, so they have to
+     be allowed through here explicitly or a reload always bounces off them */
+  var ids = state.boards.map(function(b){ return b.id; }).concat(VIRTUAL_TABS);
   if(ids.indexOf(view.activeBoard) < 0) view.activeBoard = state.activeBoard || ids[0];
   render();
   setSave(fbDb ? "saved" : "unconfigured");

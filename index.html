@@ -2831,10 +2831,24 @@ function openTask(id, sectId){
       sel.onchange = function(){ readHours(); renderHours(); };
     });
   }
-  renderHours();
+  /* Everyone assigned to the task gets a row waiting for a number, so logging
+     hours is filling in a blank rather than first rebuilding the cast list.
+     Rows for people dropped from the PIC list are cleared out again — but
+     only while they're still empty: once hours are entered or someone has
+     signed off, the entry is a record and stays regardless of assignment. */
+  function syncHoursWithPics(){
+    picked.forEach(function(code){
+      var has = hrs.some(function(e){ return e.pic === code; });
+      if(!has) hrs.push({id:uid("h"), pic:code, h:0, by:"", at:""});
+    });
+    hrs = hrs.filter(function(e){
+      if((parseFloat(e.h) || 0) > 0 || e.by) return true;
+      return picked.indexOf(e.pic) >= 0;
+    });
+  }
   document.getElementById("f-hrs-add").onclick = function(){
     readHours();
-    /* defaults to the task's first PIC — usually who the hours belong to */
+    /* the manual button stays for anyone who pitched in without being a PIC */
     hrs.push({id:uid("h"), pic:((t.pic||[])[0] || (state.team[0]||{}).code || ""), h:0, by:"", at:""});
     renderHours();
     var fields = document.querySelectorAll(".hrrow .hr-h");
@@ -2855,12 +2869,18 @@ function openTask(id, sectId){
       var i = picked.indexOf(c);
       if(i>=0) picked.splice(i,1); else picked.push(c);
       syncPicks();
+      /* read first: changing the assignment rebuilds the hour rows, and
+         anything already typed into them would otherwise be thrown away */
+      readHours(); syncHoursWithPics(); renderHours();
     };
   });
   document.getElementById("pick-all").onclick = function(){
     picked = (picked.length === state.team.length) ? [] : state.team.map(function(m){ return m.code; });
     syncPicks();
+    readHours(); syncHoursWithPics(); renderHours();
   };
+  syncHoursWithPics();
+  renderHours();
 
   var pickedTColor = curTColor;
   document.querySelectorAll("[data-tcolor]").forEach(function(el){

@@ -416,6 +416,27 @@ select.ctl:hover,input.ctl:hover{border-color:var(--border-strong)}
   background:color-mix(in srgb, var(--s-dday) 14%, transparent);
   border-radius:5px;padding:1px 5px;white-space:nowrap;
 }
+/* logged hours: quiet once signed off, amber with a dot while anything is
+   still awaiting approval */
+.hrbadge{
+  flex:0 0 auto;font-size:10px;font-weight:600;color:var(--s-done);
+  background:color-mix(in srgb, var(--s-done) 14%, transparent);
+  border-radius:5px;padding:1px 5px;white-space:nowrap;
+  font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+}
+.hrbadge.pending{
+  color:var(--s-postponed);
+  background:color-mix(in srgb, var(--s-postponed) 16%, transparent);
+}
+/* hours editor rows in the task dialog */
+.hrrow{display:grid;grid-template-columns:1fr 74px 22px 1fr 24px;gap:6px;align-items:center}
+.hrrow+.hrrow{margin-top:6px}
+.hrunit{color:var(--muted);font-size:11px}
+.hrstamp{
+  grid-column:1 / -1;font-size:10.5px;color:var(--s-done);margin-top:-2px;
+}
+.hrrow .iconbtn{opacity:.55}
+.hrrow .iconbtn:hover{opacity:1}
 
 .pics{display:flex;gap:3px;flex-wrap:nowrap}
 .pic{
@@ -664,6 +685,10 @@ var I18N = {
     trip_add_title:"เพิ่มการเดินทาง", trip_edit_title:"แก้ไขการเดินทาง",
     trip_from_ph:"เช่น ออฟฟิศ", trip_to_ph:"เช่น โรงเรียนสวนกุหลาบ",
     trip_note:"หมายเหตุ", trip_note_ph:"เช่น ไปส่งอุปกรณ์ / ค่าทางด่วน 50 บาท",
+    hours_label:"ชั่วโมงทำงาน", hours_add:"+ เพิ่มชั่วโมง", hours_del:"ลบรายการนี้",
+    hours_unit:"ชม.", hours_pending:"— รออนุมัติ —", hours_approved_fmt:"อนุมัติโดย {name} · {date}",
+    hours_hint:"อนุมัติได้เฉพาะ {names} — ระบบบันทึกว่าใครกดอนุมัติและเมื่อไหร่ แต่ไม่ได้ล็อกสิทธิ์ (ยังไม่มีระบบ login)",
+    hours_badge_all:"{h} ชม. · อนุมัติครบแล้ว", hours_badge_pending:"{h} ชม. · รออนุมัติ {n} รายการ",
     trip_project:"โปรเจกต์", trip_no_project:"— ไม่ระบุโปรเจกต์ —",
     trip_vehicle:"ยานพาหนะ", trip_v_car:"รถยนต์", trip_v_ev:"รถยนต์ไฟฟ้า", trip_v_moto:"มอเตอร์ไซค์",
     trip_routes:"เส้นทาง", trip_add_route:"+ เพิ่มเส้นทาง", trip_del_route:"ลบเส้นทางนี้",
@@ -827,6 +852,10 @@ var I18N = {
     trip_add_title:"Add Trip", trip_edit_title:"Edit Trip",
     trip_from_ph:"e.g. Office", trip_to_ph:"e.g. Suankularb School",
     trip_note:"Note", trip_note_ph:"e.g. delivering equipment / 50 THB tolls",
+    hours_label:"Work hours", hours_add:"+ Add hours", hours_del:"Remove this entry",
+    hours_unit:"h", hours_pending:"— Pending approval —", hours_approved_fmt:"Approved by {name} · {date}",
+    hours_hint:"Only {names} can approve — this records who approved and when, but does not enforce it (there is no login).",
+    hours_badge_all:"{h}h · all approved", hours_badge_pending:"{h}h · {n} awaiting approval",
     trip_project:"Project", trip_no_project:"— No project —",
     trip_vehicle:"Vehicle", trip_v_car:"Car", trip_v_ev:"EV car", trip_v_moto:"Motorcycle",
     trip_routes:"Routes", trip_add_route:"+ Add route", trip_del_route:"Remove this route",
@@ -1030,6 +1059,19 @@ function dueOf(t){
   if(!s) return null;
   return addDays(s, Math.max(1,(t.dur||1))-1);
 }
+/* ---- logged work hours ---- */
+function taskHours(t){ return (t.hours||[]); }
+function hoursTotal(t){
+  return taskHours(t).reduce(function(a, e){ return a + Math.max(0, parseFloat(e.h) || 0); }, 0);
+}
+/* an entry counts as approved only if the name on it is still one of the
+   approvers — demoting someone shouldn't silently keep their sign-offs valid */
+function hoursApproved(e){ return !!(e && e.by && HOURS_APPROVERS.indexOf(e.by) >= 0); }
+function hoursPendingCount(t){
+  return taskHours(t).filter(function(e){ return !hoursApproved(e); }).length;
+}
+/* drops the trailing ".0" on whole hours but keeps a real half-hour */
+function fmtHours(n){ return (Math.round(n*10)/10).toLocaleString(undefined, {maximumFractionDigits:1}); }
 /* keeps status in sync with today's date: a Not-started task flips to In
    process once its start date arrives, and anything not yet Done flips to
    Overdue once its due date has passed. Cancel/D-DAY are left alone — a
@@ -1119,6 +1161,10 @@ function initFirebase(){
 /* Reimbursement rate per kilometre by vehicle. Edit here to change what the
    travel board pays out; the keys are what's stored on each trip. */
 var TRIP_RATES = {car:6, ev:4, moto:3};
+/* Who may sign off logged work hours. This is a record of who pressed the
+   button, not a permission check — without login (deliberately not built)
+   anyone with the link could set it, so treat it as an audit trail. */
+var HOURS_APPROVERS = ["SIN", "PALM"];
 function normalizeState(s){
   if(!s) return s;
   s.boards = s.boards || [];
@@ -1126,6 +1172,10 @@ function normalizeState(s){
     b.sections = b.sections || [];
     b.sections.forEach(function(sec){
       sec.tasks = sec.tasks || [];
+      /* logged work hours, one entry per person per stint */
+      sec.tasks.forEach(function(t){
+        if(!Array.isArray(t.hours)) t.hours = [];
+      });
       sec.color = sec.color || "";
       sec.customerId = sec.customerId || "";
     });
@@ -2151,6 +2201,14 @@ function taskRow(t, s, r, dayW, trackW, bg){
       '<div class="pics">'+picHtml+'</div>'+
       '<div class="c-act"><button data-edit="'+esc(t.id)+'" title="'+esc(t.title)+'">'+esc(t.title)+'</button>'+
         (t.isProposal ? '<span class="propbadge" title="'+esc(tr("proposal_title"))+'">Proposal</span>' : '')+
+        /* hours are only visible inside the task dialog, so without this a
+           pending sign-off would be invisible from the board */
+        (hoursTotal(t) > 0 ? (function(){
+          var pend = hoursPendingCount(t), tot = fmtHours(hoursTotal(t));
+          return '<span class="hrbadge'+(pend?' pending':'')+'" title="'+
+            esc(pend ? tr("hours_badge_pending",{h:tot, n:pend}) : tr("hours_badge_all",{h:tot}))+'">'+
+            esc(tot)+esc(tr("hours_unit"))+(pend?' •':'')+'</span>';
+        })() : '')+
         (t.link ? '<a class="linkic" href="'+esc(t.link)+'" target="_blank" rel="noopener noreferrer" title="'+esc(tr("open_link_title",{link:t.link}))+'">&#128279;</a>' : '')+
       '</div>'+
       (view.compact ? '' : '<div class="c-rem" title="'+esc(t.remark||"")+'">'+esc(t.remark||"")+'</div>')+
@@ -2698,6 +2756,12 @@ function openTask(id, sectId){
       '<div class="field"><label>Start time <span class="hint" style="text-transform:none">'+esc(tr("optional_hint"))+'</span></label><input type="time" id="f-starttime" value="'+esc(t.startTime||"")+'"></div>'+
       '<div class="field"><label>Due time <span class="hint" style="text-transform:none">'+esc(tr("optional_hint"))+'</span></label><input type="time" id="f-duetime" value="'+esc(t.dueTime||"")+'"></div>'+
     '</div>'+
+    '<div class="field"><label>'+esc(tr("hours_label"))+'</label><div id="f-hrs"></div>'+
+      '<button type="button" class="btn sm" id="f-hrs-add" style="align-self:flex-start;margin-top:6px">'+esc(tr("hours_add"))+'</button>'+
+      '<span class="hint" style="margin-top:6px">'+esc(tr("hours_hint",{
+        names: HOURS_APPROVERS.map(function(c){ return member(c).name; }).join(" / ")
+      }))+'</span>'+
+    '</div>'+
     '<div class="propblock" id="d2027-block" style="display:'+(t.status==="D-DAY"?"flex":"none")+'">'+
       '<div class="grid3">'+
         '<div class="field"><label>'+esc(tr("d2sales_label"))+'</label><input type="number" min="0" id="f-d2sales" value="'+((t.d2027&&t.d2027.sales)||0)+'"></div>'+
@@ -2712,6 +2776,70 @@ function openTask(id, sectId){
     '<button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
     '<button class="btn primary" id="m-ok">'+(found?esc(tr("save_btn")):esc(tr("add_task_submit")))+'</button>'
   );
+
+  /* edited on a copy, so backing out of the dialog leaves the stored entries
+     (and their sign-offs) untouched */
+  var hrs = JSON.parse(JSON.stringify(taskHours(t)));
+  /* rows are rebuilt on every add/remove, so read the live fields back into
+     the draft first or typing in one row would be lost by editing another */
+  function readHours(){
+    document.querySelectorAll("[data-hr-i]").forEach(function(row){
+      var i = +row.getAttribute("data-hr-i");
+      if(!hrs[i]) return;
+      hrs[i].pic = row.querySelector(".hr-pic").value;
+      hrs[i].h = Math.max(0, parseFloat(row.querySelector(".hr-h").value) || 0);
+      var by = row.querySelector(".hr-by").value;
+      if(by !== hrs[i].by){
+        /* stamp the moment it was signed off, and clear it if un-approved */
+        hrs[i].by = by;
+        hrs[i].at = by ? new Date().toISOString() : "";
+      }
+    });
+  }
+  function renderHours(){
+    var teamOpts = state.team.map(function(m){ return {v:m.code, l:m.name}; });
+    document.getElementById("f-hrs").innerHTML = hrs.length ? hrs.map(function(e, i){
+      var picSel = teamOpts.map(function(o){
+        return '<option value="'+esc(o.v)+'"'+(e.pic===o.v?" selected":"")+'>'+esc(o.l)+'</option>';
+      }).join("");
+      var bySel = '<option value="">'+esc(tr("hours_pending"))+'</option>' +
+        HOURS_APPROVERS.map(function(c){
+          return '<option value="'+esc(c)+'"'+(e.by===c?" selected":"")+'>'+esc(member(c).name)+'</option>';
+        }).join("");
+      var stamp = hoursApproved(e) && e.at
+        ? '<span class="hrstamp">'+esc(tr("hours_approved_fmt",{name:member(e.by).name, date:fmtShort(String(e.at).slice(0,10))}))+'</span>'
+        : '';
+      return '<div class="hrrow'+(hoursApproved(e)?" ok":"")+'" data-hr-i="'+i+'">'+
+        '<select class="hr-pic">'+picSel+'</select>'+
+        '<input class="hr-h" type="number" min="0" step="0.5" value="'+esc(String(Math.max(0, parseFloat(e.h)||0)))+'">'+
+        '<span class="hrunit">'+esc(tr("hours_unit"))+'</span>'+
+        '<select class="hr-by">'+bySel+'</select>'+
+        '<button type="button" class="iconbtn" data-hr-del="'+i+'" title="'+esc(tr("hours_del"))+'">&#10005;</button>'+
+        stamp+
+      '</div>';
+    }).join("") : "";
+    document.querySelectorAll("[data-hr-del]").forEach(function(b){
+      b.onclick = function(){
+        readHours();
+        hrs.splice(+b.getAttribute("data-hr-del"), 1);
+        renderHours();
+      };
+    });
+    /* re-render on sign-off so the row restyles and the stamp appears now,
+       rather than only after the dialog is saved and reopened */
+    document.querySelectorAll(".hr-by").forEach(function(sel){
+      sel.onchange = function(){ readHours(); renderHours(); };
+    });
+  }
+  renderHours();
+  document.getElementById("f-hrs-add").onclick = function(){
+    readHours();
+    /* defaults to the task's first PIC — usually who the hours belong to */
+    hrs.push({id:uid("h"), pic:((t.pic||[])[0] || (state.team[0]||{}).code || ""), h:0, by:"", at:""});
+    renderHours();
+    var fields = document.querySelectorAll(".hrrow .hr-h");
+    if(fields.length) fields[fields.length-1].focus();
+  };
 
   var picked = (t.pic||[]).slice();
   function syncPicks(){
@@ -2810,6 +2938,9 @@ function openTask(id, sectId){
     t.dur = Math.max(1, parseInt(fDur.value,10) || 1);
     t.startTime = document.getElementById("f-starttime").value || "";
     t.dueTime = document.getElementById("f-duetime").value || "";
+    readHours();
+    /* a zero-hour row is an abandoned "+ Add hours" click, not data */
+    t.hours = hrs.filter(function(e){ return (parseFloat(e.h) || 0) > 0; });
     t.d2027 = {
       sales: Math.max(0, parseFloat(document.getElementById("f-d2sales").value)||0),
       participants: Math.max(0, parseInt(document.getElementById("f-d2part").value,10)||0),

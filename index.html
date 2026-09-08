@@ -3002,6 +3002,16 @@ var WORKFLOW_ROLE_PIC = {
   PR: ["PALM","KK"],
   CFO: ["SIN"]
 };
+/* Who a template task lands on: the roles in `remark`, plus anyone named
+   directly in the item's own `pic` list. The extras exist because a couple of
+   tasks need one specific person on top of the role — widening the role map
+   instead would put them on every other task that role covers. */
+function tplPics(item){
+  if(item.dday) return state.team.map(function(m){ return m.code; });
+  var out = picsForRoles(item.remark);
+  (item.pic || []).forEach(function(c){ if(out.indexOf(c) < 0) out.push(c); });
+  return out;
+}
 function picsForRoles(remark){
   var out = [];
   (remark||"").split(",").forEach(function(r){
@@ -3023,11 +3033,11 @@ var WORKFLOW_TEMPLATE = [
   {title:{th:"Final Draft",en:"Final Draft"}, remark:"LD"},
   {title:{th:"ทำ Slide",en:"Make Slides"}, remark:"LD"},
   {title:{th:"Action plan ละเอียด",en:"Detailed Action Plan"}, remark:"LD, AE"},
-  {title:{th:"Evaluation Form",en:"Evaluation Form"}, remark:"LD"},
+  {title:{th:"Evaluation Form",en:"Evaluation Form"}, remark:"LD", pic:["KK"]},
   {title:{th:"Staff Listing",en:"Staff Listing"}, remark:"GM, AE"},
   {title:{th:"บรีฟ Staff",en:"Brief Staff"}, remark:"AE, LD, OD"},
   {title:{th:"Equipment Listing",en:"Equipment Listing"}, remark:"LD, GM"},
-  {title:{th:"หาซื้ออุปกรณ์",en:"Source Equipment"}, remark:"GM"},
+  {title:{th:"หาซื้ออุปกรณ์",en:"Source Equipment"}, remark:"GM", pic:["PALM"]},
   {title:{th:"เตรียมอุปกรณ์ให้พร้อม",en:"Prepare Equipment"}, remark:"LD, GM"},
   {title:{th:"วันจริง (Event Day)",en:"Event Day"}, remark:"", dday:true},
   {title:{th:"PR สรุปงาน",en:"PR Wrap-up"}, remark:"PR"},
@@ -3051,7 +3061,7 @@ function openTemplatePicker(sectId){
   var s = b.sections.filter(function(x){return x.id===sectId;})[0];
   if(!s) return;
   var rows = WORKFLOW_TEMPLATE.map(function(item, i){
-    var names = item.dday ? tr("tpl_everyone") : picsForRoles(item.remark).map(function(code){ return member(code).name; }).join(", ");
+    var names = item.dday ? tr("tpl_everyone") : tplPics(item).map(function(code){ return member(code).name; }).join(", ");
     return '<label class="chk"><input type="checkbox" data-tpl="'+i+'" checked>'+
       '<span>'+esc(tplTitle(item))+
         (names?' <span class="hint">('+esc(names)+')</span>':'')+
@@ -3107,7 +3117,7 @@ function openTemplatePicker(sectId){
       if(!cb || !cb.checked) return;
       s.tasks.push({
         id: uid("t"),
-        pic: item.dday ? state.team.map(function(m){return m.code;}) : picsForRoles(item.remark),
+        pic: tplPics(item),
         title:tplTitle(item), remark:"",
         status: item.dday ? "D-DAY" : "Not started",
         start: item.dday ? ddayDate : "",

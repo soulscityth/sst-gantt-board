@@ -675,7 +675,15 @@ var SVAR = {
 var I18N = {
   th: {
     customers_tab:"ลูกค้า", team_btn:"ทีม",
-    trips_tab:"ค่าเดินทาง",
+    trips_tab:"ค่าเดินทาง", hrs_tab:"สรุปชั่วโมง",
+    hrs_empty_title:"ยังไม่มีการบันทึกชั่วโมงในเดือนนี้",
+    hrs_empty_body:"ชั่วโมงทำงานบันทึกในหน้ารายละเอียดของแต่ละงาน แล้วจะมาสรุปรวมรายคนที่นี่",
+    hrs_task:"งาน", hrs_project:"โปรเจกต์", hrs_approval:"การอนุมัติ",
+    hrs_nodate_group:"งานที่ยังไม่มีวันที่ (ไม่ถูกนับในเดือนใด)",
+    hrs_total_row:"รวมทั้งเดือน", hrs_csv_btn:"CSV เดือนนี้",
+    hrs_approved_h:"อนุมัติแล้ว", hrs_pending_h:"รออนุมัติ",
+    hrs_month_note:"นับชั่วโมงเข้าเดือนตามวันครบกำหนดของงาน — งานที่ยังไม่มีวันที่จะแยกไว้ด้านล่าง ไม่ถูกนับในเดือนใด",
+    hrs_open_task:"เปิดงานเพื่อแก้ไข/อนุมัติ",
     trip_month_label:"เดือน", trip_add_btn:"+ เพิ่มการเดินทาง", trip_csv_btn:"CSV เดือนนี้",
     trip_owner:"ผู้เดินทาง", trip_date:"วันที่", trip_from:"ต้นทาง", trip_to:"ปลายทาง",
     trip_km:"ระยะทาง (กม.)", trip_km_unit:"กม.", trip_trips_unit:"เที่ยว",
@@ -844,7 +852,15 @@ var I18N = {
   },
   en: {
     customers_tab:"Customers", team_btn:"Team",
-    trips_tab:"Travel",
+    trips_tab:"Travel", hrs_tab:"Work Hours",
+    hrs_empty_title:"No hours logged for this month yet",
+    hrs_empty_body:"Hours are logged in each task's detail dialog, and totalled per person here.",
+    hrs_task:"Task", hrs_project:"Project", hrs_approval:"Approval",
+    hrs_nodate_group:"Tasks with no date (not counted in any month)",
+    hrs_total_row:"Month total", hrs_csv_btn:"CSV for month",
+    hrs_approved_h:"approved", hrs_pending_h:"pending",
+    hrs_month_note:"Hours fall into the month of the task's due date \u2014 tasks with no date are listed separately below and counted in no month.",
+    hrs_open_task:"Open the task to edit or approve",
     trip_month_label:"Month", trip_add_btn:"+ Add Trip", trip_csv_btn:"CSV for month",
     trip_owner:"Traveller", trip_date:"Date", trip_from:"From", trip_to:"To",
     trip_km:"Distance (km)", trip_km_unit:"km", trip_trips_unit:"trips",
@@ -1128,11 +1144,11 @@ var saveState = "connecting";
 /* Per-viewer view state — which board is open, zoom, compact columns.
    Kept in this browser only, so browsing never publishes a new version
    and never collides with a teammate's edits. */
-var view = {activeBoard:null, dayW:24, compact:false, collapsed:{}, lang:"th", showOldDone:false, showDoneProjects:false, tripMonth:""};
+var view = {activeBoard:null, dayW:24, compact:false, collapsed:{}, lang:"th", showOldDone:false, showDoneProjects:false, tripMonth:"", hoursMonth:""};
 /* tabs that render their own view instead of a Gantt board — they live
    alongside state.boards ids in view.activeBoard, so anything validating
    that value has to accept them too */
-var VIRTUAL_TABS = ["customers", "trips"];
+var VIRTUAL_TABS = ["customers", "trips", "hours"];
 var VIEW_KEY = "sst-gantt-view";
 function loadView(){
   try{
@@ -1373,6 +1389,12 @@ function render(){
     wireTrips();
     return;
   }
+  if(view.activeBoard === "hours"){
+    app.innerHTML = topbar("hours") + goalsPanel() + hoursView();
+    wire(null, null, null);
+    wireHoursBoard();
+    return;
+  }
 
   var b = board();
   var r = rangeOf(b);
@@ -1414,7 +1436,11 @@ function topbar(activeId){
     '<button class="tab" role="tab" data-board="customers" aria-selected="'+(activeId==="customers")+'">'+
       esc(tr("customers_tab"))+' <i>'+state.customers.length+'</i></button>'+
     '<button class="tab" role="tab" data-board="trips" aria-selected="'+(activeId==="trips")+'">'+
-      esc(tr("trips_tab"))+' <i>'+state.trips.length+'</i></button>';
+      esc(tr("trips_tab"))+' <i>'+state.trips.length+'</i></button>'+
+    /* the badge counts entries still waiting on Sin or Palm — the number
+       whoever opens this tab is actually here to clear */
+    '<button class="tab" role="tab" data-board="hours" aria-selected="'+(activeId==="hours")+'" title="'+esc(tr("hrs_pending_h"))+'">'+
+      esc(tr("hrs_tab"))+' <i>'+allHourEntries().filter(function(x){ return !hoursApproved(x.e); }).length+'</i></button>';
   var isBoard = VIRTUAL_TABS.indexOf(activeId) < 0;
   return '<div class="topbar">'+
     '<div class="brand"><div class="mark">SSt</div><div>'+
@@ -1998,6 +2024,166 @@ function exportTripsCsv(){
     return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(",");
   }).join("\r\n");
   downloadBlob("trips-"+monthKey+".csv", csv, "text/csv;charset=utf-8");
+}
+
+/* ============ work-hours summary ============ */
+/* Every hour entry in the workspace, flattened with the task, project and
+   board it hangs off. Hours are recorded on tasks scattered across boards,
+   so this is the only place they get pulled together. */
+function allHourEntries(){
+  var out = [];
+  state.boards.forEach(function(b){
+    b.sections.forEach(function(s){
+      s.tasks.forEach(function(t){
+        taskHours(t).forEach(function(e){ out.push({b:b, s:s, t:t, e:e}); });
+      });
+    });
+  });
+  return out;
+}
+/* An hour entry carries no date of its own, so it counts towards the month
+   its task is due in. Tasks with no date — which the workflow template
+   creates by design — belong to no month and are listed on their own. */
+function hourMonthKey(x){
+  var du = dueOf(x.t);
+  return du ? du.getUTCFullYear()+"-"+pad2(du.getUTCMonth()+1) : "";
+}
+function hourMonths(){
+  var seen = {};
+  allHourEntries().forEach(function(x){ var k = hourMonthKey(x); if(k) seen[k] = 1; });
+  seen[curMonthKey()] = 1;
+  return Object.keys(seen).sort().reverse();
+}
+function activeHoursMonth(){
+  var months = hourMonths();
+  if(months.indexOf(view.hoursMonth) < 0) view.hoursMonth = months[0];
+  return view.hoursMonth;
+}
+function entryHours(x){ return Math.max(0, parseFloat(x.e.h) || 0); }
+function hoursView(){
+  var monthKey = activeHoursMonth();
+  var months = hourMonths();
+  var all = allHourEntries();
+  var rows = all.filter(function(x){ return hourMonthKey(x) === monthKey; });
+  var undated = all.filter(function(x){ return !hourMonthKey(x); });
+
+  var monthOpts = months.map(function(k){
+    return '<option value="'+esc(k)+'"'+(k===monthKey?" selected":"")+'>'+esc(tripMonthLabel(k))+'</option>';
+  }).join("");
+  var bar = '<div class="tripbar">'+
+    '<label class="hint" for="hrs-month">'+esc(tr("trip_month_label"))+'</label>'+
+    '<select id="hrs-month">'+monthOpts+'</select>'+
+    '<div class="spacer"></div>'+
+    (rows.length?'<button class="btn sm" id="btn-hrs-csv">'+esc(tr("hrs_csv_btn"))+'</button>':'')+
+  '</div>';
+
+  /* per-person totals lead, split into signed off vs still waiting — the
+     whole point of the board is seeing what is settled and what is not */
+  var totH = 0, totOk = 0, byCode = {};
+  rows.forEach(function(x){
+    var h = entryHours(x), ok = hoursApproved(x.e);
+    totH += h; if(ok) totOk += h;
+    if(!byCode[x.e.pic]) byCode[x.e.pic] = {h:0, ok:0, pend:0};
+    byCode[x.e.pic].h += h;
+    if(ok) byCode[x.e.pic].ok += h; else byCode[x.e.pic].pend += h;
+  });
+  var codes = state.team.map(function(m){ return m.code; });
+  Object.keys(byCode).forEach(function(c){ if(codes.indexOf(c) < 0) codes.push(c); });
+  var sum = codes.map(function(c){
+    var m = member(c), a = byCode[c] || {h:0, ok:0, pend:0};
+    return '<div class="tripsumcard">'+
+      '<span class="pic" style="--m:'+esc(m.color)+'" title="'+esc(m.name)+'">'+esc(c.slice(0,2))+'</span>'+
+      '<div><b>'+esc(fmtHours(a.h))+'<span class="unit">'+esc(tr("hours_unit"))+'</span></b>'+
+        '<span class="nm">'+esc(m.name)+' · '+esc(fmtHours(a.ok))+' '+esc(tr("hrs_approved_h"))+
+        (a.pend>0?' · <b style="color:var(--s-postponed);font-size:11.5px">'+esc(fmtHours(a.pend))+' '+esc(tr("hrs_pending_h"))+'</b>':'')+
+        '</span></div>'+
+    '</div>';
+  }).join("") +
+  '<div class="tripsumcard tripsumtot"><div><b>'+esc(fmtHours(totH))+
+    '<span class="unit">'+esc(tr("hours_unit"))+'</span></b>'+
+    '<span class="nm">'+esc(tr("hrs_total_row"))+' · '+esc(fmtHours(totOk))+' '+esc(tr("hrs_approved_h"))+
+    (totH-totOk>0?' · '+esc(fmtHours(totH-totOk))+' '+esc(tr("hrs_pending_h")):'')+'</span></div></div>';
+
+  function table(list, totalLabel){
+    var body = list.slice().sort(function(a, c){
+      return String(a.e.pic).localeCompare(String(c.e.pic)) ||
+             String(a.t.title).localeCompare(String(c.t.title));
+    }).map(function(x){
+      var m = member(x.e.pic), ok = hoursApproved(x.e);
+      return '<tr data-hrs-task="'+esc(x.t.id)+'" title="'+esc(tr("hrs_open_task"))+'" style="cursor:pointer">'+
+        '<td><span class="tripowner"><span class="pic" style="--m:'+esc(m.color)+'">'+
+          esc(String(x.e.pic||"").slice(0,2))+'</span>'+esc(m.name)+'</span></td>'+
+        '<td>'+esc(x.t.title)+'</td>'+
+        '<td class="tripproj">'+esc(x.b.name+" › "+x.s.title)+'</td>'+
+        '<td class="num">'+esc(x.t.start?fmtShort(ymd(dueOf(x.t))):"—")+'</td>'+
+        '<td class="num">'+esc(fmtHours(entryHours(x)))+'</td>'+
+        '<td>'+(ok
+          ? '<span class="hrbadge">'+esc(tr("hours_approved_fmt",{name:member(x.e.by).name, date:fmtShort(String(x.e.at||"").slice(0,10))}))+'</span>'
+          : '<span class="hrbadge pending">'+esc(tr("hrs_pending_h"))+'</span>')+'</td>'+
+      '</tr>';
+    }).join("");
+    var sub = list.reduce(function(a, x){ return a + entryHours(x); }, 0);
+    return '<table class="triptable"><thead><tr>'+
+        '<th>'+esc(tr("trip_owner"))+'</th><th>'+esc(tr("hrs_task"))+'</th>'+
+        '<th>'+esc(tr("hrs_project"))+'</th><th>'+esc(tr("trip_date"))+'</th>'+
+        '<th style="text-align:right">'+esc(tr("hours_label"))+'</th>'+
+        '<th>'+esc(tr("hrs_approval"))+'</th>'+
+      '</tr></thead><tbody>'+body+
+        '<tr class="triptot"><td colspan="4" style="text-align:right">'+esc(totalLabel)+'</td>'+
+        '<td class="num">'+esc(fmtHours(sub))+'</td><td></td></tr>'+
+      '</tbody></table>';
+  }
+
+  var undatedBlock = undated.length
+    ? '<div style="margin-top:26px"><div style="font-weight:600;font-size:12px;color:var(--text-2);margin-bottom:8px">'+
+        esc(tr("hrs_nodate_group"))+'</div>'+table(undated, tr("hrs_total_row"))+'</div>'
+    : '';
+
+  return '<div class="viewport" id="viewport"><div class="tripwrap">'+bar+
+    '<div class="tripsum">'+sum+'</div>'+
+    (rows.length ? table(rows, tr("hrs_total_row"))
+      : '<div class="emptyboard"><h3>'+esc(tr("hrs_empty_title"))+'</h3><p>'+esc(tr("hrs_empty_body"))+'</p></div>')+
+    '<span class="hint" style="display:block;margin-top:10px">'+esc(tr("hrs_month_note"))+'</span>'+
+    undatedBlock+
+  '</div></div>';
+}
+function wireHoursBoard(){
+  var sel = document.getElementById("hrs-month");
+  if(sel) sel.onchange = function(){ view.hoursMonth = sel.value; saveView(); render(); };
+  var csv = document.getElementById("btn-hrs-csv");
+  if(csv) csv.onclick = exportHoursCsv;
+  /* rows open the task rather than editing here: approving is part of the
+     task's own dialog, so there is one place that owns it */
+  document.querySelectorAll("[data-hrs-task]").forEach(function(el){
+    el.onclick = function(){ openTask(el.getAttribute("data-hrs-task"), null); };
+  });
+}
+function exportHoursCsv(){
+  var monthKey = activeHoursMonth();
+  var rows = allHourEntries().filter(function(x){ return hourMonthKey(x) === monthKey; });
+  var lines = [["Person","Code","Task","Board","Project","Due date","Hours","Approved by","Approved on"]];
+  var tot = 0;
+  rows.forEach(function(x){
+    tot += entryHours(x);
+    var ok = hoursApproved(x.e);
+    lines.push([member(x.e.pic).name, x.e.pic||"", x.t.title, x.b.name, x.s.title,
+      x.t.start?fmtShort(ymd(dueOf(x.t))):"", fmtHours(entryHours(x)),
+      ok?member(x.e.by).name:"", ok&&x.e.at?fmtShort(String(x.e.at).slice(0,10)):""]);
+  });
+  function blank(){ return ["","","","","","","","",""]; }
+  lines.push(blank());
+  state.team.forEach(function(m){
+    var h = 0, ok = 0;
+    rows.forEach(function(x){ if(x.e.pic===m.code){ h += entryHours(x); if(hoursApproved(x.e)) ok += entryHours(x); } });
+    var r = blank(); r[0]=m.name; r[1]=m.code; r[2]="TOTAL"; r[6]=fmtHours(h); r[7]=fmtHours(ok)+" approved";
+    lines.push(r);
+  });
+  var last = blank(); last[2]="MONTH TOTAL"; last[6]=fmtHours(tot);
+  lines.push(last);
+  var csv = "﻿" + lines.map(function(r){
+    return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(",");
+  }).join("\r\n");
+  downloadBlob("work-hours-"+monthKey+".csv", csv, "text/csv;charset=utf-8");
 }
 
 function toolbar(b){

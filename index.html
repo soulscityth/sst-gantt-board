@@ -3706,20 +3706,28 @@ function gcalEventBody(x){
    every run. */
 function gcalEventHash(x){
   var body = gcalEventBody(x);
-  /* Deliberately narrower than the event we send: colour and the whole
-     description block (board and project names, PIC names, the status and
-     date recap, the remark) are left out, so editing them no longer marks
-     the task as changed and no longer re-notifies every guest. The trade is
-     that those fields stop reaching Google on their own — they ride along
-     the next time something below does change. What stays is what a guest
-     would actually want an email about: the event's title, whether it
-     blocks time, when it is, its reminder, and who's on it. */
+  /* Deliberately narrower than the event we send. Left out: colour, and the
+     parts of the description that merely restate things visible elsewhere
+     (board and project names, PIC display names, the status and date recap)
+     — editing those no longer marks the task as changed, so they stop
+     re-notifying every guest and instead ride along the next time something
+     here does change.
+
+     The remark is in, by choice: it is the one part of the description
+     carrying information that exists nowhere else, so it is worth syncing on
+     its own rather than sitting stale on Google until some unrelated edit
+     happens to carry it over. Editing a remark therefore does re-send, and
+     does email the guests — the dialog's "send without emailing" tick is
+     how you make that one quiet. The rest of what is here is what a guest
+     would actually want an email about: the title, whether it blocks time,
+     when it is, its reminder, and who is on it. */
   var sig = {
     summary: body.summary,
     transparency: body.transparency,
     reminders: body.reminders,
     start: body.start,
-    end: body.end
+    end: body.end,
+    remark: x.t.remark || ""
   };
   var guests = gcal.invite ? gcalPicGuests(x.t).map(function(g){ return g.email.toLowerCase(); }).sort() : [];
   return JSON.stringify(sig) + "|" + JSON.stringify(guests);

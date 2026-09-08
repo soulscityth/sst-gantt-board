@@ -2616,6 +2616,17 @@ function duplicateTask(taskId, sectId){
   if(i<0) return;
   var copy = JSON.parse(JSON.stringify(s.tasks[i]));
   copy.id = uid("t");
+  /* the copy is work that hasn't happened yet, so it starts over: back to
+     Not started, and every hour entry loses its sign-off. Note that the
+     auto-status pass still applies afterwards — duplicate a task whose due
+     date has already passed and it will settle on Overdue, which is what
+     "not started and already late" means on this board. */
+  copy.status = "Not started";
+  (copy.hours || []).forEach(function(e){
+    e.id = uid("h");     /* its own record, not a shared id with the original */
+    e.by = "";
+    e.at = "";
+  });
   s.tasks.splice(i+1, 0, copy);
   touch(); render();
 }

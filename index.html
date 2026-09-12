@@ -3256,6 +3256,10 @@ function openTask(id, sectId){
       hrs[i].h = Math.max(0, parseFloat(row.querySelector(".hr-h").value) || 0);
       if(!isManager()) return;           /* only managers can touch the sign-off */
       var by = row.querySelector(".hr-by").value;
+      /* a manager may set pending, leave the existing name, or sign as
+         themselves — never write the other manager's name onto an entry */
+      var me = (currentMember() || {}).code;
+      if(by && me && HOURS_APPROVERS.indexOf(me) >= 0 && by !== me && by !== hrs[i].by) return;
       if(by !== hrs[i].by){
         /* stamp the moment it was signed off, and clear it if un-approved */
         hrs[i].by = by;
@@ -3269,8 +3273,24 @@ function openTask(id, sectId){
       var picSel = teamOpts.map(function(o){
         return '<option value="'+esc(o.v)+'"'+(e.pic===o.v?" selected":"")+'>'+esc(o.l)+'</option>';
       }).join("");
+      /* A manager signs off in their own name only — the record should say
+         who actually pressed it. If the other manager already signed this
+         one, that name stays listed so the row doesn't read as pending; the
+         viewer can leave it, take it over, or set it back to pending. With
+         no identity (Firebase unconfigured) every approver is offered, and
+         for non-managers the control is disabled so it just has to display
+         whatever is there. */
+      var meCode = (currentMember() || {}).code;
+      var choices;
+      if(!isManager() || !meCode || HOURS_APPROVERS.indexOf(meCode) < 0){
+        choices = HOURS_APPROVERS.slice();
+      }else{
+        choices = [];
+        if(e.by && e.by !== meCode && HOURS_APPROVERS.indexOf(e.by) >= 0) choices.push(e.by);
+        choices.push(meCode);
+      }
       var bySel = '<option value="">'+esc(tr("hours_pending"))+'</option>' +
-        HOURS_APPROVERS.map(function(c){
+        choices.map(function(c){
           return '<option value="'+esc(c)+'"'+(e.by===c?" selected":"")+'>'+esc(member(c).name)+'</option>';
         }).join("");
       var stamp = hoursApproved(e) && e.at

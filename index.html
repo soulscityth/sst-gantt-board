@@ -656,6 +656,94 @@ select.statussel option{background:var(--surface);color:var(--text)}
   .stats{margin-left:0;width:100%;order:9;border-top:1px solid var(--border);padding-top:8px}
   .boardtitle{width:100%}
 }
+
+/* ---------- phones ----------
+   The Gantt stays a desktop thing — it scrolls, and that's enough for a
+   glance. The travel and work-hours tabs are what get used on a phone in
+   earnest (logging a trip right after driving it), so those, and the
+   dialogs they open, are laid out properly here. */
+@media (max-width:640px){
+  /* top bar: let it wrap rather than clip; tabs already scroll sideways */
+  .topbar{flex-wrap:wrap;height:auto;padding:8px 12px;gap:8px 12px}
+  .brand span{display:none}
+  .tabs{order:3;flex:1 0 100%;padding-bottom:2px}
+  .topright{flex:1 1 auto;justify-content:flex-end;flex-wrap:wrap;gap:6px}
+  .savechip{display:none}
+
+  /* goal targets: stack, and stop competing for the small screen */
+  .goals{padding:8px 12px;gap:10px;flex-wrap:wrap}
+  .goalsrow{grid-template-columns:1fr;gap:8px}
+
+  /* iOS zooms into any field under 16px — keep every control at 16px so
+     tapping a box doesn't lurch the whole dialog */
+  input,select,textarea,.btn{font-size:16px}
+  .btn.sm{font-size:14px}
+
+  .tripwrap{padding:12px 12px 32px}
+  .tripsum{grid-template-columns:repeat(2,1fr);gap:8px}
+  .tripsumcard{padding:10px 11px}
+  .tripsumcard b{font-size:15px}
+  .tripsumtot{grid-column:1 / -1}
+
+  /* the table becomes a stack of cards: each cell is a label/value line,
+     read from the data-l attribute the rows carry */
+  .triptable{display:block}
+  .triptable thead{display:none}
+  .triptable tbody,.triptable tr,.triptable td{display:block}
+  .triptable tr{
+    border:1px solid var(--border);border-radius:12px;background:var(--surface);
+    padding:10px 12px;margin-bottom:10px;
+  }
+  .triptable tr:hover td{background:transparent}
+  .triptable td{
+    border:0;padding:4px 0;display:flex;justify-content:space-between;
+    align-items:baseline;gap:12px;text-align:right;
+  }
+  .triptable td::before{
+    content:attr(data-l);color:var(--muted);font-size:11px;letter-spacing:.03em;
+    text-transform:uppercase;flex:0 0 auto;text-align:left;
+  }
+  .triptable td:not([data-l])::before{content:none}
+  .triptable td.num{text-align:right}
+  .triptable .tripproj,.triptable .tripnote,.triptable .triproutes{max-width:none;min-width:0}
+  .triptable .triproutes{flex-direction:column;align-items:flex-end}
+  .triptable .triproute{white-space:normal}
+  .triptable .tripowner{white-space:normal}
+  /* the action buttons sit on their own line, big enough to hit */
+  /* width:auto undoes the desktop table's width:1% column hint, which in
+     block layout would collapse this cell to a few pixels */
+  .triptable .acts{width:auto;white-space:normal;justify-content:flex-end;gap:6px;padding-top:8px;margin-top:4px;border-top:1px solid var(--border)}
+  .triptable .acts .iconbtn{width:38px;height:38px;font-size:17px;opacity:.85;background:var(--surface-2);border-radius:9px}
+  .triptable .triptot{background:var(--surface-2)}
+  .triptable .triptot td{padding:2px 0}
+  .triptable .triptot td:empty{display:none}
+  .triptable .triptot td[colspan]{justify-content:flex-start;text-align:left}
+
+  /* dialogs: use the whole screen, one column, stacked footer */
+  .scrim{padding:0;align-items:end}
+  .modal{width:100%;max-height:100vh;border-radius:16px 16px 0 0;border-bottom:0}
+  .modal .body{padding:14px 14px 18px}
+  .modal footer{flex-wrap:wrap;gap:8px;padding:12px 14px}
+  .modal footer .btn{flex:1 1 auto;padding:10px 12px}
+  .modal footer .spacer{display:none}
+  .grid2,.grid3{grid-template-columns:1fr;gap:10px}
+
+  /* route editor (from → to / km ✕) and hours editor (who h / by ✕): two
+     lines each instead of five cramped columns */
+  .rtrow{grid-template-columns:1fr 14px 1fr;grid-template-areas:"a b c" "d d e";row-gap:6px}
+  .rtrow .rt-km{width:120px}
+  .rt-from{grid-area:a}.rtarrow{grid-area:b}.rt-to{grid-area:c}.rt-km{grid-area:d}.rt-del{grid-area:e;justify-self:end}
+  .rtrow+.rtrow{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)}
+  .hrrow{grid-template-columns:1fr 84px 32px;grid-template-areas:"p h u" "b b d";row-gap:6px}
+  .hr-pic{grid-area:p}.hr-h{grid-area:h}.hrunit{grid-area:u}.hr-by{grid-area:b}
+  .hrrow .iconbtn{grid-area:d;justify-self:end}
+  .hrrow+.hrrow{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)}
+  .rtrow .iconbtn,.hrrow .iconbtn{width:32px;height:32px;font-size:15px;opacity:.8}
+
+  /* the "colour swatch" rows in the task dialog get tight on a phone */
+  .colorswatches{gap:9px}
+  .colorsw{width:32px;height:32px}
+}
 </style>
 </head>
 <body>
@@ -1834,18 +1922,18 @@ function tripsView(){
   var rows = trips.map(function(t){
     var m = member(t.pic);
     return '<tr>'+
-      '<td><span class="tripowner"><span class="pic" style="--m:'+esc(m.color)+'" title="'+esc(m.name)+'">'+
+      '<td data-l="'+esc(tr("trip_owner"))+'"><span class="tripowner"><span class="pic" style="--m:'+esc(m.color)+'" title="'+esc(m.name)+'">'+
         esc(String(t.pic||"").slice(0,2))+'</span>'+esc(m.name)+'</span></td>'+
-      '<td class="num">'+esc(fmtShort(t.date))+'</td>'+
-      '<td class="tripproj">'+esc(projectLabel(t.sectId))+'</td>'+
-      '<td class="triproutes">'+(t.routes||[]).map(function(rt){
+      '<td class="num" data-l="'+esc(tr("trip_date"))+'">'+esc(fmtShort(t.date))+'</td>'+
+      '<td class="tripproj" data-l="'+esc(tr("trip_project"))+'">'+esc(projectLabel(t.sectId))+'</td>'+
+      '<td class="triproutes" data-l="'+esc(tr("trip_routes"))+'">'+(t.routes||[]).map(function(rt){
         return '<span class="triproute">'+esc(rt.from||"")+' &rarr; '+esc(rt.to||"")+
           '<i>'+esc(fmtKm(Math.max(0, parseFloat(rt.km)||0)))+'</i></span>';
       }).join("")+'</td>'+
-      '<td>'+esc(vehicleLabel(t.vehicle))+'</td>'+
-      '<td class="num">'+esc(fmtKm(tripKm(t)))+'</td>'+
-      '<td class="num">'+esc(fmtBaht(tripBaht(t)))+'</td>'+
-      '<td class="tripnote">'+esc(t.note||"")+'</td>'+
+      '<td data-l="'+esc(tr("trip_vehicle"))+'">'+esc(vehicleLabel(t.vehicle))+'</td>'+
+      '<td class="num" data-l="'+esc(tr("trip_km"))+'">'+esc(fmtKm(tripKm(t)))+'</td>'+
+      '<td class="num" data-l="'+esc(tr("trip_baht"))+'">'+esc(fmtBaht(tripBaht(t)))+'</td>'+
+      '<td class="tripnote" data-l="'+esc(tr("trip_note"))+'">'+esc(t.note||"")+'</td>'+
       '<td class="acts">'+(readOnly?'':
         '<button class="iconbtn" data-trip-dup="'+esc(t.id)+'" aria-label="'+esc(tr("duplicate"))+'" title="'+esc(tr("duplicate"))+'">&#10697;</button>'+
         '<button class="iconbtn" data-trip-edit="'+esc(t.id)+'" aria-label="'+esc(tr("trip_edit_title"))+'" title="'+esc(tr("edit"))+'">&#9998;</button>'+
@@ -2260,13 +2348,13 @@ function hoursView(){
     }).map(function(x){
       var m = member(x.e.pic), ok = hoursApproved(x.e);
       return '<tr data-hrs-task="'+esc(x.t.id)+'" title="'+esc(tr("hrs_open_task"))+'" style="cursor:pointer">'+
-        '<td><span class="tripowner"><span class="pic" style="--m:'+esc(m.color)+'">'+
+        '<td data-l="'+esc(tr("trip_owner"))+'"><span class="tripowner"><span class="pic" style="--m:'+esc(m.color)+'">'+
           esc(String(x.e.pic||"").slice(0,2))+'</span>'+esc(m.name)+'</span></td>'+
-        '<td>'+esc(x.t.title)+'</td>'+
-        '<td class="tripproj">'+esc(x.b.name+" › "+x.s.title)+'</td>'+
-        '<td class="num">'+esc(x.t.start?fmtShort(ymd(dueOf(x.t))):"—")+'</td>'+
-        '<td class="num">'+esc(fmtHours(entryHours(x)))+'</td>'+
-        '<td>'+(ok
+        '<td data-l="'+esc(tr("hrs_task"))+'">'+esc(x.t.title)+'</td>'+
+        '<td class="tripproj" data-l="'+esc(tr("hrs_project"))+'">'+esc(x.b.name+" › "+x.s.title)+'</td>'+
+        '<td class="num" data-l="'+esc(tr("trip_date"))+'">'+esc(x.t.start?fmtShort(ymd(dueOf(x.t))):"—")+'</td>'+
+        '<td class="num" data-l="'+esc(tr("hours_label"))+'">'+esc(fmtHours(entryHours(x)))+'</td>'+
+        '<td data-l="'+esc(tr("hrs_approval"))+'">'+(ok
           ? '<span class="hrbadge">'+esc(tr("hours_approved_fmt",{name:member(x.e.by).name, date:fmtShort(String(x.e.at||"").slice(0,10))}))+'</span>'
           : '<span class="hrbadge pending">'+esc(tr("hrs_pending_h"))+'</span>')+'</td>'+
       '</tr>';

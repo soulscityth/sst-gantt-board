@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anuphan:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <!--
   ตั้งค่า Firebase ก่อนใช้งาน:
   1) สร้างโปรเจกต์ที่ console.firebase.google.com (ฟรี)
@@ -485,6 +486,19 @@ select.statussel option{background:var(--surface);color:var(--text)}
 }
 .linkbtn:hover{color:var(--accent);background:var(--accent-soft)}
 
+/* sign-in / not-authorised gate: the only thing on the page until it clears */
+.gate{min-height:100vh;display:grid;place-items:center;padding:24px;background:var(--bg)}
+.gatecard{
+  width:min(420px,100%);background:var(--surface);border:1px solid var(--border);border-radius:16px;
+  padding:28px 28px 24px;display:flex;flex-direction:column;gap:12px;text-align:center;
+  box-shadow:0 8px 30px rgba(20,32,48,.08);
+}
+.gatecard .mark{margin:0 auto 4px;width:44px;height:44px;font-size:14px}
+.gatecard h1{font-size:17px;margin:0}
+.gatecard p{margin:0;font-size:13px;color:var(--text-2);line-height:1.5}
+.gatecard .btn.primary{margin-top:6px;padding:10px 16px;font-size:13.5px}
+.gateerr{color:var(--s-cancel);font-size:12px}
+.userchip{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .emptyboard{padding:56px 24px;text-align:center;color:var(--muted);position:sticky;left:0;max-width:520px;margin:0 auto}
 .emptyboard h3{font-size:15px;color:var(--text);margin-bottom:6px}
 .emptyboard p{margin:0 0 16px;font-size:12.5px}
@@ -675,6 +689,15 @@ var SVAR = {
 var I18N = {
   th: {
     customers_tab:"ลูกค้า", team_btn:"ทีม",
+    signin_title:"เข้าสู่ระบบ",
+    signin_body:"บอร์ดนี้ใช้ได้เฉพาะทีม SoulScity — เข้าสู่ระบบด้วยบัญชี Google ที่ลงทะเบียนไว้กับทีม",
+    signin_btn:"เข้าสู่ระบบด้วย Google", signin_wait:"กำลังเข้าสู่ระบบ…",
+    signin_fail:"เข้าสู่ระบบไม่สำเร็จ — {msg}",
+    signin_popup_hint:"ถ้าไม่มีหน้าต่างเด้งขึ้นมา ให้เช็กว่า Safari บล็อก popup ของเว็บนี้อยู่หรือเปล่า (ไอคอนใกล้ address bar)",
+    denied_title:"บัญชีนี้ไม่ได้อยู่ในทีม",
+    denied_body:"เข้าสู่ระบบด้วย {email} แล้ว แต่บัญชีนี้ไม่มีสิทธิ์ใช้บอร์ด — ถ้าควรมีสิทธิ์ ให้แจ้งสินหรือปามเพิ่มอีเมลนี้ใน Firebase Rules",
+    signout_btn:"ออกจากระบบ", signout_confirm:"ออกจากระบบจากบัญชี {email}?",
+    signed_in_as:"เข้าสู่ระบบเป็น {email}",
     backup_btn:"สำรองข้อมูล", backup_title:"สำรอง / กู้คืนข้อมูล",
     backup_intro:"ทุกครั้งที่บันทึก ระบบจะเขียนทับข้อมูลทั้งบอร์ดในครั้งเดียว และ Firebase แบบฟรีไม่เก็บประวัติย้อนหลัง — ถ้าลบผิดหรือซิงก์พลาด จะกู้คืนได้ก็ต่อเมื่อมีไฟล์สำรองเท่านั้น",
     backup_download:"ดาวน์โหลดไฟล์สำรอง", backup_download_hint:"ได้ไฟล์ .json ก้อนเดียว มีทุกบอร์ด ทุกงาน ลูกค้า ค่าเดินทาง ชั่วโมงทำงาน และข้อมูลการซิงก์ปฏิทิน — เก็บไว้ที่ปลอดภัย แนะนำทำทุกสัปดาห์",
@@ -861,6 +884,15 @@ var I18N = {
   },
   en: {
     customers_tab:"Customers", team_btn:"Team",
+    signin_title:"Sign in",
+    signin_body:"This board is for the SoulScity team \u2014 sign in with the Google account registered with the team.",
+    signin_btn:"Sign in with Google", signin_wait:"Signing in\u2026",
+    signin_fail:"Sign-in failed \u2014 {msg}",
+    signin_popup_hint:"If no window appears, check whether Safari is blocking pop-ups for this site (icon near the address bar).",
+    denied_title:"This account isn't on the team",
+    denied_body:"You're signed in as {email}, but that account isn't allowed to use the board \u2014 if it should be, ask Sin or Palm to add it in the Firebase rules.",
+    signout_btn:"Sign out", signout_confirm:"Sign out of {email}?",
+    signed_in_as:"Signed in as {email}",
     backup_btn:"Backup", backup_title:"Backup / Restore",
     backup_intro:"Every save overwrites the whole board in one write, and Firebase's free tier keeps no history \u2014 a mistaken delete or a bad sync can only be undone from a backup file.",
     backup_download:"Download backup", backup_download_hint:"One .json file holding every board, task, customer, trip, logged hour and the calendar-sync ledger. Keep it somewhere safe; weekly is a good habit.",
@@ -1470,6 +1502,8 @@ function topbar(activeId){
       '<button class="btn sm" id="btn-lang" title="'+esc(tr("lang_toggle_title"))+'">'+(view.lang==="en"?"EN":"TH")+'</button>'+
       '<button class="btn sm" id="btn-team">'+esc(tr("team_btn"))+'</button>'+
       '<button class="btn sm" id="btn-backup" title="'+esc(tr("backup_title"))+'">'+esc(tr("backup_btn"))+'</button>'+
+      (currentUser ? '<button class="btn sm userchip" id="btn-signout" title="'+esc(tr("signed_in_as",{email:currentUser.email||""}))+'">'+
+        esc(String(currentUser.email||"").split("@")[0])+'</button>' : '')+
       (isBoard?'<button class="btn sm" id="btn-gcal" title="'+esc(tr("gcal_btn_title"))+'">'+
         (gcalConnected()?'<i class="gdot" aria-hidden="true"></i>':'')+'Google Calendar</button>':'')+
       (isBoard?'<button class="btn sm" id="btn-ics" title="'+esc(tr("ics_btn_title"))+'">.ics</button>':'')+
@@ -2605,6 +2639,8 @@ function wire(b, r, dayW){
   };
   var bbk = document.getElementById("btn-backup");
   if(bbk) bbk.onclick = openBackup;
+  var bso = document.getElementById("btn-signout");
+  if(bso) bso.onclick = confirmSignOut;
   var bteam = document.getElementById("btn-team");
   if(bteam) bteam.onclick = openTeam;
   var bcsv = document.getElementById("btn-csv");
@@ -4402,6 +4438,90 @@ function gcalResult(cals, r, silent){
 
 /* resolves {ok:false} instead of hanging forever if a promise never settles
    (e.g. wrong/unreachable Firebase config) — boot() must always reach render() */
+/* ============ sign-in gate ============ */
+/* Google sign-in through Firebase Auth. The gate itself is UX — what
+   actually keeps anyone out is the database rules, which refuse reads and
+   writes from accounts not on the team list. So: the page will not render
+   the board without a signed-in user, and Firebase will not hand the board
+   to a signed-in user who isn't on the list.
+
+   Popup, never redirect: Safari's storage partitioning breaks Firebase's
+   redirect flow between firebaseapp.com and vercel.app, and this team is
+   on Safari. The popup has to open straight from the click, for the same
+   reason the calendar auth had to. */
+var currentUser = null;
+function authAvailable(){ return !!(fbDb && window.firebase && firebase.auth); }
+function waitForAuth(){
+  return new Promise(function(resolve){
+    var unsub = firebase.auth().onAuthStateChanged(function(u){ unsub(); resolve(u || null); });
+  });
+}
+function renderGate(inner){
+  document.getElementById("app").innerHTML =
+    '<div class="gate"><div class="gatecard">'+
+      '<div class="mark">SSt</div>'+inner+
+    '</div></div>';
+}
+function renderSignIn(errMsg){
+  renderGate(
+    '<h1>'+esc(tr("signin_title"))+'</h1>'+
+    '<p>'+esc(tr("signin_body"))+'</p>'+
+    '<button class="btn primary" id="gate-signin">'+esc(tr("signin_btn"))+'</button>'+
+    (errMsg ? '<span class="gateerr">'+esc(tr("signin_fail",{msg:errMsg}))+'</span>' : '')+
+    '<span class="hint">'+esc(tr("signin_popup_hint"))+'</span>'
+  );
+  var btn = document.getElementById("gate-signin");
+  btn.onclick = function(){
+    btn.disabled = true; btn.textContent = tr("signin_wait");
+    var provider = new firebase.auth.GoogleAuthProvider();
+    provider.setCustomParameters({prompt:"select_account"});
+    firebase.auth().signInWithPopup(provider).then(function(){
+      boot();
+    }).catch(function(e){
+      renderSignIn((e && (e.message || e.code)) || "");
+    });
+  };
+}
+function renderDenied(user){
+  renderGate(
+    '<h1>'+esc(tr("denied_title"))+'</h1>'+
+    '<p>'+esc(tr("denied_body",{email:(user&&user.email)||""}))+'</p>'+
+    '<button class="btn primary" id="gate-signout">'+esc(tr("signout_btn"))+'</button>'
+  );
+  document.getElementById("gate-signout").onclick = function(){
+    firebase.auth().signOut().then(function(){ location.reload(); });
+  };
+}
+function confirmSignOut(){
+  if(!currentUser) return;
+  modal(tr("signout_btn"),
+    '<p style="margin:0">'+esc(tr("signout_confirm",{email:currentUser.email||""}))+'</p>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn primary" id="m-ok">'+esc(tr("signout_btn"))+'</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  document.getElementById("m-ok").onclick = function(){
+    firebase.auth().signOut().then(function(){ location.reload(); });
+  };
+}
+/* the initial read has to tell "not allowed" apart from "slow network":
+   the former gets its own screen, the latter falls through to the cached
+   copy exactly as before */
+function readBoardOnce(){
+  return new Promise(function(resolve){
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done=true; resolve({ok:false}); } }, 4000);
+    fbDb.ref(FB_PATH).once("value").then(function(snap){
+      if(!done){ done=true; clearTimeout(timer); resolve({ok:true, value:snap}); }
+    }, function(e){
+      if(done) return;
+      done = true; clearTimeout(timer);
+      var code = String((e && (e.code || e.message)) || "");
+      resolve({ok:false, denied: /permission/i.test(code)});
+    });
+  });
+}
+
 function withTimeout(promise, ms){
   return new Promise(function(resolve){
     var done = false;
@@ -4418,8 +4538,15 @@ async function boot(){
   fbDb = initFirebase();
   var remoteConfirmedEmpty = false;
 
+  if(authAvailable()){
+    var user = await waitForAuth();
+    if(!user){ renderSignIn(); return; }
+    currentUser = user;
+  }
+
   if(fbDb){
-    var res = await withTimeout(fbDb.ref(FB_PATH).once("value"), 4000);
+    var res = await readBoardOnce();
+    if(res.denied){ renderDenied(currentUser); return; }
     if(res.ok){
       var v = res.value.val();
       if(v && Object.keys(v).length) state = normalizeState(v);

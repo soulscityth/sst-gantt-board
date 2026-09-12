@@ -815,7 +815,8 @@ var I18N = {
     trip_note:"หมายเหตุ", trip_note_ph:"เช่น ไปส่งอุปกรณ์ / ค่าทางด่วน 50 บาท",
     hours_label:"ชั่วโมงทำงาน", hours_add:"+ เพิ่มชั่วโมง", hours_del:"ลบรายการนี้",
     hours_unit:"ชม.", hours_pending:"— รออนุมัติ —", hours_approved_fmt:"อนุมัติโดย {name} · {date}",
-    hours_hint:"อนุมัติได้เฉพาะ {names} — ระบบบันทึกว่าใครกดอนุมัติและเมื่อไหร่ แต่ไม่ได้ล็อกสิทธิ์ (ยังไม่มีระบบ login)",
+    hours_hint:"อนุมัติได้เฉพาะ {names} — ระบบจะบันทึกว่าใครอนุมัติและเมื่อไหร่",
+    hours_hint_locked:"ลงชั่วโมงได้เลย ส่วนช่องอนุมัติเปิดให้เฉพาะ {names}",
     hours_badge_all:"{h} ชม. · อนุมัติครบแล้ว", hours_badge_pending:"{h} ชม. · รออนุมัติ {n} รายการ",
     trip_project:"โปรเจกต์", trip_no_project:"— ไม่ระบุโปรเจกต์ —",
     trip_vehicle:"ยานพาหนะ", trip_v_car:"รถยนต์", trip_v_ev:"รถยนต์ไฟฟ้า", trip_v_moto:"มอเตอร์ไซค์",
@@ -1010,7 +1011,8 @@ var I18N = {
     trip_note:"Note", trip_note_ph:"e.g. delivering equipment / 50 THB tolls",
     hours_label:"Work hours", hours_add:"+ Add hours", hours_del:"Remove this entry",
     hours_unit:"h", hours_pending:"— Pending approval —", hours_approved_fmt:"Approved by {name} · {date}",
-    hours_hint:"Only {names} can approve — this records who approved and when, but does not enforce it (there is no login).",
+    hours_hint:"Only {names} can approve — the app records who approved and when.",
+    hours_hint_locked:"Log your hours here; the approval box is available to {names} only.",
     hours_badge_all:"{h}h · all approved", hours_badge_pending:"{h}h · {n} awaiting approval",
     trip_project:"Project", trip_no_project:"— No project —",
     trip_vehicle:"Vehicle", trip_v_car:"Car", trip_v_ev:"EV car", trip_v_moto:"Motorcycle",
@@ -1323,6 +1325,23 @@ var TRIP_RATES = {car:6, ev:4, moto:3};
    button, not a permission check — without login (deliberately not built)
    anyone with the link could set it, so treat it as an audit trail. */
 var HOURS_APPROVERS = ["SIN", "PALM"];
+/* The same two people are the board's managers: only they edit the goal
+   targets, sign off hours, and see the hours summary. Identity comes from
+   the signed-in Google account matched against the team list by email.
+   Page-enforced — see the commit that introduced it for why the database
+   rules can't back this up without restructuring how the board is saved. */
+function currentMember(){
+  if(!currentUser || !currentUser.email || !state) return null;
+  var em = String(currentUser.email).toLowerCase();
+  return state.team.filter(function(m){ return String(m.email||"").toLowerCase() === em; })[0] || null;
+}
+function isManager(){
+  /* no sign-in system at all (Firebase not configured): there are no roles
+     to apply, everyone already has everything */
+  if(!authAvailable()) return true;
+  var m = currentMember();
+  return !!(m && HOURS_APPROVERS.indexOf(m.code) >= 0);
+}
 function normalizeState(s){
   if(!s) return s;
   s.boards = s.boards || [];
@@ -1527,6 +1546,10 @@ function render(){
     wireTrips();
     return;
   }
+  if(view.activeBoard === "hours" && !isManager()){
+    view.activeBoard = state.boards[0] ? state.boards[0].id : "customers";
+    saveView();
+  }
   if(view.activeBoard === "hours"){
     app.innerHTML = topbar("hours") + goalsPanel() + hoursView();
     wire(null, null, null);
@@ -1577,8 +1600,8 @@ function topbar(activeId){
       esc(tr("trips_tab"))+' <i>'+state.trips.length+'</i></button>'+
     /* the badge counts entries still waiting on Sin or Palm — the number
        whoever opens this tab is actually here to clear */
-    '<button class="tab" role="tab" data-board="hours" aria-selected="'+(activeId==="hours")+'" title="'+esc(tr("hrs_pending_h"))+'">'+
-      esc(tr("hrs_tab"))+' <i>'+allHourEntries().filter(function(x){ return !hoursApproved(x.e); }).length+'</i></button>';
+    (isManager() ? '<button class="tab" role="tab" data-board="hours" aria-selected="'+(activeId==="hours")+'" title="'+esc(tr("hrs_pending_h"))+'">'+
+      esc(tr("hrs_tab"))+' <i>'+allHourEntries().filter(function(x){ return !hoursApproved(x.e); }).length+'</i></button>' : '');
   var isBoard = VIRTUAL_TABS.indexOf(activeId) < 0;
   return '<div class="topbar">'+
     '<div class="brand"><div class="mark">SSt</div><div>'+
@@ -1640,10 +1663,11 @@ function goalsPanel(){
       goalBar(tr("goal_participants"), actualParticipants, g.participantsTarget, tr("unit_people")) +
       goalBar(tr("goal_workshops"), actualWorkshops, g.workshopsTarget, tr("unit_times")) +
     '</div>'+
-    (readOnly?"":'<button class="btn sm" id="btn-goals-edit" style="flex:0 0 auto">'+esc(tr("goals_edit_btn"))+'</button>')+
+    ((readOnly || !isManager())?"":'<button class="btn sm" id="btn-goals-edit" style="flex:0 0 auto">'+esc(tr("goals_edit_btn"))+'</button>')+
   '</div>';
 }
 function openGoalsEdit(){
+  if(!isManager()) return;
   var g = state.goals2027;
   modal(tr("goals_edit_title"),
     '<div class="field"><label>'+esc(tr("goal_sales_base_label"))+'</label><input type="number" min="0" id="f-goal-salesbase" value="'+(g.salesBase||0)+'"></div>'+
@@ -3200,7 +3224,7 @@ function openTask(id, sectId){
     '</div>'+
     '<div class="field"><label>'+esc(tr("hours_label"))+'</label><div id="f-hrs"></div>'+
       '<button type="button" class="btn sm" id="f-hrs-add" style="align-self:flex-start;margin-top:6px">'+esc(tr("hours_add"))+'</button>'+
-      '<span class="hint" style="margin-top:6px">'+esc(tr("hours_hint",{
+      '<span class="hint" style="margin-top:6px">'+esc(tr(isManager()?"hours_hint":"hours_hint_locked",{
         names: HOURS_APPROVERS.map(function(c){ return member(c).name; }).join(" / ")
       }))+'</span>'+
     '</div>'+
@@ -3230,6 +3254,7 @@ function openTask(id, sectId){
       if(!hrs[i]) return;
       hrs[i].pic = row.querySelector(".hr-pic").value;
       hrs[i].h = Math.max(0, parseFloat(row.querySelector(".hr-h").value) || 0);
+      if(!isManager()) return;           /* only managers can touch the sign-off */
       var by = row.querySelector(".hr-by").value;
       if(by !== hrs[i].by){
         /* stamp the moment it was signed off, and clear it if un-approved */
@@ -3255,7 +3280,7 @@ function openTask(id, sectId){
         '<select class="hr-pic">'+picSel+'</select>'+
         '<input class="hr-h" type="number" min="0" step="0.5" value="'+esc(String(Math.max(0, parseFloat(e.h)||0)))+'">'+
         '<span class="hrunit">'+esc(tr("hours_unit"))+'</span>'+
-        '<select class="hr-by">'+bySel+'</select>'+
+        '<select class="hr-by"'+(isManager()?'':' disabled')+'>'+bySel+'</select>'+
         '<button type="button" class="iconbtn" data-hr-del="'+i+'" title="'+esc(tr("hours_del"))+'">&#10005;</button>'+
         stamp+
       '</div>';

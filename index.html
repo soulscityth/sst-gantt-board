@@ -675,6 +675,15 @@ var SVAR = {
 var I18N = {
   th: {
     customers_tab:"ลูกค้า", team_btn:"ทีม",
+    backup_btn:"สำรองข้อมูล", backup_title:"สำรอง / กู้คืนข้อมูล",
+    backup_intro:"ทุกครั้งที่บันทึก ระบบจะเขียนทับข้อมูลทั้งบอร์ดในครั้งเดียว และ Firebase แบบฟรีไม่เก็บประวัติย้อนหลัง — ถ้าลบผิดหรือซิงก์พลาด จะกู้คืนได้ก็ต่อเมื่อมีไฟล์สำรองเท่านั้น",
+    backup_download:"ดาวน์โหลดไฟล์สำรอง", backup_download_hint:"ได้ไฟล์ .json ก้อนเดียว มีทุกบอร์ด ทุกงาน ลูกค้า ค่าเดินทาง ชั่วโมงทำงาน และข้อมูลการซิงก์ปฏิทิน — เก็บไว้ที่ปลอดภัย แนะนำทำทุกสัปดาห์",
+    backup_restore:"กู้คืนจากไฟล์", backup_restore_hint:"เลือกไฟล์สำรองที่เคยดาวน์โหลดไว้ ระบบจะโชว์ว่าข้างในมีอะไรก่อน ยังไม่เขียนทับจนกว่าจะกดยืนยัน",
+    backup_bad_file:"ไฟล์นี้ไม่ใช่ไฟล์สำรองของ SSt Gantt Board",
+    backup_confirm_title:"ยืนยันการกู้คืน",
+    backup_confirm_body:"ไฟล์สำรองจาก {date} — {boards} บอร์ด · {tasks} งาน · {customers} ลูกค้า · {trips} การเดินทาง",
+    backup_confirm_warn:"การกู้คืนจะเขียนทับข้อมูลปัจจุบันทั้งหมดสำหรับทุกคนในทีม และย้อนกลับไม่ได้ — ถ้ายังไม่แน่ใจ ดาวน์โหลดไฟล์สำรองของข้อมูลปัจจุบันไว้ก่อน",
+    backup_confirm_go:"เขียนทับและกู้คืน", backup_done:"กู้คืนเรียบร้อย",
     trips_tab:"ค่าเดินทาง", hrs_tab:"สรุปชั่วโมง",
     hrs_empty_title:"ยังไม่มีการบันทึกชั่วโมงในเดือนนี้",
     hrs_empty_body:"ชั่วโมงทำงานบันทึกในหน้ารายละเอียดของแต่ละงาน แล้วจะมาสรุปรวมรายคนที่นี่",
@@ -852,6 +861,15 @@ var I18N = {
   },
   en: {
     customers_tab:"Customers", team_btn:"Team",
+    backup_btn:"Backup", backup_title:"Backup / Restore",
+    backup_intro:"Every save overwrites the whole board in one write, and Firebase's free tier keeps no history \u2014 a mistaken delete or a bad sync can only be undone from a backup file.",
+    backup_download:"Download backup", backup_download_hint:"One .json file holding every board, task, customer, trip, logged hour and the calendar-sync ledger. Keep it somewhere safe; weekly is a good habit.",
+    backup_restore:"Restore from file", backup_restore_hint:"Pick a backup you downloaded earlier. You'll see what's in it first \u2014 nothing is overwritten until you confirm.",
+    backup_bad_file:"That file isn't an SSt Gantt Board backup.",
+    backup_confirm_title:"Confirm restore",
+    backup_confirm_body:"Backup from {date} \u2014 {boards} boards \u00b7 {tasks} tasks \u00b7 {customers} customers \u00b7 {trips} trips",
+    backup_confirm_warn:"Restoring replaces the current data for everyone on the team and cannot be undone \u2014 if in doubt, download a backup of the current data first.",
+    backup_confirm_go:"Overwrite and restore", backup_done:"Restored.",
     trips_tab:"Travel", hrs_tab:"Work Hours",
     hrs_empty_title:"No hours logged for this month yet",
     hrs_empty_body:"Hours are logged in each task's detail dialog, and totalled per person here.",
@@ -1451,6 +1469,7 @@ function topbar(activeId){
       '<a class="btn sm" id="btn-cilogo" target="_blank" rel="noopener noreferrer" href="'+esc(CI_LOGO_URL)+'">CI&amp;Logo</a>'+
       '<button class="btn sm" id="btn-lang" title="'+esc(tr("lang_toggle_title"))+'">'+(view.lang==="en"?"EN":"TH")+'</button>'+
       '<button class="btn sm" id="btn-team">'+esc(tr("team_btn"))+'</button>'+
+      '<button class="btn sm" id="btn-backup" title="'+esc(tr("backup_title"))+'">'+esc(tr("backup_btn"))+'</button>'+
       (isBoard?'<button class="btn sm" id="btn-gcal" title="'+esc(tr("gcal_btn_title"))+'">'+
         (gcalConnected()?'<i class="gdot" aria-hidden="true"></i>':'')+'Google Calendar</button>':'')+
       (isBoard?'<button class="btn sm" id="btn-ics" title="'+esc(tr("ics_btn_title"))+'">.ics</button>':'')+
@@ -2026,6 +2045,102 @@ function exportTripsCsv(){
   downloadBlob("trips-"+monthKey+".csv", csv, "text/csv;charset=utf-8");
 }
 
+/* ============ backup / restore ============ */
+/* The whole workspace lives in one Firebase node that every save replaces
+   outright, and the free tier keeps no history — so a mistaken delete, a
+   bad sync, or a teammate's stale cached tab writing old data back has no
+   undo. This is the undo: one file, everything in it.
+
+   The calendar-sync ledger (gcal) travels with the board data on purpose.
+   Restore the board without it and every task looks never-sent, so the next
+   sync recreates every event — the duplicate-calendar mess all over again. */
+var BACKUP_FORMAT = "sst-gantt-board-backup";
+function downloadBackup(){
+  var payload = {
+    format: BACKUP_FORMAT, v: 1, exportedAt: new Date().toISOString(),
+    board_state: state, gcal_sync: gcal
+  };
+  var stamp = ymd(todayUTC());
+  downloadBlob("sst-gantt-backup-"+stamp+".json", JSON.stringify(payload, null, 2), "application/json");
+}
+function backupSummary(b){
+  var st = b.board_state || {};
+  var tasks = 0;
+  (st.boards||[]).forEach(function(bd){ (bd.sections||[]).forEach(function(sec){ tasks += (sec.tasks||[]).length; }); });
+  return {
+    date: b.exportedAt ? fmtShort(String(b.exportedAt).slice(0,10)) : "—",
+    boards: (st.boards||[]).length, tasks: tasks,
+    customers: (st.customers||[]).length, trips: (st.trips||[]).length
+  };
+}
+function openBackup(){
+  modal(tr("backup_title"),
+    '<p style="margin:0;font-size:12.5px;color:var(--text-2)">'+esc(tr("backup_intro"))+'</p>'+
+    '<div class="field" style="margin-top:6px">'+
+      '<button type="button" class="btn primary" id="bk-dl" style="align-self:flex-start">'+esc(tr("backup_download"))+'</button>'+
+      '<span class="hint">'+esc(tr("backup_download_hint"))+'</span>'+
+    '</div>'+
+    (readOnly ? '' :
+    '<div class="field" style="margin-top:4px"><label>'+esc(tr("backup_restore"))+'</label>'+
+      '<input type="file" id="bk-file" accept="application/json,.json">'+
+      '<span class="hint">'+esc(tr("backup_restore_hint"))+'</span>'+
+      '<span class="hint" id="bk-err" style="display:none;color:var(--s-cancel)">'+esc(tr("backup_bad_file"))+'</span>'+
+    '</div>'),
+    '<div class="spacer"></div><button class="btn" data-x>'+esc(tr("close"))+'</button>'
+  );
+  document.getElementById("bk-dl").onclick = downloadBackup;
+  var inp = document.getElementById("bk-file");
+  if(inp) inp.onchange = function(){
+    var f = inp.files && inp.files[0];
+    if(!f) return;
+    var rd = new FileReader();
+    rd.onload = function(){
+      var b = null;
+      try{ b = JSON.parse(rd.result); }catch(e){}
+      /* accept a raw board_state dump too, so an older hand-saved copy of
+         the Firebase node still works — just without the sync ledger */
+      if(b && !b.format && b.boards) b = {format:BACKUP_FORMAT, board_state:b};
+      if(!b || b.format !== BACKUP_FORMAT || !b.board_state || !Array.isArray(b.board_state.boards)){
+        document.getElementById("bk-err").style.display = "block";
+        inp.value = "";
+        return;
+      }
+      confirmRestore(b);
+    };
+    rd.readAsText(f);
+  };
+}
+function confirmRestore(b){
+  var sm = backupSummary(b);
+  modal(tr("backup_confirm_title"),
+    '<p style="margin:0">'+esc(tr("backup_confirm_body", sm))+'</p>'+
+    '<span class="hint" style="color:var(--s-cancel)">'+esc(tr("backup_confirm_warn"))+'</span>',
+    '<button class="btn" id="bk-dl2">'+esc(tr("backup_download"))+'</button>'+
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn danger" id="m-ok">'+esc(tr("backup_confirm_go"))+'</button>'
+  );
+  /* one-click escape hatch: snapshot what's about to be overwritten */
+  document.getElementById("bk-dl2").onclick = downloadBackup;
+  document.getElementById("m-cancel").onclick = closeModal;
+  document.getElementById("m-ok").onclick = function(){ applyRestore(b); };
+}
+function applyRestore(b){
+  /* run the same normalisation a fresh load gets, so an older backup picks
+     up every migration (trip routes, hour lists, escaped ledger keys) */
+  state = normalizeState(JSON.parse(JSON.stringify(b.board_state)));
+  if(b.gcal_sync && typeof b.gcal_sync === "object"){
+    Object.keys(gcal).forEach(function(k){ delete gcal[k]; });
+    Object.assign(gcal, JSON.parse(JSON.stringify(b.gcal_sync)));
+    if(!gcal.map || typeof gcal.map !== "object") gcal.map = {};
+    migrateGcalMapKeys();
+    saveGcal();
+  }
+  var ids = state.boards.map(function(x){ return x.id; }).concat(VIRTUAL_TABS);
+  if(ids.indexOf(view.activeBoard) < 0) view.activeBoard = ids[0];
+  closeModal();
+  touch(); render();
+}
+
 /* ============ work-hours summary ============ */
 /* Every hour entry in the workspace, flattened with the task, project and
    board it hangs off. Hours are recorded on tasks scattered across boards,
@@ -2488,6 +2603,8 @@ function wire(b, r, dayW){
     document.documentElement.lang = view.lang;
     saveView(); render();
   };
+  var bbk = document.getElementById("btn-backup");
+  if(bbk) bbk.onclick = openBackup;
   var bteam = document.getElementById("btn-team");
   if(bteam) bteam.onclick = openTeam;
   var bcsv = document.getElementById("btn-csv");

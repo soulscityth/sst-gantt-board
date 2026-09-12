@@ -1301,8 +1301,6 @@ function saveView(){
 }
 
 /* ============ firebase ============ */
-var FB_PATH = "board_state";
-var fbDb = null;
 function fbConfigured(){
   var c = window.FIREBASE_CONFIG;
   return !!(c && c.apiKey && c.apiKey.indexOf("YOUR_API_KEY") < 0 &&
@@ -1315,6 +1313,489 @@ function initFirebase(){
     return firebase.database();
   }catch(e){ return null; }
 }
+/* ============ storage (v2: keyed records) ============
+   The board used to be one object, rewritten in full on every save. That
+   made two things impossible: telling Firebase "only a manager may change an
+   approval" (tasks lived in arrays, so a task's address changed whenever
+   anything was reordered), and two people saving within a second of each
+   other not overwriting one another.
+
+   Now every task, project, hour entry, trip and customer is its own record
+   at a permanent path, and a save writes only the records that differ from
+   what was last seen remotely — one atomic multi-path update. Realtime
+   arrives per record too, so a teammate's edit to one task downloads one
+   task, not the board.
+
+   In memory the app still works with the nested `state` shape (boards →
+   sections → tasks) so the UI code is untouched; this module is the only
+   place that knows about the flat layout. Object identity is preserved
+   through remote updates (records are patched in place), so a dialog
+   holding a task while a teammate edits it keeps working.
+
+   Old data under `board_state` is never written again but is left in place
+   as a fallback; the first load on this version migrates it into `v2`. */
+var FB_ROOT = "v2";
+var LEGACY_PATH = "board_state";
+var fbDb = null;
+
+/* what we believe the server holds, per record path -> JSON string. The
+   save diff is computed against this; incoming events update it. */
+var remoteRecs = {};
+/* writes in flight, so their own echo can be told apart from a teammate's
+   change (Firebase raises the local event before the server acknowledges) */
+var pendingWrites = {};
+/* months of trips currently loaded, and whether the archive is */
+var tripsLoaded = {};
+var tripsIndex = {};
+var archiveLoaded = false;
+var listenersOn = false;
+
+function recPath(){ return FB_ROOT + "/" + Array.prototype.slice.call(arguments).join("/"); }
+function stripRoot(p){ return p.indexOf(FB_ROOT + "/") === 0 ? p.slice(FB_ROOT.length + 1) : p; }
+function tripMonthOf(t){ return tripMonthKey(t.date) || "undated"; }
+/* One canonical JSON form for diffing and echo detection, mirroring what the
+   database actually stores: Firebase drops empty arrays/objects and nulls,
+   and hands keys back in sorted order. Without this an untouched record
+   never string-matches its own snapshot — the first save after a load would
+   rewrite every task. */
+function canon(v){
+  if(Array.isArray(v)){
+    var a = [];
+    v.forEach(function(x){ var c = canon(x); if(c !== undefined) a.push(c); });
+    return a.length ? a : undefined;
+  }
+  if(v && typeof v === "object"){
+    var o = {}, any = false;
+    Object.keys(v).sort().forEach(function(k){ var c = canon(v[k]); if(c !== undefined){ o[k] = c; any = true; } });
+    return any ? o : undefined;
+  }
+  if(v === null || v === undefined) return undefined;
+  return v;
+}
+function recJson(obj){ var c = canon(obj); return JSON.stringify(c === undefined ? null : c); }
+function copyOmit(obj, omit){
+  var out = {};
+  Object.keys(obj).forEach(function(k){ if(omit.indexOf(k) < 0 && obj[k] !== undefined) out[k] = obj[k]; });
+  return out;
+}
+
+/* ---- nested state -> flat records ---- */
+function flattenState(st){
+  var recs = {};
+  var mgr = isManager();
+  recs[recPath("meta")]  = {v:2, activeBoard: st.activeBoard || "", dayW: st.dayW || 24};
+  recs[recPath("goals")] = st.goals2027 || {};
+  (st.team||[]).forEach(function(m, i){ recs[recPath("team", m.code)] = Object.assign(copyOmit(m, []), {order:i}); });
+  (st.boards||[]).forEach(function(b, bi){
+    recs[recPath("boards", b.id)] = {id:b.id, name:b.name||"", sub:b.sub||"", order:bi};
+    (b.sections||[]).forEach(function(s, si){
+      recs[recPath("sections", s.id)] = Object.assign(copyOmit(s, ["tasks"]), {boardId:b.id, order:si});
+      (s.tasks||[]).forEach(function(t, ti){
+        /* A task that is Done and a month past due is history: it moves out
+           of the live set so nobody downloads it on every change, and comes
+           back only when someone asks for the archive.
+
+           Only a manager's save moves records across that boundary. The
+           database rules lock an approved hour entry to managers, so a
+           non-manager's save that tried to relocate one would be refused
+           wholesale and stick retrying forever. For everyone else a record
+           stays wherever the server currently has it. */
+        var known = remoteRecs[recPath("archive/tasks", t.id)] !== undefined;
+        var arch = mgr ? isOldDone(t) : known;
+        recs[recPath(arch ? "archive/tasks" : "tasks", t.id)] = Object.assign(copyOmit(t, ["hours"]), {sectionId:s.id, order:ti});
+        (t.hours||[]).forEach(function(e, hi){
+          recs[recPath(arch ? "archive/hours" : "hours", e.id)] = Object.assign(copyOmit(e, []), {taskId:t.id, order:hi});
+        });
+      });
+    });
+  });
+  (st.customers||[]).forEach(function(c, i){ recs[recPath("customers", c.id)] = Object.assign(copyOmit(c, []), {order:i}); });
+  (st.trips||[]).forEach(function(t){
+    var mk = tripMonthOf(t);
+    recs[recPath("trips", mk, t.id)] = copyOmit(t, []);
+    recs[recPath("trips_months", mk)] = true;
+  });
+  return recs;
+}
+
+/* ---- flat records -> nested state ---- */
+function byOrder(a, b){ return ((a.order||0) - (b.order||0)); }
+function assembleState(recs){
+  var st = {v:2, activeBoard:"", dayW:24, team:[], boards:[], customers:[], trips:[], goals2027:{}};
+  var meta = recs[recPath("meta")] || {};
+  st.activeBoard = meta.activeBoard || ""; st.dayW = meta.dayW || 24;
+  st.goals2027 = recs[recPath("goals")] || {};
+  var groups = {team:[], boards:[], sections:[], tasks:[], hours:[], customers:[], trips:[]};
+  Object.keys(recs).forEach(function(p){
+    var parts = stripRoot(p).split("/");
+    var v = recs[p];
+    if(parts[0]==="archive") parts.shift();           /* archived records read back the same */
+    if(parts[0]==="trips" && parts.length===3) groups.trips.push(v);
+    else if(groups[parts[0]] && parts.length===2) groups[parts[0]].push(v);
+  });
+  st.team = groups.team.sort(byOrder);
+  var secByBoard = {}, taskBySect = {}, hoursByTask = {};
+  groups.sections.forEach(function(s){ (secByBoard[s.boardId] = secByBoard[s.boardId] || []).push(s); });
+  groups.tasks.forEach(function(t){ (taskBySect[t.sectionId] = taskBySect[t.sectionId] || []).push(t); });
+  groups.hours.forEach(function(e){ (hoursByTask[e.taskId] = hoursByTask[e.taskId] || []).push(e); });
+  st.boards = groups.boards.sort(byOrder).map(function(b){
+    b.sections = (secByBoard[b.id] || []).sort(byOrder).map(function(s){
+      s.tasks = (taskBySect[s.id] || []).sort(byOrder).map(function(t){
+        t.hours = (hoursByTask[t.id] || []).sort(byOrder);
+        return t;
+      });
+      return s;
+    });
+    return b;
+  });
+  st.customers = groups.customers.sort(byOrder);
+  st.trips = groups.trips;
+  return normalizeState(st);
+}
+
+/* ---- loading ---- */
+function readOnce(path){
+  return new Promise(function(resolve){
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done=true; resolve({ok:false}); } }, 6000);
+    fbDb.ref(path).once("value").then(function(snap){
+      if(!done){ done=true; clearTimeout(timer); resolve({ok:true, value:snap.val()}); }
+    }, function(e){
+      if(done) return;
+      done = true; clearTimeout(timer);
+      resolve({ok:false, denied: /permission/i.test(String((e && (e.code||e.message)) || ""))});
+    });
+  });
+}
+/* pull one collection into remoteRecs; returns false on a timeout so the
+   caller can decide whether to trust what it has */
+async function loadCollection(sub){
+  var res = await readOnce(recPath(sub));
+  if(!res.ok) return false;
+  var v = res.value || {};
+  Object.keys(v).forEach(function(k){ remoteRecs[recPath(sub, k)] = recJson(v[k]); });
+  return true;
+}
+async function loadSingle(sub){
+  var res = await readOnce(recPath(sub));
+  if(!res.ok) return false;
+  if(res.value != null) remoteRecs[recPath(sub)] = recJson(res.value);
+  return true;
+}
+function recsFromRemote(){
+  var out = {};
+  Object.keys(remoteRecs).forEach(function(p){ out[p] = JSON.parse(remoteRecs[p]); });
+  return out;
+}
+/* everything the board needs on every visit. Trips load per month and the
+   archive on demand — those are what grow without bound. */
+async function loadCore(){
+  var ok = true;
+  ok = (await loadSingle("meta")) && ok;
+  ok = (await loadSingle("goals")) && ok;
+  var cols = ["team","boards","sections","tasks","hours","customers","trips_months"];
+  for(var i=0;i<cols.length;i++) ok = (await loadCollection(cols[i])) && ok;
+  tripsIndex = {};
+  Object.keys(remoteRecs).forEach(function(p){
+    var parts = stripRoot(p).split("/");
+    if(parts[0]==="trips_months") tripsIndex[parts[1]] = true;
+  });
+  ok = (await ensureTripsMonth(curMonthKey())) && ok;
+  ok = (await ensureTripsMonth("undated")) && ok;
+  return ok;
+}
+async function ensureTripsMonth(mk){
+  if(!fbDb || tripsLoaded[mk]) return true;
+  var ok = await loadCollection("trips/"+mk);
+  if(!ok) return false;
+  tripsLoaded[mk] = true;
+  if(listenersOn) listenCollection("trips/"+mk);
+  /* fold the newly loaded month into the live state without disturbing
+     anything already there */
+  if(state){
+    Object.keys(remoteRecs).forEach(function(p){
+      var parts = stripRoot(p).split("/");
+      if(parts[0]==="trips" && parts[1]===mk && parts.length===3) patchState(p, JSON.parse(remoteRecs[p]));
+    });
+    /* the month index self-heals: an indexed month that turns out empty is
+       dropped so it stops appearing in the picker */
+    var any = Object.keys(remoteRecs).some(function(p){ var q = stripRoot(p).split("/"); return q[0]==="trips" && q[1]===mk && q.length===3; });
+    if(!any && tripsIndex[mk] && mk !== curMonthKey()){
+      delete tripsIndex[mk];
+      delete remoteRecs[recPath("trips_months", mk)];
+      try{ fbDb.ref(recPath("trips_months", mk)).remove(); }catch(e){}
+    }
+  }
+  return true;
+}
+async function ensureAllTripMonths(){
+  var months = Object.keys(tripsIndex);
+  for(var i=0;i<months.length;i++) await ensureTripsMonth(months[i]);
+}
+async function ensureArchive(){
+  if(!fbDb || archiveLoaded) return true;
+  var ok = (await loadCollection("archive/tasks")) && (await loadCollection("archive/hours"));
+  if(!ok) return false;
+  archiveLoaded = true;
+  if(listenersOn){ listenCollection("archive/tasks"); listenCollection("archive/hours"); }
+  if(state){
+    /* tasks before hours, so each entry finds its task */
+    ["tasks","hours"].forEach(function(kind){
+      Object.keys(remoteRecs).forEach(function(p){
+        var parts = stripRoot(p).split("/");
+        if(parts[0]==="archive" && parts[1]===kind) patchState(p, JSON.parse(remoteRecs[p]));
+      });
+    });
+  }
+  return true;
+}
+
+/* ---- realtime ---- */
+function listenCollection(sub){
+  var ref = fbDb.ref(recPath(sub));
+  function on(snap){ applyRemote(recPath(sub, snap.key), snap.val()); }
+  ref.on("child_added", on, function(){ setSave("error"); });
+  ref.on("child_changed", on);
+  ref.on("child_removed", function(snap){ applyRemote(recPath(sub, snap.key), null); });
+}
+function listenSingle(sub){
+  fbDb.ref(recPath(sub)).on("value", function(snap){ applyRemote(recPath(sub), snap.val()); }, function(){ setSave("error"); });
+}
+function subscribeRealtime(){
+  if(!fbDb || listenersOn) return;
+  listenersOn = true;
+  listenSingle("meta"); listenSingle("goals");
+  ["team","boards","sections","tasks","hours","customers","trips_months"].forEach(listenCollection);
+  Object.keys(tripsLoaded).forEach(function(mk){ listenCollection("trips/"+mk); });
+  if(archiveLoaded){ listenCollection("archive/tasks"); listenCollection("archive/hours"); }
+}
+
+/* update-in-place helpers: the existing object is kept (dialogs may hold it)
+   and its fields are brought in line with the record */
+function upsertRecord(arr, key, obj, protectedKeys){
+  for(var i=0;i<arr.length;i++){
+    if(arr[i][key] === obj[key]){
+      var ex = arr[i];
+      Object.keys(ex).forEach(function(k){ if(protectedKeys.indexOf(k) < 0 && !(k in obj)) delete ex[k]; });
+      Object.keys(obj).forEach(function(k){ if(protectedKeys.indexOf(k) < 0) ex[k] = obj[k]; });
+      return ex;
+    }
+  }
+  var fresh = Object.assign({}, obj);
+  protectedKeys.forEach(function(k){ if(!(k in fresh)) fresh[k] = []; });
+  arr.push(fresh);
+  return fresh;
+}
+function removeRecord(arr, key, id){
+  for(var i=0;i<arr.length;i++) if(arr[i][key] === id){ arr.splice(i,1); return true; }
+  return false;
+}
+function findTaskAll(id){
+  for(var b=0;b<state.boards.length;b++) for(var s=0;s<state.boards[b].sections.length;s++){
+    var ts = state.boards[b].sections[s].tasks;
+    for(var t=0;t<ts.length;t++) if(ts[t].id===id) return {task:ts[t], sect:state.boards[b].sections[s], board:state.boards[b]};
+  }
+  return null;
+}
+function findSectionAll(id){
+  for(var b=0;b<state.boards.length;b++) for(var s=0;s<state.boards[b].sections.length;s++)
+    if(state.boards[b].sections[s].id===id) return {sect:state.boards[b].sections[s], board:state.boards[b]};
+  return null;
+}
+
+/* render coalescing: a reorder arrives as several records in a burst, and
+   one redraw is enough. A change confined to a task's own fields redraws
+   only that row; anything structural redraws the board. */
+var pendingRender = null;
+function queueRender(full, taskId){
+  if(!pendingRender) pendingRender = {full:false, tasks:{}};
+  if(full) pendingRender.full = true; else if(taskId) pendingRender.tasks[taskId] = true;
+  if(pendingRender.timer) return;
+  pendingRender.timer = setTimeout(function(){
+    var pr = pendingRender; pendingRender = null;
+    if(pr.full || !patchTaskRows(Object.keys(pr.tasks))) render();
+  }, 30);
+}
+/* returns false if any row couldn't be patched in place, so the caller
+   falls back to a full render */
+function patchTaskRows(ids){
+  if(!ids.length) return true;
+  if(VIRTUAL_TABS.indexOf(view.activeBoard) >= 0) return false;
+  var b = board(), r = rangeOf(b), dayW = view.dayW || 24, trackW = r.days * dayW;
+  var bg = trackBg(r, dayW);
+  for(var i=0;i<ids.length;i++){
+    var f = findTaskAll(ids[i]);
+    if(!f || f.board.id !== b.id) return false;
+    var el = document.querySelector('.row[data-task="'+ids[i]+'"]');
+    if(!el) return false;
+    /* visibility may have changed (status filter, old-done) — let the full
+       pass decide rather than patch a row that should now be hidden */
+    if(!visible(f.task)) return false;
+    el.outerHTML = taskRow(f.task, f.sect, r, dayW, trackW, bg);
+  }
+  /* the toolbar's counts read status, so refresh it alongside */
+  var tb = document.querySelector(".toolbar");
+  if(tb){ var tmp = document.createElement("div"); tmp.innerHTML = toolbar(b); if(tmp.firstElementChild) tb.replaceWith(tmp.firstElementChild); }
+  wire(b, r, dayW);
+  return true;
+}
+
+/* apply one record from the server to the in-memory state */
+function applyRemote(path, obj){
+  var json = recJson(obj);
+  if(pendingWrites[path] !== undefined && pendingWrites[path] === json){
+    /* our own write coming back */
+    delete pendingWrites[path];
+    if(obj === null) delete remoteRecs[path]; else remoteRecs[path] = json;
+    return;
+  }
+  if((remoteRecs[path] || null) === (obj === null ? null : json)) return;   /* nothing new */
+  if(obj === null) delete remoteRecs[path]; else remoteRecs[path] = json;
+  if(!state) return;
+  var how = patchState(path, obj);
+  queueRender(how.full, how.rowOnly);
+}
+/* fold one record into the nested state, regardless of bookkeeping — used
+   both for live events and for on-demand loads (archive, extra months),
+   where remoteRecs already holds the record and no change check applies */
+function patchState(path, obj){
+  var parts = stripRoot(path).split("/");
+  var coll = parts[0];
+  if(coll === "archive"){ parts.shift(); coll = parts[0]; }
+  var id = parts[1];
+  var full = true, rowOnly = null;
+
+  if(coll === "meta" && obj){ state.activeBoard = obj.activeBoard || ""; state.dayW = obj.dayW || 24; full = false; }
+  else if(coll === "goals"){
+    Object.keys(state.goals2027).forEach(function(k){ delete state.goals2027[k]; });
+    Object.assign(state.goals2027, obj || {});
+    normalizeState(state);
+  }
+  else if(coll === "team"){
+    if(obj) upsertRecord(state.team, "code", obj, []); else removeRecord(state.team, "code", id);
+    state.team.sort(byOrder);
+  }
+  else if(coll === "boards"){
+    if(obj){ var bb = upsertRecord(state.boards, "id", obj, ["sections"]); if(!bb.sections) bb.sections = []; }
+    else removeRecord(state.boards, "id", id);
+    state.boards.sort(byOrder);
+  }
+  else if(coll === "sections"){
+    var fs = findSectionAll(id);
+    if(!obj){ if(fs) removeRecord(fs.board.sections, "id", id); }
+    else{
+      var tb2 = state.boards.filter(function(x){ return x.id===obj.boardId; })[0];
+      if(fs && tb2 && fs.board !== tb2){
+        removeRecord(fs.board.sections, "id", id);
+        tb2.sections.push(fs.sect);
+        fs = {sect:fs.sect, board:tb2};
+      }
+      if(fs){ upsertRecord(fs.board.sections, "id", obj, ["tasks"]); fs.board.sections.sort(byOrder); }
+      else if(tb2){ var ns = upsertRecord(tb2.sections, "id", obj, ["tasks"]); if(!ns.tasks) ns.tasks = []; tb2.sections.sort(byOrder); }
+    }
+  }
+  else if(coll === "tasks"){
+    var ft = findTaskAll(id);
+    if(!obj){ if(ft) removeRecord(ft.sect.tasks, "id", id); }
+    else{
+      var ts2 = findSectionAll(obj.sectionId);
+      if(ft && ts2 && ft.sect !== ts2.sect){
+        /* moved to another project: carry the same object across so a
+           dialog someone has open on it keeps pointing at the live task */
+        removeRecord(ft.sect.tasks, "id", id);
+        ts2.sect.tasks.push(ft.task);
+        ft = {task:ft.task, sect:ts2.sect, board:ts2.board};
+      }
+      if(ft){
+        var before = ft.task.order;
+        upsertRecord(ft.sect.tasks, "id", obj, ["hours"]);
+        ft.sect.tasks.sort(byOrder);
+        /* same section, same slot: only this row needs redrawing */
+        if(before === obj.order){ full = false; rowOnly = id; }
+      }else if(ts2){
+        var nt = upsertRecord(ts2.sect.tasks, "id", obj, ["hours"]); if(!nt.hours) nt.hours = [];
+        ts2.sect.tasks.sort(byOrder);
+      }
+      normalizeState(state);
+    }
+  }
+  else if(coll === "hours"){
+    if(!obj){
+      /* the record is gone; find whichever task still holds the entry */
+      state.boards.forEach(function(b){ b.sections.forEach(function(s){ s.tasks.forEach(function(t){
+        if(removeRecord(t.hours, "id", id)) rowOnly = t.id;
+      }); }); });
+    }else{
+      var ht = findTaskAll(obj.taskId);
+      if(ht){ upsertRecord(ht.task.hours, "id", obj, []); ht.task.hours.sort(byOrder); rowOnly = ht.task.id; }
+    }
+    full = !rowOnly;
+  }
+  else if(coll === "customers"){
+    if(obj) upsertRecord(state.customers, "id", obj, []); else removeRecord(state.customers, "id", id);
+    state.customers.sort(byOrder);
+  }
+  else if(coll === "trips" && parts.length === 3){
+    if(obj) upsertRecord(state.trips, "id", obj, []); else removeRecord(state.trips, "id", parts[2]);
+    normalizeState(state);
+  }
+  else if(coll === "trips_months"){
+    if(obj) tripsIndex[id] = true; else delete tripsIndex[id];
+  }
+  return {full:full, rowOnly:rowOnly};
+}
+
+/* ---- saving ---- */
+function touch(){
+  setSave("unsaved");
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 900);
+}
+async function save(){
+  if(!fbDb){ setSave("unconfigured"); return; }
+  if(!state) return;                    /* a stale timer after a reload/restore */
+  var recs = flattenState(state);
+  var updates = {}, count = 0;
+  Object.keys(recs).forEach(function(p){
+    var j = recJson(recs[p]);
+    if(remoteRecs[p] !== j && pendingWrites[p] !== j){ updates[p] = recs[p]; count++; }
+  });
+  /* anything we last saw remotely that the state no longer produces is gone —
+     but only within what this client has actually loaded. A month of trips
+     that was never fetched isn't in remoteRecs, so it can't be deleted here. */
+  Object.keys(remoteRecs).forEach(function(p){
+    if(!(p in recs) && stripRoot(p).split("/")[0] !== "trips_months"){ updates[p] = null; count++; }
+  });
+  if(!count){ setSave("saved"); return; }
+  setSave("saving");
+  Object.keys(updates).forEach(function(p){ pendingWrites[p] = recJson(updates[p]); });
+  try{
+    await fbDb.ref().update(updates);
+    Object.keys(updates).forEach(function(p){
+      if(pendingWrites[p] === undefined) return;          /* echo already handled it */
+      delete pendingWrites[p];
+      if(updates[p] === null) delete remoteRecs[p]; else remoteRecs[p] = recJson(updates[p]);
+    });
+    setSave("saved");
+  }catch(e){
+    Object.keys(updates).forEach(function(p){ delete pendingWrites[p]; });
+    setSave("error");
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(save, 5000);
+  }
+}
+
+/* ---- first run on this version: bring the old single-blob data across ---- */
+async function migrateLegacy(){
+  var res = await readOnce(LEGACY_PATH);
+  if(!res.ok || !res.value || !Object.keys(res.value).length) return false;
+  state = normalizeState(res.value);
+  /* remoteRecs is empty at this point, so the save writes every record.
+     board_state itself is left untouched as the fallback. */
+  await save();
+  return true;
+}
+
 /* Firebase Realtime Database drops empty arrays/objects entirely (a section
    with zero tasks comes back as undefined, not []) — patch that back in
    wherever state is loaded, so the rest of the app can assume arrays exist. */
@@ -1352,6 +1833,10 @@ function normalizeState(s){
       /* logged work hours, one entry per person per stint */
       sec.tasks.forEach(function(t){
         if(!Array.isArray(t.hours)) t.hours = [];
+        /* Firebase drops empty arrays/objects on the way back */
+        if(!Array.isArray(t.pic)) t.pic = [];
+        if(!t.proposal || typeof t.proposal !== "object") t.proposal = {};
+        if(!t.d2027 || typeof t.d2027 !== "object") t.d2027 = {};
       });
       sec.color = sec.color || "";
       sec.customerId = sec.customerId || "";
@@ -1367,7 +1852,8 @@ function normalizeState(s){
      the new one on the way in — this runs over the remote snapshot too, so
      a client still on the previous version can't reintroduce the old shape. */
   s.trips.forEach(function(t){
-    if(!t.routes || !t.routes.length){
+    if(!Array.isArray(t.routes)) t.routes = [];
+    if(!t.routes.length){
       t.routes = [{from: t.from || "", to: t.to || "", km: Math.max(0, parseFloat(t.km) || 0)}];
     }
     delete t.from; delete t.to; delete t.km;
@@ -1381,70 +1867,6 @@ function normalizeState(s){
   if(s.goals2027.workshopsBase == null) s.goals2027.workshopsBase = 0;
   return s;
 }
-/* Rebuilds localArr to match remoteArr's content/order, but for any item that
-   already exists locally (matched by key), mutates that SAME object in place
-   instead of swapping in the remote's plain object. This preserves object
-   identity for anything already referenced elsewhere (e.g. a task/section a
-   modal has open) so a realtime update landing mid-edit can't orphan it. */
-function mergeByKey(localArr, remoteArr, key, excludeKey){
-  key = key || "id";
-  var localByKey = {};
-  localArr.forEach(function(item){ localByKey[item[key]] = item; });
-  var result = remoteArr.map(function(r){
-    var existing = localByKey[r[key]];
-    if(existing){
-      Object.keys(existing).forEach(function(k){ if(k!==excludeKey && !(k in r)) delete existing[k]; });
-      Object.keys(r).forEach(function(k){ if(k!==excludeKey) existing[k] = r[k]; });
-      return existing;
-    }
-    return r;
-  });
-  localArr.length = 0;
-  Array.prototype.push.apply(localArr, result);
-}
-/* merges a freshly-arrived remote snapshot into the existing `state` object
-   IN PLACE (rather than `state = remote`), so open modals holding direct
-   references to a board/section/task/customer object keep working correctly
-   even if a save-echo or a teammate's edit arrives while they're mid-edit.
-   excludeKey on the nested-collection merges keeps mergeByKey's own
-   Object.assign from clobbering the child array reference (sections/tasks)
-   before the per-level loop below gets a chance to merge it separately. */
-function mergeState(remote){
-  remote = normalizeState(remote);
-  if(!state){ state = remote; return; }
-  mergeByKey(state.boards, remote.boards, "id", "sections");
-  state.boards.forEach(function(b, bi){
-    var rb = remote.boards[bi];
-    if(!rb) return;
-    mergeByKey(b.sections, rb.sections, "id", "tasks");
-    b.sections.forEach(function(s, si){
-      var rs = rb.sections[si];
-      if(!rs) return;
-      mergeByKey(s.tasks, rs.tasks, "id");
-    });
-  });
-  mergeByKey(state.team, remote.team, "code");
-  mergeByKey(state.customers, remote.customers, "id");
-  mergeByKey(state.trips, remote.trips, "id");
-  state.dayW = remote.dayW;
-  state.goals2027 = remote.goals2027;
-  state.activeBoard = remote.activeBoard;
-  state.v = remote.v;
-}
-function subscribeRealtime(){
-  if(!fbDb) return;
-  fbDb.ref(FB_PATH).on("value", function(snap){
-    var v = snap.val();
-    if(v && Object.keys(v).length){
-      mergeState(v);
-      render();
-    }
-    setSave("saved");
-  }, function(){
-    setSave("error");
-  });
-}
-
 function seed(){
   return JSON.parse(document.getElementById("seed-state").textContent);
 }
@@ -1469,24 +1891,6 @@ function setSave(s){
   el.setAttribute("data-s", s);
   el.querySelector("span").textContent = txt;
 }
-function touch(){
-  setSave("unsaved");
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(save, 900);
-}
-async function save(){
-  if(!fbDb){ setSave("unconfigured"); return; }
-  setSave("saving");
-  try{
-    await fbDb.ref(FB_PATH).set(state);
-    setSave("saved");
-  }catch(e){
-    setSave("error");
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(save, 5000);
-  }
-}
-
 /* ============ range ============ */
 /* Fixed rolling window: last month through three months ahead, rather than
    stretching to fit whatever the furthest-out task happens to be. That kept
@@ -1528,6 +1932,7 @@ function isProjectDone(s){
 
 /* ============ render ============ */
 function render(){
+  if(!state) return;                    /* nothing loaded yet (or a stale timer) */
   if(applyAutoStatuses()) touch();
   document.documentElement.lang = view.lang;
   document.documentElement.style.setProperty("--cols", colsDef());
@@ -1541,6 +1946,8 @@ function render(){
     return;
   }
   if(view.activeBoard === "trips"){
+    var tm = activeTripMonth();
+    if(!tripsLoaded[tm] && fbDb){ ensureTripsMonth(tm).then(render); }
     app.innerHTML = topbar("trips") + goalsPanel() + tripsView();
     wire(null, null, null);
     wireTrips();
@@ -1551,6 +1958,8 @@ function render(){
     saveView();
   }
   if(view.activeBoard === "hours"){
+    /* archived tasks' hours belong in past months too */
+    if(!archiveLoaded && fbDb){ ensureArchive().then(render); }
     app.innerHTML = topbar("hours") + goalsPanel() + hoursView();
     wire(null, null, null);
     wireHoursBoard();
@@ -1558,6 +1967,7 @@ function render(){
   }
 
   var b = board();
+  if(view.showOldDone && !archiveLoaded && fbDb){ ensureArchive().then(render); }
   var r = rangeOf(b);
   var dayW = view.dayW || 24;
   var trackW = r.days * dayW;
@@ -1597,7 +2007,7 @@ function topbar(activeId){
     '<button class="tab" role="tab" data-board="customers" aria-selected="'+(activeId==="customers")+'">'+
       esc(tr("customers_tab"))+' <i>'+state.customers.length+'</i></button>'+
     '<button class="tab" role="tab" data-board="trips" aria-selected="'+(activeId==="trips")+'">'+
-      esc(tr("trips_tab"))+' <i>'+state.trips.length+'</i></button>'+
+      esc(tr("trips_tab"))+' <i>'+tripsInMonth(curMonthKey()).length+'</i></button>'+
     /* the badge counts entries still waiting on Sin or Palm — the number
        whoever opens this tab is actually here to clear */
     (isManager() ? '<button class="tab" role="tab" data-board="hours" aria-selected="'+(activeId==="hours")+'" title="'+esc(tr("hrs_pending_h"))+'">'+
@@ -1832,7 +2242,10 @@ function confirmDeleteCustomer(id){
 function tripMonthKey(dateStr){ return String(dateStr||"").slice(0,7); }
 function curMonthKey(){ var d = todayUTC(); return d.getUTCFullYear()+"-"+pad2(d.getUTCMonth()+1); }
 function tripMonths(){
+  /* the picker lists every month that has trips on the server, whether or
+     not it has been fetched yet — months load on demand when chosen */
   var seen = {};
+  Object.keys(tripsIndex).forEach(function(k){ if(k !== "undated") seen[k] = 1; });
   state.trips.forEach(function(t){ var k = tripMonthKey(t.date); if(k) seen[k] = 1; });
   seen[curMonthKey()] = 1;
   return Object.keys(seen).sort().reverse();
@@ -1985,7 +2398,10 @@ function tripsView(){
 }
 function wireTrips(){
   var sel = document.getElementById("trip-month");
-  if(sel) sel.onchange = function(){ view.tripMonth = sel.value; saveView(); render(); };
+  if(sel) sel.onchange = function(){
+    view.tripMonth = sel.value; saveView();
+    ensureTripsMonth(sel.value).then(render);
+  };
   var add = document.getElementById("btn-trip-add");
   if(add) add.onclick = function(){ openTrip(null); };
   var csv = document.getElementById("btn-trip-csv");
@@ -2201,7 +2617,10 @@ function exportTripsCsv(){
    Restore the board without it and every task looks never-sent, so the next
    sync recreates every event — the duplicate-calendar mess all over again. */
 var BACKUP_FORMAT = "sst-gantt-board-backup";
-function downloadBackup(){
+async function downloadBackup(){
+  /* the live state only holds what this client has fetched; a backup has
+     to be everything, so pull the archive and every month of trips first */
+  if(fbDb){ await ensureArchive(); await ensureAllTripMonths(); }
   var payload = {
     format: BACKUP_FORMAT, v: 1, exportedAt: new Date().toISOString(),
     board_state: state, gcal_sync: gcal
@@ -2270,7 +2689,11 @@ function confirmRestore(b){
   document.getElementById("m-cancel").onclick = closeModal;
   document.getElementById("m-ok").onclick = function(){ applyRestore(b); };
 }
-function applyRestore(b){
+async function applyRestore(b){
+  /* load everything first so the save's diff can also delete records the
+     backup doesn't contain — otherwise unfetched months and archived tasks
+     would survive the restore */
+  if(fbDb){ await ensureArchive(); await ensureAllTripMonths(); }
   /* run the same normalisation a fresh load gets, so an older backup picks
      up every migration (trip routes, hour lists, escaped ledger keys) */
   state = normalizeState(JSON.parse(JSON.stringify(b.board_state)));
@@ -2731,7 +3154,10 @@ function wire(b, r, dayW){
   if(bt) bt.onclick = function(){ jumpToday(true); };
 
   var bod = document.getElementById("btn-show-olddone");
-  if(bod) bod.onclick = function(){ view.showOldDone = !view.showOldDone; saveView(); render(); };
+  if(bod) bod.onclick = function(){
+    view.showOldDone = !view.showOldDone; saveView();
+    if(view.showOldDone && !archiveLoaded && fbDb) ensureArchive().then(render); else render();
+  };
   var bdp = document.getElementById("btn-show-doneproj");
   if(bdp) bdp.onclick = function(){ view.showDoneProjects = !view.showDoneProjects; saveView(); render(); };
 
@@ -4637,34 +5063,6 @@ function confirmSignOut(){
     firebase.auth().signOut().then(function(){ location.reload(); });
   };
 }
-/* the initial read has to tell "not allowed" apart from "slow network":
-   the former gets its own screen, the latter falls through to the cached
-   copy exactly as before */
-function readBoardOnce(){
-  return new Promise(function(resolve){
-    var done = false;
-    var timer = setTimeout(function(){ if(!done){ done=true; resolve({ok:false}); } }, 4000);
-    fbDb.ref(FB_PATH).once("value").then(function(snap){
-      if(!done){ done=true; clearTimeout(timer); resolve({ok:true, value:snap}); }
-    }, function(e){
-      if(done) return;
-      done = true; clearTimeout(timer);
-      var code = String((e && (e.code || e.message)) || "");
-      resolve({ok:false, denied: /permission/i.test(code)});
-    });
-  });
-}
-
-function withTimeout(promise, ms){
-  return new Promise(function(resolve){
-    var done = false;
-    var timer = setTimeout(function(){ if(!done){ done=true; resolve({ok:false}); } }, ms);
-    promise.then(function(v){ if(!done){ done=true; clearTimeout(timer); resolve({ok:true, value:v}); } },
-                 function(){ if(!done){ done=true; clearTimeout(timer); resolve({ok:false}); } });
-  });
-}
-
-/* ============ boot ============ */
 async function boot(){
   loadView();
   loadGcal();
@@ -4678,17 +5076,22 @@ async function boot(){
   }
 
   if(fbDb){
-    var res = await readBoardOnce();
-    if(res.denied){ renderDenied(currentUser); return; }
-    if(res.ok){
-      var v = res.value.val();
-      if(v && Object.keys(v).length) state = normalizeState(v);
-      else remoteConfirmedEmpty = true;
+    var probe = await readOnce(recPath("meta"));
+    if(probe.denied){ renderDenied(currentUser); return; }
+    if(probe.ok && probe.value){
+      /* this version's layout is in place: load it */
+      var loaded = await loadCore();
+      state = assembleState(recsFromRemote());
+      if(!loaded) setSave("error");
+    }else if(probe.ok){
+      /* nothing under v2 yet: first run on this version. Bring the old
+         single-blob board across, or start from the seed if there's nothing
+         at all. Either way the save writes every record. */
+      if(!(await migrateLegacy())){ state = normalizeState(seed()); remoteConfirmedEmpty = true; }
     }
-    /* !res.ok: timed out or errored — connection status unknown, do NOT assume
-       empty (that could later overwrite real data once the connection comes back).
-       Fall through to local seed just so the page isn't blank; subscribeRealtime()
-       below will replace it with the real data as soon as Firebase responds. */
+    /* !probe.ok: timed out — connection unknown, do NOT assume empty (that
+       could later overwrite real data). Fall through to the seed so the page
+       isn't blank; nothing is written until a real load has happened. */
   }
   if(!state) state = normalizeState(seed());
 

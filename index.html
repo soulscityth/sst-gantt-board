@@ -633,6 +633,7 @@ select.statussel option{background:var(--surface);color:var(--text)}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);background:var(--surface)}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .grid3{display:grid;grid-template-columns:1fr .6fr 1fr;gap:14px}
+.grid3e{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 .picks{display:flex;gap:6px;flex-wrap:wrap}
 .pickbtn{
   border:1px solid var(--border);background:var(--surface-2);border-radius:8px;
@@ -729,7 +730,7 @@ select.statussel option{background:var(--surface);color:var(--text)}
   .modal footer{flex-wrap:wrap;gap:8px;padding:12px 14px}
   .modal footer .btn{flex:1 1 auto;padding:10px 12px}
   .modal footer .spacer{display:none}
-  .grid2,.grid3{grid-template-columns:1fr;gap:10px}
+  .grid2,.grid3,.grid3e{grid-template-columns:1fr;gap:10px}
 
   /* route editor (from → to / km ✕) and hours editor (who h / by ✕): two
      lines each instead of five cramped columns */
@@ -949,8 +950,11 @@ var I18N = {
     gcal_target_cal_label:"ปฏิทินปลายทาง", gcal_scope_label:"ขอบเขต",
     gcal_scope_all:"ทุกบอร์ด ({n} บอร์ด)", gcal_scope_board:"เฉพาะบอร์ดที่เปิดอยู่",
     gcal_reminder_label:"แจ้งเตือน",
-    lead_0:"ในวันครบกำหนด (เช้า)", lead_1d:"ล่วงหน้า 1 วัน", lead_2d:"ล่วงหน้า 2 วัน",
+    lead_dday:"D-Day", lead_meeting:"โปรเจกต์ประชุม", lead_other:"งานอื่น ๆ",
+    lead_none:"ไม่แจ้งเตือน", lead_day0:"เช้าวันนั้น (09:00)", lead_h12:"ล่วงหน้า 12 ชม.",
+    lead_1d:"ล่วงหน้า 1 วัน", lead_2d:"ล่วงหน้า 2 วัน",
     lead_3d:"ล่วงหน้า 3 วัน", lead_1w:"ล่วงหน้า 1 สัปดาห์",
+    lead_hint:"งานที่ไม่ระบุเวลาจะเตือนตอน 09:00 · งานที่ระบุเวลาจะนับถอยหลังจากเวลานั้น · \"โปรเจกต์ประชุม\" = โปรเจกต์ที่ชื่อมีคำว่า meeting/ประชุม",
     gcal_attendees_label:"ผู้ร่วมงาน",
     gcal_invite_label:"เชิญ PIC ของแต่ละงานเป็น guest ({have}/{total} คนมีอีเมลแล้ว)",
     gcal_invite_hint:'ใส่อีเมลที่เหลือได้ที่ปุ่ม "ทีม"',
@@ -1145,9 +1149,12 @@ var I18N = {
     gcal_cancel_rule:"→ not sent, and if sent before it's automatically removed from the calendar",
     gcal_target_cal_label:"Destination Calendar", gcal_scope_label:"Scope",
     gcal_scope_all:"All Boards ({n} boards)", gcal_scope_board:"Current Board Only",
-    gcal_reminder_label:"Reminder",
-    lead_0:"On the due date (morning)", lead_1d:"1 day before", lead_2d:"2 days before",
+    gcal_reminder_label:"Reminders",
+    lead_dday:"D-Day", lead_meeting:"Meeting projects", lead_other:"Other tasks",
+    lead_none:"None", lead_day0:"Morning of the day (09:00)", lead_h12:"12 hours before",
+    lead_1d:"1 day before", lead_2d:"2 days before",
     lead_3d:"3 days before", lead_1w:"1 week before",
+    lead_hint:"Tasks without a time are reminded at 09:00; tasks with a time count back from that time. \"Meeting projects\" = projects whose name contains meeting/ประชุม.",
     gcal_attendees_label:"Attendees",
     gcal_invite_label:"Invite each task's PIC as a guest ({have}/{total} people have an email)",
     gcal_invite_hint:'Add the remaining emails from the "Team" button',
@@ -4262,10 +4269,11 @@ function buildIcs(b){
     L.push("DESCRIPTION:"+icsEsc(taskDetails(x.t, x.s, b)));
     L.push("CATEGORIES:"+icsEsc(x.s.title));
     L.push("TRANSP:"+(sp.span ? "OPAQUE" : "TRANSPARENT"));
-    if(x.t.status !== "Done"){
+    var alarm = taskReminders(x.t, x.s, "").overrides[0];
+    if(alarm){
       L.push("BEGIN:VALARM");
       L.push("ACTION:DISPLAY");
-      L.push("TRIGGER:-P1D");
+      L.push("TRIGGER:"+(alarm.minutes < 0 ? "PT"+(-alarm.minutes)+"M" : "-PT"+alarm.minutes+"M"));
       L.push("DESCRIPTION:"+icsEsc("Due tomorrow: "+x.t.title));
       L.push("END:VALARM");
     }
@@ -4316,7 +4324,50 @@ function downloadIcs(){
 var GCAL_SCOPE = "https://www.googleapis.com/auth/calendar";
 var GCAL_KEY = "sst-gantt-gcal2";
 var GCAL_FB_PATH = "gcal_sync";
-var gcal = {calendarId:"", lead:1440, scope:"all", invite:true, map:{}};
+var gcal = {calendarId:"", leads:null, scope:"all", invite:true, map:{}};
+/* one reminder per kind of task — D-Day events, tasks in a project whose name
+   says "meeting"/"ประชุม", and everything else. Codes rather than raw minutes
+   because an all-day and a timed event need different minute values for the
+   same human meaning (see leadMinutes). Replaces the single gcal.lead. */
+var LEAD_CODES = ["none","day0","h12","d1","d2","d3","w1"];
+var LEAD_DEFAULTS = {dday:"d1", meeting:"h12", other:"day0"};
+var REMIND_HOUR = 9;   /* all-day reminders fire at this hour */
+function normLeads(){
+  var src = (gcal.leads && typeof gcal.leads === "object") ? gcal.leads : {};
+  var out = {};
+  Object.keys(LEAD_DEFAULTS).forEach(function(k){
+    out[k] = LEAD_CODES.indexOf(src[k]) >= 0 ? src[k] : LEAD_DEFAULTS[k];
+  });
+  gcal.leads = out;
+  delete gcal.lead;
+}
+function leadKind(t, s){
+  if(isSpanStatus(t.status)) return "dday";
+  if(/meeting|ประชุม/i.test((s && s.title) || "")) return "meeting";
+  return "other";
+}
+/* -> Google's "minutes before start", or null for no reminder.
+   For an all-day event Google counts from 00:00 of its first day, so a plain
+   1440 would pop at midnight — every all-day reminder is shifted to
+   REMIND_HOUR instead. A reminder ON the day itself needs a negative value
+   (after that midnight); the API docs don't advertise negatives but the
+   service accepts and stores them (checked against a real calendar). */
+function leadMinutes(code, startTime){
+  var days = {day0:0, h12:0.5, d1:1, d2:2, d3:3, w1:7}[code];
+  if(days === undefined) return null;
+  if(code === "h12") return 720;
+  if(isHHMM(startTime)){
+    if(code === "day0"){ var p = startTime.split(":"); return Math.max(0, (+p[0])*60 + (+p[1]) - REMIND_HOUR*60); }
+    return days*1440;
+  }
+  return days*1440 - REMIND_HOUR*60;
+}
+function taskReminders(t, s, startTime){
+  if(!gcal.leads) normLeads();
+  if(t.status === "Done") return {useDefault:false, overrides:[]};
+  var m = leadMinutes(gcal.leads[leadKind(t, s)], startTime);
+  return {useDefault:false, overrides: m === null ? [] : [{method:"popup", minutes:m}]};
+}
 var gcalToken = null;          /* {access_token, expiresAt} — memory only, never persisted */
 var gcalTokenClient = null;
 
@@ -4326,6 +4377,7 @@ function loadGcal(){
   try{ var r = localStorage.getItem(GCAL_KEY);
        if(r){ var v = JSON.parse(r); if(v && typeof v==="object") Object.assign(gcal, v); } }catch(e){}
   if(!gcal.map || typeof gcal.map !== "object") gcal.map = {};
+  normLeads();
   if(migrateGcalMapKeys()) saveGcalLocal();
 }
 /* the destination calendar, and — critically — the map of task→event-id/hash
@@ -4349,6 +4401,7 @@ async function loadGcalRemote(){
       if(v && typeof v === "object"){
         Object.assign(gcal, v);
         if(!gcal.map || typeof gcal.map !== "object") gcal.map = {};
+        normLeads();
         migrateGcalMapKeys();
         saveGcalLocal();
       }
@@ -4587,16 +4640,17 @@ function gcalEventBody(x){
     summary: eventTitle(x.t, x.s),
     description: taskDetails(x.t, x.s, x.b),
     transparency: sp.span ? "opaque" : "transparent",
-    colorId: x.t.gcalColor || (isSpanStatus(x.t.status) ? "11" : sectionColorId(x.s)),
-    reminders: x.t.status==="Done" ? {useDefault:false, overrides:[]} : {useDefault:false, overrides:[{method:"popup", minutes: gcal.lead}]}
+    colorId: x.t.gcalColor || (isSpanStatus(x.t.status) ? "11" : sectionColorId(x.s))
   };
   if(isHHMM(x.t.startTime) || isHHMM(x.t.dueTime)){
     var r = gcalTimedRange(ymd(sp.from), ymd(sp.to), x.t.startTime, x.t.dueTime);
     body.start = {dateTime: r.startDT, timeZone: tz};
     body.end   = {dateTime: r.endDT, timeZone: tz};
+    body.reminders = taskReminders(x.t, x.s, r.startDT.slice(11,16));
   }else{
     body.start = {date: ymd(sp.from)};
     body.end = {date: ymd(addDays(sp.to,1))};
+    body.reminders = taskReminders(x.t, x.s, "");
   }
   return body;
 }
@@ -4748,9 +4802,12 @@ function gcalForm(cals, err){
   var opts = cals.map(function(c){
     return '<option value="'+esc(c.id)+'"'+(c.id===gcal.calendarId?" selected":"")+'>'+esc(c.summary||c.id)+'</option>';
   }).join("");
-  var leads = [[0,tr("lead_0")],[1440,tr("lead_1d")],[2880,tr("lead_2d")],[4320,tr("lead_3d")],[10080,tr("lead_1w")]];
-  var leadOpts = leads.map(function(l){
-    return '<option value="'+l[0]+'"'+(gcal.lead===l[0]?" selected":"")+'>'+esc(l[1])+'</option>';
+  var leadLabel = {none:"lead_none", day0:"lead_day0", h12:"lead_h12", d1:"lead_1d", d2:"lead_2d", d3:"lead_3d", w1:"lead_1w"};
+  var leadFields = Object.keys(LEAD_DEFAULTS).map(function(kind){
+    var opts = LEAD_CODES.map(function(c){
+      return '<option value="'+c+'"'+(gcal.leads[kind]===c?" selected":"")+'>'+esc(tr(leadLabel[c]))+'</option>';
+    }).join("");
+    return '<div class="field"><label>'+esc(tr("lead_"+kind))+'</label><select data-lead="'+kind+'">'+opts+'</select></div>';
   }).join("");
   var synced = Object.keys(gcal.map).length;
   var withMail = state.team.filter(function(m){ return (m.email||"").trim(); }).length;
@@ -4767,12 +4824,13 @@ function gcalForm(cals, err){
       '<div><b style="color:var(--danger)">Cancel</b> '+tr("gcal_cancel_rule")+'</div>'+
     '</div>'+
     '<div class="field"><label>'+esc(tr("gcal_target_cal_label"))+'</label><select id="gc-cal">'+opts+'</select></div>'+
-    '<div class="grid2">'+
-      '<div class="field"><label>'+esc(tr("gcal_scope_label"))+'</label><select id="gc-scope">'+
-        '<option value="all"'+(gcal.scope!=="board"?" selected":"")+'>'+esc(tr("gcal_scope_all",{n:state.boards.length}))+'</option>'+
-        '<option value="board"'+(gcal.scope==="board"?" selected":"")+'>'+esc(tr("gcal_scope_board"))+'</option>'+
-      '</select></div>'+
-      '<div class="field"><label>'+esc(tr("gcal_reminder_label"))+'</label><select id="gc-lead">'+leadOpts+'</select></div>'+
+    '<div class="field"><label>'+esc(tr("gcal_scope_label"))+'</label><select id="gc-scope">'+
+      '<option value="all"'+(gcal.scope!=="board"?" selected":"")+'>'+esc(tr("gcal_scope_all",{n:state.boards.length}))+'</option>'+
+      '<option value="board"'+(gcal.scope==="board"?" selected":"")+'>'+esc(tr("gcal_scope_board"))+'</option>'+
+    '</select></div>'+
+    '<div class="field"><label>'+esc(tr("gcal_reminder_label"))+'</label>'+
+      '<div class="grid3e">'+leadFields+'</div>'+
+      '<span class="hint">'+esc(tr("lead_hint"))+'</span>'+
     '</div>'+
     '<div class="field"><label>'+esc(tr("gcal_attendees_label"))+'</label>'+
       '<label class="chk"><input type="checkbox" id="gc-invite"'+(gcal.invite?" checked":"")+'>'+
@@ -4800,7 +4858,9 @@ function gcalForm(cals, err){
     '<button class="btn" data-x>'+esc(tr("close"))+'</button><button class="btn primary" id="gc-go">'+esc(tr("send_to_calendar_btn"))+'</button>'
   );
   document.getElementById("gc-cal").onchange = function(){ gcal.calendarId=this.value; saveGcal(); gcalForm(cals, null); };
-  document.getElementById("gc-lead").onchange = function(){ gcal.lead=+this.value; saveGcal(); };
+  document.querySelectorAll("[data-lead]").forEach(function(sel){
+    sel.onchange = function(){ gcal.leads[this.getAttribute("data-lead")] = this.value; saveGcal(); };
+  });
   document.getElementById("gc-invite").onchange = function(){ gcal.invite=this.checked; saveGcal(); gcalForm(cals, null); };
   document.getElementById("gc-scope").onchange = function(){ gcal.scope=this.value; saveGcal(); gcalForm(cals, null); };
   function updateGcCount(){

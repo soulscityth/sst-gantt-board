@@ -951,10 +951,10 @@ var I18N = {
     gcal_scope_all:"ทุกบอร์ด ({n} บอร์ด)", gcal_scope_board:"เฉพาะบอร์ดที่เปิดอยู่",
     gcal_reminder_label:"แจ้งเตือน",
     lead_dday:"D-Day", lead_meeting:"โปรเจกต์ประชุม", lead_other:"งานอื่น ๆ",
-    lead_none:"ไม่แจ้งเตือน", lead_day0:"เช้าวันนั้น (09:00)", lead_h12:"ล่วงหน้า 12 ชม.",
+    lead_none:"ไม่แจ้งเตือน", lead_day0:"เช้าวันนั้น (09:00)", lead_h12:"เที่ยงวันก่อนหน้า (12:00)",
     lead_1d:"ล่วงหน้า 1 วัน", lead_2d:"ล่วงหน้า 2 วัน",
     lead_3d:"ล่วงหน้า 3 วัน", lead_1w:"ล่วงหน้า 1 สัปดาห์",
-    lead_hint:"งานที่ไม่ระบุเวลาจะเตือนตอน 09:00 · งานที่ระบุเวลาจะนับถอยหลังจากเวลานั้น · \"โปรเจกต์ประชุม\" = โปรเจกต์ที่ชื่อมีคำว่า meeting/ประชุม",
+    lead_hint:"\"เช้าวันนั้น\" และ \"เที่ยงวันก่อนหน้า\" เตือนตามเวลานาฬิกาเสมอ ไม่ขึ้นกับเวลาของงาน · ตัวเลือกแบบวัน/สัปดาห์ จะนับถอยหลังจากเวลาเริ่มงาน (ถ้าไม่ระบุเวลา จะเตือน 09:00) · \"โปรเจกต์ประชุม\" = โปรเจกต์ที่ชื่อมีคำว่า meeting/ประชุม",
     gcal_attendees_label:"ผู้ร่วมงาน",
     gcal_invite_label:"เชิญ PIC ของแต่ละงานเป็น guest ({have}/{total} คนมีอีเมลแล้ว)",
     gcal_invite_hint:'ใส่อีเมลที่เหลือได้ที่ปุ่ม "ทีม"',
@@ -1151,10 +1151,10 @@ var I18N = {
     gcal_scope_all:"All Boards ({n} boards)", gcal_scope_board:"Current Board Only",
     gcal_reminder_label:"Reminders",
     lead_dday:"D-Day", lead_meeting:"Meeting projects", lead_other:"Other tasks",
-    lead_none:"None", lead_day0:"Morning of the day (09:00)", lead_h12:"12 hours before",
+    lead_none:"None", lead_day0:"Morning of the day (09:00)", lead_h12:"Noon the day before (12:00)",
     lead_1d:"1 day before", lead_2d:"2 days before",
     lead_3d:"3 days before", lead_1w:"1 week before",
-    lead_hint:"Tasks without a time are reminded at 09:00; tasks with a time count back from that time. \"Meeting projects\" = projects whose name contains meeting/ประชุม.",
+    lead_hint:"\"Morning of the day\" and \"Noon the day before\" always fire at that clock time, whatever time the task is at. The day/week options count back from the task\'s start (09:00 if it has no time). \"Meeting projects\" = projects whose name contains meeting/ประชุม.",
     gcal_attendees_label:"Attendees",
     gcal_invite_label:"Invite each task's PIC as a guest ({have}/{total} people have an email)",
     gcal_invite_hint:'Add the remaining emails from the "Team" button',
@@ -4347,20 +4347,22 @@ function leadKind(t, s){
   return "other";
 }
 /* -> Google's "minutes before start", or null for no reminder.
-   For an all-day event Google counts from 00:00 of its first day, so a plain
-   1440 would pop at midnight — every all-day reminder is shifted to
-   REMIND_HOUR instead. A reminder ON the day itself needs a negative value
-   (after that midnight); the API docs don't advertise negatives but the
-   service accepts and stores them (checked against a real calendar). */
+   Google always counts backwards from the event's start — 00:00 of the first
+   day for an all-day event — so a plain 1440 on an all-day task pops at
+   midnight. "day0" and "h12" are wall-clock reminders (09:00 that morning,
+   12:00 the previous day) that must land at the same hour no matter what
+   time the task itself is at, so they're computed from the task's start
+   minute rather than being fixed offsets. A reminder falling *after* the
+   event's start reference needs a negative value; the API docs don't
+   advertise negatives but the service accepts and stores them (checked
+   against a real calendar). */
 function leadMinutes(code, startTime){
-  var days = {day0:0, h12:0.5, d1:1, d2:2, d3:3, w1:7}[code];
+  var days = {d1:1, d2:2, d3:3, w1:7}[code];
+  var startMin = isHHMM(startTime) ? (+startTime.split(":")[0])*60 + (+startTime.split(":")[1]) : 0;
+  if(code === "day0") return startMin - REMIND_HOUR*60;      /* 09:00, same day */
+  if(code === "h12")  return startMin + (24 - 12)*60;        /* 12:00, day before */
   if(days === undefined) return null;
-  if(code === "h12") return 720;
-  if(isHHMM(startTime)){
-    if(code === "day0"){ var p = startTime.split(":"); return Math.max(0, (+p[0])*60 + (+p[1]) - REMIND_HOUR*60); }
-    return days*1440;
-  }
-  return days*1440 - REMIND_HOUR*60;
+  return days*1440 - (isHHMM(startTime) ? 0 : REMIND_HOUR*60);
 }
 function taskReminders(t, s, startTime){
   if(!gcal.leads) normLeads();

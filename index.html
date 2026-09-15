@@ -96,6 +96,7 @@
   --s-postponed:#AC7A28;
   --s-cancel:#1A1F27;      /* black: a cancelled task reads as struck out */
   --s-dday:#7A4FA3;
+  --s-leaving:#2A8C8C;     /* teal: a leave day is a span like D-DAY but not an event */
   --s-overdue:#D32F2F;     /* red: late is the one status that should shout */
   --danger:#A25656;        /* errors, warnings, delete buttons — was --s-cancel */
 
@@ -126,6 +127,7 @@
     --s-postponed:#CB9944;
     --s-cancel:#C9CED6;    /* "black" on a dark surface: a pale, dead grey */
     --s-dday:#9A70C2;
+    --s-leaving:#4FB3B3;
     --s-overdue:#EF5350;
     --danger:#C57575;
   }
@@ -152,6 +154,7 @@
   --s-postponed:#CB9944;
   --s-cancel:#C9CED6;
   --s-dday:#9A70C2;
+  --s-leaving:#4FB3B3;
   --s-overdue:#EF5350;
   --danger:#C57575;
 }
@@ -474,6 +477,8 @@ select.statussel option{background:var(--surface);color:var(--text)}
 }
 .bar.ghost{background:transparent;border:1px dashed var(--c);color:var(--c);box-shadow:none}
 .bar.dday{border-radius:4px;background:var(--c);min-width:12px}
+.bar.leave{border-radius:4px;min-width:12px;
+  background:repeating-linear-gradient(135deg, var(--c) 0 7px, color-mix(in srgb, var(--c) 72%, #fff) 7px 14px)}
 .bar .pct{position:absolute;inset:0;background:rgba(255,255,255,.18)}
 
 .addrow{display:flex;position:relative}
@@ -763,7 +768,7 @@ select.statussel option{background:var(--surface);color:var(--text)}
 "use strict";
 
 /* ============ constants ============ */
-var STATUSES = ["Not started","In process","Done","Postponed","Cancel","D-DAY","Overdue"];
+var STATUSES = ["Not started","In process","Done","Postponed","Cancel","D-DAY","Leaving","Overdue"];
 var SVAR = {
   "Not started":"--s-notstarted",
   "In process":"--s-process",
@@ -771,6 +776,7 @@ var SVAR = {
   "Postponed":"--s-postponed",
   "Cancel":"--s-cancel",
   "D-DAY":"--s-dday",
+  "Leaving":"--s-leaving",
   "Overdue":"--s-overdue"
 };
 
@@ -944,6 +950,7 @@ var I18N = {
     gcal_pick_warn:"ยังไม่ได้เลือกงานเลย ติ๊กอย่างน้อย 1 รายการก่อนกดส่ง",
     gcal_stale_note:"พบ {n} รายการที่เคยส่งไว้แต่งานถูกลบ/ยกเลิกไปแล้ว — จะถูกลบออกจากปฏิทินให้อัตโนมัติตอนกดส่ง ไม่ต้องเลือกอะไรเพิ่ม",
     gcal_dday_rule:"ยิงทั้งช่วง <b>START → DUE</b> และจองเวลาเป็น Busy",
+    gcal_leave_rule:"ยิงทั้งช่วง <b>START → DUE</b> จองเวลาเป็น Busy ใช้ชื่องานตามปกติ",
     gcal_normal_rule:"→ ยิงเฉพาะวัน <b>DUE DATE</b> วันเดียว ไม่จองเวลา",
     gcal_done_rule:"→ <b>เก็บไว้ในปฏิทิน</b> เปลี่ยนชื่อเป็น [DONE] และปิดแจ้งเตือน",
     gcal_cancel_rule:"→ ไม่ยิง และถ้าเคยยิงไปแล้วจะถูกลบออกจากปฏิทินให้อัตโนมัติ",
@@ -1144,6 +1151,7 @@ var I18N = {
     gcal_pick_warn:"No tasks selected yet — check at least one before sending",
     gcal_stale_note:"Found {n} event(s) previously sent whose task was deleted/cancelled — they'll be removed from the calendar automatically when you send, no need to pick anything else.",
     gcal_dday_rule:"spans the full <b>START → DUE</b> range and blocks the time as Busy",
+    gcal_leave_rule:"spans the full <b>START → DUE</b> range, blocks the time as Busy, keeps the task's own name",
     gcal_normal_rule:"→ fires only on the <b>DUE DATE</b>, single day, no time blocked",
     gcal_done_rule:"→ <b>kept on the calendar</b>, renamed to [DONE], reminders turned off",
     gcal_cancel_rule:"→ not sent, and if sent before it's automatically removed from the calendar",
@@ -1244,9 +1252,10 @@ function hoursPendingCount(t){
 function fmtHours(n){ return (Math.round(n*10)/10).toLocaleString(undefined, {maximumFractionDigits:1}); }
 /* keeps status in sync with today's date: a Not-started task flips to In
    process once its start date arrives, and anything not yet Done flips to
-   Overdue once its due date has passed. Cancel/D-DAY are left alone — a
-   cancelled task was never going to be "late", and D-DAY marks the event
-   day itself rather than a to-do that can be overdue. Runs before every
+   Overdue once its due date has passed. Cancel/D-DAY/Leaving are left alone
+   — a cancelled task was never going to be "late", and D-DAY / Leaving mark
+   days themselves (the event, someone's leave) rather than a to-do that can
+   be overdue. Runs before every
    render so a tab left open across midnight self-heals; returns true if it
    changed anything so the caller knows to persist the change. */
 function applyAutoStatuses(){
@@ -1256,7 +1265,7 @@ function applyAutoStatuses(){
   state.boards.forEach(function(b){
     b.sections.forEach(function(s){
       s.tasks.forEach(function(t){
-        if(t.status==="Done" || t.status==="Cancel" || t.status==="D-DAY") return;
+        if(t.status==="Done" || t.status==="Cancel" || isSpanStatus(t.status)) return;
         var due = dueOf(t);
         if(due && due < tod){
           if(t.status !== "Overdue"){ t.status = "Overdue"; changed = true; }
@@ -3071,7 +3080,7 @@ function taskRow(t, s, r, dayW, trackW, bg){
       var left = diffDays(r.start, from) * dayW;
       var w = Math.max(dayW, (diffDays(from,to)+1) * dayW) - 2;
       var ghost = (t.status==="Cancel" || t.status==="Not started") ? " ghost" : "";
-      var dd = t.status==="D-DAY" ? " dday" : "";
+      var dd = t.status==="D-DAY" ? " dday" : t.status==="Leaving" ? " leave" : "";
       var lbl = w > 58 ? esc(t.title) : "";
       bar = '<div class="bar'+ghost+dd+'"'+(readOnly?'':' data-bar="'+esc(t.id)+'"')+
         ' style="left:'+(left+1)+'px;width:'+w+'px;--c:var('+svar+')" title="'+
@@ -4300,9 +4309,10 @@ function backfillEmails(){
 /* Which statuses hold a slot in the calendar. Only Cancel is pulled back out —
    Done stays as a record of what the team actually shipped. */
 function isSyncStatus(st){ return st !== "Cancel"; }
-/* D-DAY = the real event days, so it spans START→DUE and blocks time.
-   Every other status is a deadline marker on the DUE DATE, free/transparent. */
-function isSpanStatus(st){ return st === "D-DAY"; }
+/* D-DAY = the real event days and Leaving = someone's leave days: both span
+   START→DUE and block the time. Every other status is a deadline marker on
+   the DUE DATE, free/transparent. */
+function isSpanStatus(st){ return st === "D-DAY" || st === "Leaving"; }
 function eventSpan(t){
   var du = dueOf(t);
   if(!du) return null;
@@ -4312,7 +4322,7 @@ function eventSpan(t){
 }
 function eventTitle(t, s){
   var section = "[" + (s ? s.title : "") + "] ";
-  return section + (isSpanStatus(t.status) ? "D-day" : t.title);
+  return section + (t.status === "D-DAY" ? "D-day" : t.title);
 }
 function downloadIcs(){
   var b = board();
@@ -4342,7 +4352,7 @@ function normLeads(){
   delete gcal.lead;
 }
 function leadKind(t, s){
-  if(isSpanStatus(t.status)) return "dday";
+  if(t.status === "D-DAY") return "dday";
   if(/meeting|ประชุม/i.test((s && s.title) || "")) return "meeting";
   return "other";
 }
@@ -4625,7 +4635,8 @@ function gcalTimedRange(fromDate, toDate, startTime, dueTime){
   return {startDT:startDT, endDT:endDT};
 }
 /* Google Calendar's fixed event palette has 11 slots (colorId "1".."11").
-   "11" (Tomato/red) is reserved for D-DAY tasks so they always stand out;
+   "11" (Tomato/red) is reserved for D-DAY tasks so they always stand out,
+   "7" (Peacock/teal) for Leaving to match its board colour;
    every other task gets a colorId derived from its section, so the same
    section always lands on the same color (1..10) regardless of sync order. */
 function sectionColorId(s){
@@ -4642,7 +4653,7 @@ function gcalEventBody(x){
     summary: eventTitle(x.t, x.s),
     description: taskDetails(x.t, x.s, x.b),
     transparency: sp.span ? "opaque" : "transparent",
-    colorId: x.t.gcalColor || (isSpanStatus(x.t.status) ? "11" : sectionColorId(x.s))
+    colorId: x.t.gcalColor || (x.t.status === "D-DAY" ? "11" : x.t.status === "Leaving" ? "7" : sectionColorId(x.s))
   };
   if(isHHMM(x.t.startTime) || isHHMM(x.t.dueTime)){
     var r = gcalTimedRange(ymd(sp.from), ymd(sp.to), x.t.startTime, x.t.dueTime);
@@ -4820,6 +4831,7 @@ function gcalForm(cals, err){
     '<div style="border:1px solid var(--border);border-radius:8px;background:var(--surface-2);'+
       'padding:9px 11px;display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--text-2)">'+
       '<div><b style="color:var(--s-dday)">D-DAY</b> '+tr("gcal_dday_rule")+'</div>'+
+      '<div><b style="color:var(--s-leaving)">Leaving</b> '+tr("gcal_leave_rule")+'</div>'+
       '<div><b style="color:var(--s-notstarted)">Not started</b> · <b style="color:var(--s-process)">In process</b> · '+
         '<b style="color:var(--s-postponed)">Postponed</b> '+tr("gcal_normal_rule")+'</div>'+
       '<div><b style="color:var(--s-done)">Done</b> '+tr("gcal_done_rule")+'</div>'+

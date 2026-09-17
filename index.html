@@ -291,6 +291,10 @@ select.ctl:hover,input.ctl:hover{border-color:var(--border-strong)}
 .stat b{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;line-height:1.15;font-family:"IBM Plex Mono",monospace}
 .stat span{font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
 .stat.done b{color:var(--s-done)} .stat.proc b{color:var(--s-process)} .stat.late b{color:var(--s-overdue)}
+.stat.mine b em{font-style:normal;font-size:11px;color:var(--muted);margin-left:2px}
+.stat.mine b i{font-style:normal;font-size:11px;font-weight:600;color:var(--s-postponed);margin-left:6px}
+.stat.mine[data-board]{cursor:pointer}
+.stat.mine[data-board]:hover b{color:var(--accent)}
 
 /* ---------- gantt ---------- */
 .viewport{flex:1 1 auto;overflow:auto;position:relative;background:var(--surface)}
@@ -871,6 +875,8 @@ var I18N = {
     undo_hint:"การลบย้อนกลับไม่ได้",
     status_all:"ทั้งหมด", zoom_compact:"กระชับ", zoom_normal:"ปกติ", zoom_wide:"กว้าง",
     show_all_cols:"แสดงทุกคอลัมน์", collapse_cols:"ย่อคอลัมน์", today_btn:"วันนี้",
+    my_hours_stat:"ชม.ของฉัน · {m}", my_hours_tip:"ชั่วโมงทำงานของ {name} เดือน {m} (ทุกบอร์ด) — อนุมัติแล้ว {ok} ชม. · รออนุมัติ {pend} ชม.",
+    my_hours_pending:"รอ {n}",
     show_old_done:"แสดงงานเก่าที่เสร็จแล้ว ({n})", hide_old_done:"ซ่อนงานเก่าที่เสร็จแล้ว",
     show_done_projects:"แสดงหัวข้อที่เสร็จแล้ว ({n})", hide_done_projects:"ซ่อนหัวข้อที่เสร็จแล้ว",
     add_project_btn:"+ หัวข้อ", add_task_btn:"+ เพิ่มงาน",
@@ -1071,6 +1077,8 @@ var I18N = {
     undo_hint:"This cannot be undone.",
     status_all:"All", zoom_compact:"Compact", zoom_normal:"Normal", zoom_wide:"Wide",
     show_all_cols:"Show All Columns", collapse_cols:"Collapse Columns", today_btn:"Today",
+    my_hours_stat:"My hours · {m}", my_hours_tip:"{name}'s work hours in {m}, all boards — {ok} h approved · {pend} h pending",
+    my_hours_pending:"{n} pending",
     show_old_done:"Show old completed tasks ({n})", hide_old_done:"Hide old completed tasks",
     show_done_projects:"Show completed projects ({n})", hide_done_projects:"Hide completed projects",
     add_project_btn:"+ Project", add_task_btn:"+ Add Task",
@@ -2889,6 +2897,26 @@ function exportHoursCsv(){
   downloadBlob("work-hours-"+monthKey+".csv", csv, "text/csv;charset=utf-8");
 }
 
+/* the signed-in person's own logged hours for the current month, across
+   every board — hours live on tasks scattered everywhere, and the Hours tab
+   that totals them is managers-only, so this is the one place the other
+   three can see where they stand. Current-month tasks are never old enough
+   to be archived (isOldDone needs due > 30 days ago), so no archive load. */
+function myHoursStat(){
+  var me = currentMember();
+  if(!me) return "";
+  var mk = curMonthKey(), h = 0, ok = 0;
+  allHourEntries().forEach(function(x){
+    if(x.e.pic !== me.code || hourMonthKey(x) !== mk) return;
+    var n = entryHours(x); h += n; if(hoursApproved(x.e)) ok += n;
+  });
+  var pend = h - ok, mon = MON()[todayUTC().getUTCMonth()];
+  return '<div class="stat mine"'+(isManager()?' data-board="hours"':'')+' title="'+
+      esc(tr("my_hours_tip",{name:me.name, m:tripMonthLabel(mk), ok:fmtHours(ok), pend:fmtHours(pend)}))+'">'+
+    '<b>'+esc(fmtHours(h))+'<em>'+esc(tr("hours_unit"))+'</em>'+
+      (pend>0?'<i>'+esc(tr("my_hours_pending",{n:fmtHours(pend)}))+'</i>':'')+'</b>'+
+    '<span>'+esc(tr("my_hours_stat",{m:mon}))+'</span></div>';
+}
 function toolbar(b){
   var all = [], done = 0, proc = 0, late = 0, oldDoneCount = 0, doneProjectsCount = 0;
   b.sections.forEach(function(s){
@@ -2937,6 +2965,7 @@ function toolbar(b){
       '<div class="stat done"><b>'+done+'</b><span>Done</span></div>'+
       '<div class="stat proc"><b>'+proc+'</b><span>In process</span></div>'+
       '<div class="stat late"><b>'+late+'</b><span>Overdue</span></div>'+
+      myHoursStat()+
     '</div>'+
   '</div>';
 }

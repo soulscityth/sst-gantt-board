@@ -560,6 +560,10 @@ select.statussel option{background:var(--surface);color:var(--text)}
 .tripsumcard .unit{font-size:10px;color:var(--muted);font-weight:400;margin-left:3px}
 .tripsumcard span.nm{font-size:11.5px;color:var(--muted);display:block}
 .tripsumtot{border-color:var(--accent)}
+.tripsumcard[data-trip-pic]{cursor:pointer;user-select:none}
+.tripsumcard[data-trip-pic]:hover{border-color:var(--text-2)}
+.tripsumcard.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent);background:color-mix(in srgb, var(--accent) 7%, var(--surface))}
+.tripsum.filtered .tripsumcard:not(.on):not(.tripsumtot){opacity:.55}
 .triptable{width:100%;border-collapse:collapse;font-size:12.5px}
 .triptable th{
   text-align:left;font-size:10px;letter-spacing:.04em;text-transform:uppercase;
@@ -822,6 +826,8 @@ var I18N = {
     trip_owner:"ผู้เดินทาง", trip_date:"วันที่", trip_from:"ต้นทาง", trip_to:"ปลายทาง",
     trip_km:"ระยะทาง (กม.)", trip_km_unit:"กม.", trip_trips_unit:"เที่ยว",
     trip_total_row:"รวมทั้งเดือน",
+    trip_pic_filter_hint:"แสดงเฉพาะของ {name} — คลิกชื่ออีกครั้ง หรือการ์ดรวม เพื่อดูทุกคน", trip_pic_card_tip:"คลิกเพื่อดูเฉพาะการเดินทางของ {name}",
+    trip_person_total:"รวมของ {name}",
     trip_empty_title:"ยังไม่มีข้อมูลการเดินทางในเดือนนี้",
     trip_empty_body:"บันทึกการเดินทางของทีมไว้ที่นี่ แล้วสรุปยอดรวมรายคนตอนสิ้นเดือนเพื่อเบิกค่าเดินทาง",
     trip_add_title:"เพิ่มการเดินทาง", trip_edit_title:"แก้ไขการเดินทาง",
@@ -1024,6 +1030,8 @@ var I18N = {
     trip_owner:"Traveller", trip_date:"Date", trip_from:"From", trip_to:"To",
     trip_km:"Distance (km)", trip_km_unit:"km", trip_trips_unit:"trips",
     trip_total_row:"Month total",
+    trip_pic_filter_hint:"Showing {name}'s trips only — click the name again, or the total card, to see everyone", trip_pic_card_tip:"Click to show only {name}'s trips",
+    trip_person_total:"{name}'s total",
     trip_empty_title:"No trips logged for this month yet",
     trip_empty_body:"Log the team's trips here, then read off each person's monthly total when it's time to reimburse travel.",
     trip_add_title:"Add Trip", trip_edit_title:"Edit Trip",
@@ -1303,7 +1311,7 @@ function uid(p){ return p + Math.random().toString(36).slice(2,8) + Date.now().t
 
 /* ============ state ============ */
 var state = null;
-var filters = { pic:[], status:"" };
+var filters = { pic:[], status:"", tripPic:"" };
 var readOnly = false;
 var saveTimer = null;
 var saveState = "connecting";
@@ -2332,7 +2340,11 @@ function projectLabel(sectId){
 function tripsView(){
   var monthKey = activeTripMonth();
   var months = tripMonths();
-  var trips = tripsInMonth(monthKey);
+  var allTrips = tripsInMonth(monthKey);
+  /* clicking a person's card narrows the list to their trips; the cards
+     themselves always show everyone so the next click can switch person */
+  var picF = filters.tripPic;
+  var trips = picF ? allTrips.filter(function(t){ return t.pic === picF; }) : allTrips;
 
   var monthOpts = months.map(function(k){
     return '<option value="'+esc(k)+'"'+(k===monthKey?" selected":"")+'>'+esc(tripMonthLabel(k))+'</option>';
@@ -2342,7 +2354,7 @@ function tripsView(){
     '<label class="hint" for="trip-month">'+esc(tr("trip_month_label"))+'</label>'+
     '<select id="trip-month">'+monthOpts+'</select>'+
     '<div class="spacer"></div>'+
-    (trips.length?'<button class="btn sm" id="btn-trip-csv">'+esc(tr("trip_csv_btn"))+'</button>':'')+
+    (allTrips.length?'<button class="btn sm" id="btn-trip-csv">'+esc(tr("trip_csv_btn"))+'</button>':'')+
     (readOnly?'':'<button class="btn primary sm" id="btn-trip-add">'+esc(tr("trip_add_btn"))+'</button>')+
   '</div>';
 
@@ -2350,7 +2362,7 @@ function tripsView(){
      page; everyone on the team is listed even at 0 km so a person who simply
      forgot to log anything is visible rather than silently missing */
   var totalKm = 0, totalBaht = 0, byCode = {};
-  trips.forEach(function(t){
+  allTrips.forEach(function(t){
     var km = tripKm(t), baht = tripBaht(t);
     totalKm += km; totalBaht += baht;
     if(!byCode[t.pic]) byCode[t.pic] = {km:0, baht:0, n:0};
@@ -2364,21 +2376,26 @@ function tripsView(){
      behind it are what it was worked out from */
   var sum = codes.map(function(c){
     var m = member(c), agg = byCode[c] || {km:0, baht:0, n:0};
-    return '<div class="tripsumcard">'+
+    return '<div class="tripsumcard'+(picF===c?" on":"")+'" data-trip-pic="'+esc(c)+'" role="button" aria-pressed="'+(picF===c)+
+      '" title="'+esc(tr("trip_pic_card_tip",{name:m.name}))+'">'+
       '<span class="pic" style="--m:'+esc(m.color)+'" title="'+esc(m.name)+'">'+esc(c.slice(0,2))+'</span>'+
       '<div><b>'+esc(fmtBaht(agg.baht))+'<span class="unit">'+esc(tr("trip_baht_unit"))+'</span></b>'+
         '<span class="nm">'+esc(m.name)+' · '+esc(fmtKm(agg.km))+' '+esc(tr("trip_km_unit"))+
         ' · '+agg.n+' '+esc(tr("trip_trips_unit"))+'</span></div>'+
     '</div>';
   }).join("") +
-  '<div class="tripsumcard tripsumtot"><div><b>'+esc(fmtBaht(totalBaht))+
+  '<div class="tripsumcard tripsumtot"'+(picF?' data-trip-pic="" role="button" title="'+esc(tr("trip_total_row"))+'"':'')+'><div><b>'+esc(fmtBaht(totalBaht))+
     '<span class="unit">'+esc(tr("trip_baht_unit"))+'</span></b>'+
     '<span class="nm">'+esc(tr("trip_total_row"))+' · '+esc(fmtKm(totalKm))+' '+esc(tr("trip_km_unit"))+
-    ' · '+trips.length+' '+esc(tr("trip_trips_unit"))+'</span></div></div>';
+    ' · '+allTrips.length+' '+esc(tr("trip_trips_unit"))+'</span></div></div>';
+  var sumWrap = '<div class="tripsum'+(picF?" filtered":"")+'">'+sum+'</div>'+
+    (picF ? '<span class="hint" style="display:block;margin:-8px 0 14px">'+esc(tr("trip_pic_filter_hint",{name:member(picF).name}))+'</span>' : '');
+  /* the table's own total row follows the filter; the cards above don't */
+  var listKm = 0, listBaht = 0;
+  trips.forEach(function(t){ listKm += tripKm(t); listBaht += tripBaht(t); });
 
   if(!trips.length){
-    return '<div class="viewport" id="viewport"><div class="tripwrap">'+bar+
-      '<div class="tripsum">'+sum+'</div>'+
+    return '<div class="viewport" id="viewport"><div class="tripwrap">'+bar+sumWrap+
       '<div class="emptyboard"><h3>'+esc(tr("trip_empty_title"))+'</h3>'+
       '<p>'+esc(tr("trip_empty_body"))+'</p></div></div></div>';
   }
@@ -2405,8 +2422,7 @@ function tripsView(){
     '</tr>';
   }).join("");
 
-  return '<div class="viewport" id="viewport"><div class="tripwrap">'+bar+
-    '<div class="tripsum">'+sum+'</div>'+
+  return '<div class="viewport" id="viewport"><div class="tripwrap">'+bar+sumWrap+
     '<table class="triptable"><thead><tr>'+
       '<th>'+esc(tr("trip_owner"))+'</th><th>'+esc(tr("trip_date"))+'</th>'+
       '<th>'+esc(tr("trip_project"))+'</th><th>'+esc(tr("trip_routes"))+'</th>'+
@@ -2415,9 +2431,9 @@ function tripsView(){
       '<th style="text-align:right">'+esc(tr("trip_baht"))+'</th>'+
       '<th>'+esc(tr("trip_note"))+'</th><th></th>'+
     '</tr></thead><tbody>'+rows+
-      '<tr class="triptot"><td colspan="5" style="text-align:right">'+esc(tr("trip_total_row"))+'</td>'+
-      '<td class="num">'+esc(fmtKm(totalKm))+'</td>'+
-      '<td class="num">'+esc(fmtBaht(totalBaht))+'</td><td></td><td></td></tr>'+
+      '<tr class="triptot"><td colspan="5" style="text-align:right">'+esc(picF?tr("trip_person_total",{name:member(picF).name}):tr("trip_total_row"))+'</td>'+
+      '<td class="num">'+esc(fmtKm(listKm))+'</td>'+
+      '<td class="num">'+esc(fmtBaht(listBaht))+'</td><td></td><td></td></tr>'+
     '</tbody></table>'+
     '<span class="hint" style="display:block;margin-top:10px">'+
       esc(tr("trip_rate_note",{car:TRIP_RATES.car, ev:TRIP_RATES.ev, moto:TRIP_RATES.moto}))+'</span>'+
@@ -2433,6 +2449,13 @@ function wireTrips(){
   if(add) add.onclick = function(){ openTrip(null); };
   var csv = document.getElementById("btn-trip-csv");
   if(csv) csv.onclick = exportTripsCsv;
+  document.querySelectorAll("[data-trip-pic]").forEach(function(el){
+    el.onclick = function(){
+      var c = el.getAttribute("data-trip-pic");
+      filters.tripPic = (c && filters.tripPic !== c) ? c : "";
+      render();
+    };
+  });
   document.querySelectorAll("[data-trip-dup]").forEach(function(el){
     el.onclick = function(){ duplicateTrip(el.getAttribute("data-trip-dup")); };
   });

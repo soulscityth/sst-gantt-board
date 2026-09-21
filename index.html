@@ -541,6 +541,70 @@ select.statussel option{background:var(--surface);color:var(--text)}
 }
 .custjobdate{color:var(--s-dday);font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
 
+/* staff board — shares the customer card grid */
+.staffcard.inactive{opacity:.62}
+.staffcard.inactive:hover{opacity:1}
+.staffhead{display:flex;align-items:flex-start;gap:10px}
+.staffav{width:36px;height:36px;border-radius:10px;font-size:11px;letter-spacing:.02em}
+.staffname{flex:1 1 auto;min-width:0}
+.staffname h3{font-size:14.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.staffsub{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
+.stafftags{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+.stafftag{
+  font-size:10px;padding:1px 7px;border-radius:999px;background:var(--surface-2);border:1px solid var(--border);
+  color:var(--text-2);font-weight:500;white-space:nowrap;
+}
+.stafftag.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
+.staffinfo{display:flex;flex-direction:column;gap:4px}
+.staffinfo .custrow{min-width:0}
+.staffinfo .custrow span+span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.staffstats .custstat:first-child{border-right:0}
+.staffstats .custstat+.custstat{border-left:1px solid var(--border)}
+.staffsec{display:flex;flex-direction:column;gap:6px}
+.staffsechead{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;
+  font-size:10.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;
+}
+.scorerow,.reviewrow{
+  display:grid;gap:2px 10px;align-items:center;text-align:left;width:100%;
+  padding:6px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--text);
+}
+.scorerow{grid-template-columns:minmax(0,1fr) auto}
+.reviewrow{grid-template-columns:auto minmax(0,1fr)}
+button.scorerow:hover,button.reviewrow:hover{border-color:var(--border-strong);background:var(--surface)}
+.scoreproj{font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scoreval{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;display:flex;gap:6px;align-items:center;font-variant-numeric:tabular-nums}
+.sdots{display:inline-flex;gap:2px}
+.sdot{width:7px;height:7px;border-radius:50%;background:var(--surface-3);border:1px solid var(--border)}
+.sdot.on{background:var(--accent);border-color:var(--accent)}
+.scoremeta,.reviewmeta{grid-column:1 / -1;font-size:11px;color:var(--muted)}
+.scorenote,.reviewtext{grid-column:1 / -1;font-size:12px;color:var(--text-2);white-space:pre-wrap;overflow-wrap:anywhere}
+.reviewtag{
+  font-size:10px;padding:1px 7px;border-radius:999px;color:#fff;background:var(--k,var(--muted));
+  font-weight:600;letter-spacing:.02em;white-space:nowrap;
+}
+.avgbig{display:flex;align-items:baseline;justify-content:center;gap:4px}
+.avgbig small{font-size:10px;color:var(--muted);font-family:"IBM Plex Mono",monospace}
+.scorepicks{display:flex;gap:6px}
+.scorepicks .pickbtn{flex:1 1 0;justify-content:center;font-family:"IBM Plex Mono",monospace;font-weight:600}
+.staffsum{
+  display:flex;gap:18px;flex-wrap:wrap;align-items:center;
+  padding:12px 16px;margin-bottom:14px;border:1px solid var(--border);border-radius:12px;background:var(--surface);
+}
+.staffsum .sumitem{display:flex;flex-direction:column;gap:1px}
+.staffsum .sumitem b{font-family:"IBM Plex Mono",monospace;font-size:16px;font-weight:600}
+.staffsum .sumitem span{font-size:10px;color:var(--muted);letter-spacing:.03em;text-transform:uppercase}
+.staffsum .spacer{flex:1 1 auto}
+.stafftools{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.stafftools select{
+  background:var(--surface-2);border:1px solid var(--border);border-radius:7px;padding:3px 8px;font-size:12px;
+}
+.reviewlist{display:flex;flex-direction:column;gap:8px}
+@media (max-width:640px){
+  .custwrap{padding:12px 12px 32px}
+  .staffsum{gap:12px;padding:10px 12px}
+}
+
 /* ---------- travel board ---------- */
 .tripwrap{padding:20px 24px 40px;max-width:1100px;margin:0 auto}
 .tripbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
@@ -1203,6 +1267,89 @@ var I18N = {
     connection_cancelled:"Connection was cancelled"
   }
 };
+/* staff board copy, kept beside the main tables so th/en stay in step */
+Object.assign(I18N.th, {
+  staff_tab:"Staff", staff_csv_title:"ดาวน์โหลดคะแนนและบันทึกรีวิวของ Staff ทุกคนเป็นไฟล์ CSV",
+  staff_empty_title:"ยังไม่มีข้อมูล Staff",
+  staff_empty_body:"Staff คือคนที่จ้างมาช่วยงานเป็นรายค่าย/รายโปรเจกต์ (แยกจากทีมหลัก) — เพิ่มเพื่อเก็บข้อมูลติดต่อ ให้คะแนนรายโปรเจกต์ และบันทึกรีวิว",
+  staff_add_btn:"+ เพิ่ม Staff", staff_none_in_filter:"ไม่มี Staff ในตัวกรองนี้",
+  staff_sum_active:"Staff ที่ใช้งานอยู่", staff_sum_avg:"คะแนนเฉลี่ยรวม", staff_sum_scores:"คะแนนที่ให้แล้ว", staff_sum_reviews:"บันทึกรีวิว",
+  staff_filter_active:"ใช้งานอยู่", staff_filter_inactive:"ไม่ได้ใช้งาน", staff_filter_all:"ทั้งหมด",
+  staff_sort_name:"เรียงตามชื่อ", staff_sort_score:"คะแนนเฉลี่ยสูงสุด", staff_sort_projects:"ร่วมโปรเจกต์มากสุด", staff_sort_recent:"มีความเคลื่อนไหวล่าสุด",
+  staff_l_phone:"โทร", staff_l_email:"อีเมล", staff_l_line:"LINE", staff_l_since:"ร่วมงานตั้งแต่", staff_l_birthday:"วันเกิด", staff_l_emergency:"ฉุกเฉิน", staff_l_notes:"หมายเหตุ",
+  staff_inactive_tag:"ไม่ได้ใช้งาน",
+  staff_stat_avg:"คะแนนเฉลี่ย", staff_stat_projects:"โปรเจกต์ที่ร่วม", staff_stat_reviews:"บันทึกรีวิว",
+  staff_scores_h:"คะแนนรายโปรเจกต์ ({n})", staff_score_add:"+ ให้คะแนน", staff_no_scores:"ยังไม่มีคะแนน",
+  staff_reviews_h:"บันทึกรีวิว ({n})", staff_review_add:"+ บันทึก", staff_no_reviews:"ยังไม่มีบันทึกรีวิว", staff_see_all:"ดูทั้งหมด ({n})",
+  staff_by:"โดย", staff_years:"{n} ปี", staff_months:"{n} เดือน",
+  staff_add_title:"เพิ่ม Staff ใหม่", staff_edit_title:"ข้อมูล Staff · {name}",
+  staff_f_name:"ชื่อ-นามสกุล", staff_f_nick:"ชื่อเล่น", staff_f_nick_ph:"เช่น เบียร์",
+  staff_f_role:"บทบาท / หน้าที่", staff_f_role_ph:"เช่น พี่เลี้ยง, Facilitator, ช่างภาพ",
+  staff_f_type:"ประเภท", staff_f_color:"สี (ไม่บังคับ)",
+  staff_f_skills:"ทักษะ / ความถนัด", staff_f_skills_ph:"คั่นด้วยจุลภาค เช่น นำเกม, ดนตรี, ขับรถได้",
+  staff_f_phone:"เบอร์โทร", staff_f_email:"อีเมล", staff_f_line:"LINE ID", staff_f_since:"ร่วมงานครั้งแรก", staff_f_birthday:"วันเกิด",
+  staff_f_emergency:"ผู้ติดต่อฉุกเฉิน", staff_f_emergency_ph:"ชื่อ · ความสัมพันธ์ · เบอร์โทร",
+  staff_f_notes:"หมายเหตุ", staff_f_notes_ph:"เช่น สะดวกเฉพาะเสาร์-อาทิตย์, แพ้อาหารทะเล, มีรถส่วนตัว",
+  staff_f_active:"ใช้งานอยู่ (ยังเรียกมาช่วยงานได้) — ติ๊กออกถ้าเลิกร่วมงานแล้ว แต่ยังเก็บประวัติคะแนน/รีวิวไว้",
+  staff_form_hint:"ทุกคนในทีมที่เข้าสู่ระบบได้จะเห็นข้อมูลนี้ — ไม่ควรกรอกเลขบัตรประชาชน เลขบัญชี หรือข้อมูลอ่อนไหวอื่นๆ",
+  staff_delete_this:"ลบ Staff", staff_add_submit:"เพิ่ม Staff",
+  staff_delete_title:"ลบ Staff", staff_delete_body:"ลบ <b>{name}</b>?{extra}",
+  staff_delete_extra:" คะแนนและบันทึกรีวิวทั้งหมด {n} รายการจะหายไปด้วย",
+  staff_delete_hint:"การลบย้อนกลับไม่ได้ — ถ้าแค่เลิกร่วมงาน แนะนำให้ติ๊ก \"ใช้งานอยู่\" ออกแทน เพื่อเก็บประวัติไว้",
+  score_add_title:"ให้คะแนน · {name}", score_edit_title:"แก้คะแนน · {name}",
+  score_f_project:"โปรเจกต์ (หัวข้อในบอร์ด)", score_custom_opt:"— พิมพ์ชื่อโปรเจกต์เอง —",
+  score_f_projname:"ชื่อโปรเจกต์", score_f_projname_ph:"เช่น ค่ายผู้นำ ร.ร.สาธิต 2569",
+  score_f_score:"คะแนน (1–{max})", score_f_date:"วันที่", score_f_by:"ผู้ให้คะแนน (ทีมหลัก)",
+  score_f_note:"หมายเหตุ", score_f_note_ph:"จุดเด่น / สิ่งที่ควรพัฒนาในโปรเจกต์นี้",
+  score_delete:"ลบคะแนนนี้", score_submit:"บันทึกคะแนน",
+  review_add_title:"บันทึกรีวิว · {name}", review_edit_title:"แก้บันทึกรีวิว · {name}", review_all_title:"บันทึกรีวิวทั้งหมด · {name} ({n})",
+  review_f_kind:"ประเภท", review_f_date:"วันที่", review_f_by:"ผู้บันทึก (ทีมหลัก)",
+  review_f_text:"บันทึก / ข้อสังเกต", review_f_text_ph:"เช่น นำกิจกรรมได้ดี คุมเวลาแม่น / ควรเตรียมอุปกรณ์ล่วงหน้ามากขึ้น",
+  review_delete:"ลบบันทึกนี้", review_new:"+ บันทึกใหม่",
+  review_kind_note:"ทั่วไป", review_kind_praise:"ชมเชย", review_kind_improve:"ควรปรับปรุง",
+  staff_type_other:"อื่นๆ"
+});
+Object.assign(I18N.en, {
+  staff_tab:"Staff", staff_csv_title:"Download every staff member's scores and review notes as CSV",
+  staff_empty_title:"No staff yet",
+  staff_empty_body:"Staff are the people hired per camp or project (separate from the core team) — add them to keep contact details, score them per project and log review notes",
+  staff_add_btn:"+ Add Staff", staff_none_in_filter:"No staff match this filter",
+  staff_sum_active:"Active staff", staff_sum_avg:"Overall average", staff_sum_scores:"Scores given", staff_sum_reviews:"Review notes",
+  staff_filter_active:"Active", staff_filter_inactive:"Inactive", staff_filter_all:"All",
+  staff_sort_name:"Sort by name", staff_sort_score:"Highest average", staff_sort_projects:"Most projects", staff_sort_recent:"Most recent activity",
+  staff_l_phone:"Phone", staff_l_email:"Email", staff_l_line:"LINE", staff_l_since:"With us since", staff_l_birthday:"Birthday", staff_l_emergency:"Emergency", staff_l_notes:"Notes",
+  staff_inactive_tag:"Inactive",
+  staff_stat_avg:"Average score", staff_stat_projects:"Projects", staff_stat_reviews:"Review notes",
+  staff_scores_h:"Scores by project ({n})", staff_score_add:"+ Score", staff_no_scores:"No scores yet",
+  staff_reviews_h:"Review notes ({n})", staff_review_add:"+ Note", staff_no_reviews:"No review notes yet", staff_see_all:"See all ({n})",
+  staff_by:"by", staff_years:"{n} yr", staff_months:"{n} mo",
+  staff_add_title:"New staff member", staff_edit_title:"Staff · {name}",
+  staff_f_name:"Full name", staff_f_nick:"Nickname", staff_f_nick_ph:"e.g. Beer",
+  staff_f_role:"Role", staff_f_role_ph:"e.g. Mentor, Facilitator, Photographer",
+  staff_f_type:"Type", staff_f_color:"Colour (optional)",
+  staff_f_skills:"Skills", staff_f_skills_ph:"Comma-separated, e.g. games, music, can drive",
+  staff_f_phone:"Phone", staff_f_email:"Email", staff_f_line:"LINE ID", staff_f_since:"First worked with us", staff_f_birthday:"Birthday",
+  staff_f_emergency:"Emergency contact", staff_f_emergency_ph:"Name · relationship · phone",
+  staff_f_notes:"Notes", staff_f_notes_ph:"e.g. weekends only, seafood allergy, has own car",
+  staff_f_active:"Active (can still be called on) — untick when they've stopped working with us; scores and notes are kept",
+  staff_form_hint:"Everyone on the team who can sign in sees this — don't enter ID numbers, bank details or other sensitive data",
+  staff_delete_this:"Delete staff member", staff_add_submit:"Add staff member",
+  staff_delete_title:"Delete staff member", staff_delete_body:"Delete <b>{name}</b>?{extra}",
+  staff_delete_extra:" Their {n} score(s) and review note(s) go too.",
+  staff_delete_hint:"This cannot be undone — if they've just stopped working with us, untick \"Active\" instead to keep the history",
+  score_add_title:"Score · {name}", score_edit_title:"Edit score · {name}",
+  score_f_project:"Project (a project on a board)", score_custom_opt:"— type a project name —",
+  score_f_projname:"Project name", score_f_projname_ph:"e.g. Leadership camp, Satit School 2026",
+  score_f_score:"Score (1–{max})", score_f_date:"Date", score_f_by:"Scored by (core team)",
+  score_f_note:"Note", score_f_note_ph:"Strengths / what to develop on this project",
+  score_delete:"Delete this score", score_submit:"Save score",
+  review_add_title:"Review note · {name}", review_edit_title:"Edit review note · {name}", review_all_title:"All review notes · {name} ({n})",
+  review_f_kind:"Kind", review_f_date:"Date", review_f_by:"Written by (core team)",
+  review_f_text:"Note / observation", review_f_text_ph:"e.g. Ran activities well, kept to time / should prepare materials earlier",
+  review_delete:"Delete this note", review_new:"+ New note",
+  review_kind_note:"General", review_kind_praise:"Praise", review_kind_improve:"Needs work",
+  staff_type_other:"Other"
+});
 /* named tr() rather than t() — this codebase's convention uses `t` as the
    loop/param name for "current task" almost everywhere, so a global t()
    would get silently shadowed (and crash as "t is not a function") in any
@@ -1323,7 +1470,7 @@ var view = {activeBoard:null, dayW:24, compact:false, collapsed:{}, lang:"th", s
 /* tabs that render their own view instead of a Gantt board — they live
    alongside state.boards ids in view.activeBoard, so anything validating
    that value has to accept them too */
-var VIRTUAL_TABS = ["customers", "trips", "hours"];
+var VIRTUAL_TABS = ["customers", "trips", "hours", "staff"];
 var VIEW_KEY = "sst-gantt-view";
 function loadView(){
   try{
@@ -1445,6 +1592,10 @@ function flattenState(st){
     });
   });
   (st.customers||[]).forEach(function(c, i){ recs[recPath("customers", c.id)] = Object.assign(copyOmit(c, []), {order:i}); });
+  /* a staff member's scores and review notes ride inside their record —
+     they're only ever edited from that one card, so one record per person
+     is the natural unit */
+  (st.staff||[]).forEach(function(m, i){ recs[recPath("staff", m.id)] = Object.assign(copyOmit(m, []), {order:i}); });
   (st.trips||[]).forEach(function(t){
     var mk = tripMonthOf(t);
     recs[recPath("trips", mk, t.id)] = copyOmit(t, []);
@@ -1456,11 +1607,11 @@ function flattenState(st){
 /* ---- flat records -> nested state ---- */
 function byOrder(a, b){ return ((a.order||0) - (b.order||0)); }
 function assembleState(recs){
-  var st = {v:2, activeBoard:"", dayW:24, team:[], boards:[], customers:[], trips:[], goals2027:{}};
+  var st = {v:2, activeBoard:"", dayW:24, team:[], boards:[], customers:[], staff:[], trips:[], goals2027:{}};
   var meta = recs[recPath("meta")] || {};
   st.activeBoard = meta.activeBoard || ""; st.dayW = meta.dayW || 24;
   st.goals2027 = recs[recPath("goals")] || {};
-  var groups = {team:[], boards:[], sections:[], tasks:[], hours:[], customers:[], trips:[]};
+  var groups = {team:[], boards:[], sections:[], tasks:[], hours:[], customers:[], staff:[], trips:[]};
   Object.keys(recs).forEach(function(p){
     var parts = stripRoot(p).split("/");
     var v = recs[p];
@@ -1484,6 +1635,7 @@ function assembleState(recs){
     return b;
   });
   st.customers = groups.customers.sort(byOrder);
+  st.staff = groups.staff.sort(byOrder);
   st.trips = groups.trips;
   return normalizeState(st);
 }
@@ -1528,7 +1680,7 @@ async function loadCore(){
   var ok = true;
   ok = (await loadSingle("meta")) && ok;
   ok = (await loadSingle("goals")) && ok;
-  var cols = ["team","boards","sections","tasks","hours","customers","trips_months"];
+  var cols = ["team","boards","sections","tasks","hours","customers","staff","trips_months"];
   for(var i=0;i<cols.length;i++) ok = (await loadCollection(cols[i])) && ok;
   tripsIndex = {};
   Object.keys(remoteRecs).forEach(function(p){
@@ -1600,7 +1752,7 @@ function subscribeRealtime(){
   if(!fbDb || listenersOn) return;
   listenersOn = true;
   listenSingle("meta"); listenSingle("goals");
-  ["team","boards","sections","tasks","hours","customers","trips_months"].forEach(listenCollection);
+  ["team","boards","sections","tasks","hours","customers","staff","trips_months"].forEach(listenCollection);
   Object.keys(tripsLoaded).forEach(function(mk){ listenCollection("trips/"+mk); });
   if(archiveLoaded){ listenCollection("archive/tasks"); listenCollection("archive/hours"); }
 }
@@ -1770,6 +1922,11 @@ function patchState(path, obj){
     if(obj) upsertRecord(state.customers, "id", obj, []); else removeRecord(state.customers, "id", id);
     state.customers.sort(byOrder);
   }
+  else if(coll === "staff"){
+    if(obj) upsertRecord(state.staff, "id", obj, []); else removeRecord(state.staff, "id", id);
+    state.staff.sort(byOrder);
+    normalizeState(state);
+  }
   else if(coll === "trips" && parts.length === 3){
     if(obj) upsertRecord(state.trips, "id", obj, []); else removeRecord(state.trips, "id", parts[2]);
     normalizeState(state);
@@ -1879,6 +2036,12 @@ function normalizeState(s){
   });
   s.team = s.team || [];
   s.customers = s.customers || [];
+  /* per-project staff: hired hands, not the core team */
+  s.staff = s.staff || [];
+  s.staff.forEach(function(m){
+    if(!Array.isArray(m.scores)) m.scores = [];
+    if(!Array.isArray(m.reviews)) m.reviews = [];
+  });
   /* travel log — flat list, not boards/sections/tasks: a trip is a one-off
      record for month-end reimbursement, not a scheduled piece of work */
   s.trips = s.trips || [];
@@ -1991,6 +2154,12 @@ function render(){
     wireCustomers();
     return;
   }
+  if(view.activeBoard === "staff"){
+    app.innerHTML = topbar("staff") + goalsPanel() + staffView();
+    wire(null, null, null);
+    wireStaff();
+    return;
+  }
   if(view.activeBoard === "trips"){
     var tm = activeTripMonth();
     if(!tripsLoaded[tm] && fbDb){ ensureTripsMonth(tm).then(render); }
@@ -2054,6 +2223,8 @@ function topbar(activeId){
       esc(tr("customers_tab"))+' <i>'+state.customers.length+'</i></button>'+
     '<button class="tab" role="tab" data-board="trips" aria-selected="'+(activeId==="trips")+'">'+
       esc(tr("trips_tab"))+' <i>'+tripsInMonth(curMonthKey()).length+'</i></button>'+
+    '<button class="tab" role="tab" data-board="staff" aria-selected="'+(activeId==="staff")+'">'+
+      esc(tr("staff_tab"))+' <i>'+state.staff.filter(function(m){ return m.active!==false; }).length+'</i></button>'+
     /* the badge counts entries still waiting on Sin or Palm — the number
        whoever opens this tab is actually here to clear */
     (isManager() ? '<button class="tab" role="tab" data-board="hours" aria-selected="'+(activeId==="hours")+'" title="'+esc(tr("hrs_pending_h"))+'">'+
@@ -2075,6 +2246,7 @@ function topbar(activeId){
         (gcalConnected()?'<i class="gdot" aria-hidden="true"></i>':'')+'Google Calendar</button>':'')+
       (isBoard?'<button class="btn sm" id="btn-ics" title="'+esc(tr("ics_btn_title"))+'">.ics</button>':'')+
       (isBoard?'<button class="btn sm" id="btn-csv" title="'+esc(tr("csv_btn_title"))+'">CSV</button>':'')+
+      (activeId==="staff"?'<button class="btn sm" id="btn-staffcsv" title="'+esc(tr("staff_csv_title"))+'">CSV</button>':'')+
       '<div class="savechip" id="savechip" data-s="'+saveState+'"><i class="savedot"></i><span>'+esc(tr("save_saved"))+'</span></div>'+
     '</div>'+
   '</div>';
@@ -2277,6 +2449,436 @@ function confirmDeleteCustomer(id){
   );
   document.getElementById("m-cancel").onclick = closeModal;
   document.getElementById("m-ok").onclick = function(){ doDeleteCustomer(id); };
+}
+
+/* ============ staff board ============ */
+/* Staff = people hired per camp/workshop (facilitators, mentors, freelance
+   crew) — a separate group from the core team in state.team, so they never
+   appear in PIC pickers or calendar invites. The core team are the ones who
+   score and review them. */
+var SCORE_MAX = 5;
+var STAFF_TYPES = ["Freelance","Part-time","Intern","Volunteer","other"];
+var REVIEW_KINDS = [
+  {id:"note",    key:"review_kind_note",    v:"--s-process"},
+  {id:"praise",  key:"review_kind_praise",  v:"--s-done"},
+  {id:"improve", key:"review_kind_improve", v:"--s-postponed"}
+];
+var AV_COLORS = ["#2F6FA8","#3B8467","#B07A2B","#7A4FA3","#B85C5C","#2F8A8A","#8A6D3B","#5C6BB8","#A0527A","#4F7F3B"];
+function reviewKind(id){ return REVIEW_KINDS.filter(function(k){return k.id===id;})[0] || REVIEW_KINDS[0]; }
+function staffTypeLabel(t){ return t==="other" ? tr("staff_type_other") : t; }
+function staffOf(id){ return state.staff.filter(function(x){return x.id===id;})[0] || null; }
+function staffColor(m){
+  if(m.color) return m.color;
+  var h = 0, id = String(m.id||"");
+  for(var i=0;i<id.length;i++) h = (h*31 + id.charCodeAt(i)) >>> 0;
+  return AV_COLORS[h % AV_COLORS.length];
+}
+function staffLabel(m){ return m.nick || m.name || "?"; }
+function initials(m){ return String(staffLabel(m)).replace(/\s+/g,"").slice(0,2); }
+/* A score's project label follows the live project title while it exists
+   (so renames flow through); once it's deleted we fall back to the name
+   captured when the score was given, so history never goes blank. */
+function scoreProjectName(sc){
+  var j = sc.sectionId ? findSectionAll(sc.sectionId) : null;
+  if(j) return j.board.name+" › "+j.sect.title;
+  return sc.project || "—";
+}
+function avgScore(m){
+  var sc = m.scores||[];
+  if(!sc.length) return null;
+  var sum = 0; sc.forEach(function(x){ sum += (+x.score)||0; });
+  return sum / sc.length;
+}
+function projectCount(m){
+  var seen = {};
+  (m.scores||[]).forEach(function(sc){ seen[sc.sectionId || sc.project] = true; });
+  return Object.keys(seen).length;
+}
+function fmtScore(n){ return n==null ? "—" : String(Math.round(n*10)/10); }
+function scoreDots(n){
+  var h = "";
+  for(var i=1;i<=SCORE_MAX;i++) h += '<i class="sdot'+(i<=Math.round(n)?" on":"")+'"></i>';
+  return '<span class="sdots" aria-hidden="true">'+h+'</span>';
+}
+function sinceLabel(dateStr){
+  var s = parse(dateStr); if(!s) return "";
+  var tod = todayUTC();
+  var months = (tod.getUTCFullYear()-s.getUTCFullYear())*12 + (tod.getUTCMonth()-s.getUTCMonth());
+  if(tod.getUTCDate() < s.getUTCDate()) months--;
+  if(months < 0) return "";
+  var y = Math.floor(months/12), mo = months%12, parts = [];
+  if(y) parts.push(tr("staff_years",{n:y}));
+  if(mo || !y) parts.push(tr("staff_months",{n:mo}));
+  return parts.join(" ");
+}
+function byLabel(code){ return code ? esc(member(code).name) : ""; }
+function byDateDesc(a,b){ return String(b.date||"").localeCompare(String(a.date||"")); }
+function lastActivity(m){
+  var d = "";
+  (m.scores||[]).concat(m.reviews||[]).forEach(function(x){ if(String(x.date||"") > d) d = x.date; });
+  return d;
+}
+/* reviewer / scorer = someone on the core team; defaults to whoever is signed in */
+function teamSelect(id, selected){
+  return '<select id="'+id+'"><option value="">—</option>'+state.team.map(function(m){
+    return '<option value="'+esc(m.code)+'"'+(m.code===selected?" selected":"")+'>'+esc(m.name)+' ('+esc(m.code)+')</option>';
+  }).join("")+'</select>';
+}
+function defaultReviewer(){ var m = currentMember(); return m ? m.code : ""; }
+
+var staffSort = "name", staffFilter = "active";
+function staffView(){
+  if(!state.staff.length){
+    return '<div class="viewport" id="viewport"><div class="emptyboard"><h3>'+esc(tr("staff_empty_title"))+'</h3>'+
+      '<p>'+esc(tr("staff_empty_body"))+'</p>'+
+      (readOnly?"":'<button class="btn primary" id="btn-staff-add-empty">'+esc(tr("staff_add_btn"))+'</button>')+'</div></div>';
+  }
+  var rows = state.staff.map(function(m){ return {m:m, avg:avgScore(m)}; });
+  if(staffFilter==="active") rows = rows.filter(function(r){ return r.m.active!==false; });
+  else if(staffFilter==="inactive") rows = rows.filter(function(r){ return r.m.active===false; });
+  if(staffSort==="score") rows.sort(function(a,b){ return (b.avg==null?-1:b.avg) - (a.avg==null?-1:a.avg); });
+  else if(staffSort==="projects") rows.sort(function(a,b){ return projectCount(b.m) - projectCount(a.m); });
+  else if(staffSort==="recent") rows.sort(function(a,b){ return String(lastActivity(b.m)).localeCompare(String(lastActivity(a.m))); });
+  else rows.sort(function(a,b){ return String(staffLabel(a.m)).localeCompare(String(staffLabel(b.m)),"th"); });
+
+  var scoreCnt = 0, reviewCnt = 0, sum = 0, n = 0, activeN = 0;
+  state.staff.forEach(function(m){
+    if(m.active!==false) activeN++;
+    scoreCnt += (m.scores||[]).length; reviewCnt += (m.reviews||[]).length;
+    (m.scores||[]).forEach(function(s){ sum += (+s.score)||0; n++; });
+  });
+  function opts(list, cur){ return list.map(function(o){ return '<option value="'+o[0]+'"'+(cur===o[0]?" selected":"")+'>'+esc(tr(o[1]))+'</option>'; }).join(""); }
+  var summary = '<div class="staffsum">'+
+    '<div class="sumitem"><b>'+activeN+'<small> /'+state.staff.length+'</small></b><span>'+esc(tr("staff_sum_active"))+'</span></div>'+
+    '<div class="sumitem"><b>'+(n?fmtScore(sum/n):"—")+'<small> /'+SCORE_MAX+'</small></b><span>'+esc(tr("staff_sum_avg"))+'</span></div>'+
+    '<div class="sumitem"><b>'+scoreCnt+'</b><span>'+esc(tr("staff_sum_scores"))+'</span></div>'+
+    '<div class="sumitem"><b>'+reviewCnt+'</b><span>'+esc(tr("staff_sum_reviews"))+'</span></div>'+
+    '<div class="spacer"></div>'+
+    '<div class="stafftools">'+
+      '<select id="f-stafffilter">'+opts([["active","staff_filter_active"],["inactive","staff_filter_inactive"],["all","staff_filter_all"]], staffFilter)+'</select>'+
+      '<select id="f-staffsort">'+opts([["name","staff_sort_name"],["score","staff_sort_score"],["projects","staff_sort_projects"],["recent","staff_sort_recent"]], staffSort)+'</select>'+
+      (readOnly?'':'<button class="btn primary sm" id="btn-staff-add">'+esc(tr("staff_add_btn"))+'</button>')+'</div>'+
+  '</div>';
+
+  var cards = rows.map(function(r){
+    var m = r.m, avg = r.avg;
+    var since = sinceLabel(m.since);
+    var info = [
+      m.phone     ? ["staff_l_phone", m.phone] : null,
+      m.email     ? ["staff_l_email", m.email] : null,
+      m.line      ? ["staff_l_line", m.line] : null,
+      m.since     ? ["staff_l_since", fmtShort(m.since)+(since?" · "+since:"")] : null,
+      m.birthday  ? ["staff_l_birthday", fmtShort(m.birthday)] : null,
+      m.emergency ? ["staff_l_emergency", m.emergency] : null
+    ].filter(Boolean).map(function(p){
+      return '<div class="custrow"><span class="custlabel">'+esc(tr(p[0]))+'</span><span>'+esc(p[1])+'</span></div>';
+    }).join("");
+    if(m.notes) info += '<div class="custrow"><span class="custlabel">'+esc(tr("staff_l_notes"))+'</span><span style="white-space:normal">'+esc(m.notes)+'</span></div>';
+    var skills = String(m.skills||"").split(/[,，\n]/).map(function(s){return s.trim();}).filter(Boolean);
+    var tags = '<div class="stafftags">'+
+      (m.type?'<span class="stafftag on">'+esc(staffTypeLabel(m.type))+'</span>':'')+
+      (m.active===false?'<span class="stafftag">'+esc(tr("staff_inactive_tag"))+'</span>':'')+
+      skills.map(function(s){ return '<span class="stafftag">'+esc(s)+'</span>'; }).join("")+
+    '</div>';
+
+    var scores = (m.scores||[]).slice().sort(byDateDesc);
+    var scoresHtml = scores.length ? scores.map(function(sc){
+      var tag = readOnly ? "div" : "button";
+      return '<'+tag+' class="scorerow"'+(readOnly?'':' data-score-edit="'+esc(m.id)+'|'+esc(sc.id)+'"')+'>'+
+        '<span class="scoreproj">'+esc(scoreProjectName(sc))+'</span>'+
+        '<span class="scoreval">'+scoreDots(+sc.score)+esc(sc.score)+'/'+SCORE_MAX+'</span>'+
+        '<span class="scoremeta">'+fmtShort(sc.date)+(sc.by?' · '+esc(tr("staff_by"))+' '+byLabel(sc.by):'')+'</span>'+
+        (sc.note?'<span class="scorenote">'+esc(sc.note)+'</span>':'')+
+      '</'+tag+'>';
+    }).join("") : '<span class="hint">'+esc(tr("staff_no_scores"))+'</span>';
+
+    var reviews = (m.reviews||[]).slice().sort(byDateDesc);
+    var shown = reviews.slice(0,3);
+    var reviewsHtml = shown.length ? shown.map(function(rv){ return reviewRow(m.id, rv); }).join("")
+      : '<span class="hint">'+esc(tr("staff_no_reviews"))+'</span>';
+    if(reviews.length > shown.length)
+      reviewsHtml += '<button class="btn sm" data-review-all="'+esc(m.id)+'" style="align-self:flex-start">'+esc(tr("staff_see_all",{n:reviews.length}))+'</button>';
+
+    return '<div class="custcard staffcard'+(m.active===false?' inactive':'')+'" data-staff="'+esc(m.id)+'">'+
+      '<div class="staffhead">'+
+        '<span class="pic staffav" style="--m:'+esc(staffColor(m))+'">'+esc(initials(m))+'</span>'+
+        '<div class="staffname"><h3>'+esc(m.name||m.nick)+'</h3>'+
+          '<span class="staffsub">'+esc(m.nick||"")+(m.role?(m.nick?' · ':'')+esc(m.role):'')+'</span>'+tags+'</div>'+
+        (readOnly?'':'<div class="custacts"><button class="btn sm" data-staff-edit="'+esc(m.id)+'">'+esc(tr("edit"))+'</button>'+
+          '<button class="btn sm danger" data-staff-del="'+esc(m.id)+'">'+esc(tr("delete"))+'</button></div>')+
+      '</div>'+
+      (info?'<div class="staffinfo">'+info+'</div>':'')+
+      '<div class="custstats staffstats">'+
+        '<div class="custstat"><b><span class="avgbig">'+fmtScore(avg)+'<small>/'+SCORE_MAX+'</small></span></b><span>'+esc(tr("staff_stat_avg"))+'</span></div>'+
+        '<div class="custstat"><b>'+projectCount(m)+'</b><span>'+esc(tr("staff_stat_projects"))+'</span></div>'+
+        '<div class="custstat"><b>'+reviews.length+'</b><span>'+esc(tr("staff_stat_reviews"))+'</span></div>'+
+      '</div>'+
+      '<div class="staffsec"><div class="staffsechead"><span>'+esc(tr("staff_scores_h",{n:scores.length}))+'</span>'+
+        (readOnly?'':'<button class="btn sm" data-score-add="'+esc(m.id)+'">'+esc(tr("staff_score_add"))+'</button>')+'</div>'+scoresHtml+'</div>'+
+      '<div class="staffsec"><div class="staffsechead"><span>'+esc(tr("staff_reviews_h",{n:reviews.length}))+'</span>'+
+        (readOnly?'':'<button class="btn sm" data-review-add="'+esc(m.id)+'">'+esc(tr("staff_review_add"))+'</button>')+'</div>'+reviewsHtml+'</div>'+
+    '</div>';
+  }).join("");
+  if(!rows.length) cards = '<div class="emptyboard" style="grid-column:1/-1"><h3>'+esc(tr("staff_none_in_filter"))+'</h3></div>';
+
+  return '<div class="viewport" id="viewport"><div class="custwrap">'+summary+
+    '<div class="custgrid">'+cards+'</div>'+
+  '</div></div>';
+}
+function reviewRow(staffId, rv){
+  var k = reviewKind(rv.kind);
+  var tag = readOnly ? "div" : "button";
+  return '<'+tag+' class="reviewrow"'+(readOnly?'':' data-review-edit="'+esc(staffId)+'|'+esc(rv.id)+'"')+'>'+
+    '<span class="reviewtag" style="--k:var('+k.v+')">'+esc(tr(k.key))+'</span>'+
+    '<span class="reviewmeta" style="grid-column:auto">'+fmtShort(rv.date)+(rv.by?' · '+esc(tr("staff_by"))+' '+byLabel(rv.by):'')+'</span>'+
+    '<span class="reviewtext">'+esc(rv.text)+'</span>'+
+  '</'+tag+'>';
+}
+function wireStaff(){
+  ["btn-staff-add","btn-staff-add-empty"].forEach(function(id){
+    var e = document.getElementById(id);
+    if(e) e.onclick = function(){ openStaff(null); };
+  });
+  var fs = document.getElementById("f-staffsort");
+  if(fs) fs.onchange = function(){ staffSort = fs.value; render(); };
+  var ff = document.getElementById("f-stafffilter");
+  if(ff) ff.onchange = function(){ staffFilter = ff.value; render(); };
+  var bcsv = document.getElementById("btn-staffcsv");
+  if(bcsv) bcsv.onclick = exportStaffCsv;
+  document.querySelectorAll("[data-staff-edit]").forEach(function(el){
+    el.onclick = function(){ openStaff(el.getAttribute("data-staff-edit")); };
+  });
+  document.querySelectorAll("[data-staff-del]").forEach(function(el){
+    el.onclick = function(){ confirmDeleteStaff(el.getAttribute("data-staff-del")); };
+  });
+  document.querySelectorAll("[data-score-add]").forEach(function(el){
+    el.onclick = function(){ openScore(el.getAttribute("data-score-add"), null); };
+  });
+  document.querySelectorAll("[data-score-edit]").forEach(function(el){
+    el.onclick = function(){ var p = el.getAttribute("data-score-edit").split("|"); openScore(p[0], p[1]); };
+  });
+  document.querySelectorAll("[data-review-add]").forEach(function(el){
+    el.onclick = function(){ openReview(el.getAttribute("data-review-add"), null); };
+  });
+  document.querySelectorAll("[data-review-edit]").forEach(function(el){
+    el.onclick = function(){ var p = el.getAttribute("data-review-edit").split("|"); openReview(p[0], p[1]); };
+  });
+  document.querySelectorAll("[data-review-all]").forEach(function(el){
+    el.onclick = function(){ openReviewsAll(el.getAttribute("data-review-all")); };
+  });
+}
+
+/* ---- profile ---- */
+function openStaff(id){
+  if(readOnly) return;
+  var m = id ? staffOf(id) : null;
+  var isNew = !m;
+  if(isNew) m = {id:uid("st"), name:"", nick:"", type:"Freelance", active:true, scores:[], reviews:[]};
+  function f(id,key,val,type,phKey){
+    return '<div class="field"><label>'+esc(tr(key))+'</label><input type="'+(type||"text")+'" id="'+id+'" value="'+esc(val||"")+'"'+(phKey?' placeholder="'+esc(tr(phKey))+'"':'')+'></div>';
+  }
+  var typeOpts = STAFF_TYPES.map(function(t){ return '<option value="'+esc(t)+'"'+(m.type===t?" selected":"")+'>'+esc(staffTypeLabel(t))+'</option>'; }).join("");
+  modal(isNew?tr("staff_add_title"):tr("staff_edit_title",{name:staffLabel(m)}),
+    '<div class="grid2">'+
+      f("f-st-name","staff_f_name",m.name,"text")+
+      f("f-st-nick","staff_f_nick",m.nick,"text","staff_f_nick_ph")+
+    '</div>'+
+    '<div class="grid3">'+
+      f("f-st-role","staff_f_role",m.role,"text","staff_f_role_ph")+
+      '<div class="field"><label>'+esc(tr("staff_f_type"))+'</label><select id="f-st-type">'+typeOpts+'</select></div>'+
+      '<div class="field"><label>'+esc(tr("staff_f_color"))+'</label><input type="color" id="f-st-color" value="'+esc(staffColor(m))+'" style="padding:2px;height:34px"></div>'+
+    '</div>'+
+    f("f-st-skills","staff_f_skills",m.skills,"text","staff_f_skills_ph")+
+    '<div class="grid2">'+
+      f("f-st-phone","staff_f_phone",m.phone,"tel")+
+      f("f-st-email","staff_f_email",m.email,"email")+
+    '</div>'+
+    '<div class="grid3">'+
+      f("f-st-line","staff_f_line",m.line,"text")+
+      f("f-st-since","staff_f_since",m.since,"date")+
+      f("f-st-birth","staff_f_birthday",m.birthday,"date")+
+    '</div>'+
+    f("f-st-emerg","staff_f_emergency",m.emergency,"text","staff_f_emergency_ph")+
+    '<div class="field"><label>'+esc(tr("staff_f_notes"))+'</label><textarea id="f-st-notes" placeholder="'+esc(tr("staff_f_notes_ph"))+'">'+esc(m.notes||"")+'</textarea></div>'+
+    '<div class="field"><label class="chk"><input type="checkbox" id="f-st-active"'+(m.active!==false?" checked":"")+'>'+
+      '<span>'+esc(tr("staff_f_active"))+'</span></label></div>'+
+    '<span class="hint">'+esc(tr("staff_form_hint"))+'</span>',
+    (isNew?"":'<button class="btn danger" id="m-del">'+esc(tr("staff_delete_this"))+'</button>')+
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn primary" id="m-ok">'+esc(isNew?tr("staff_add_submit"):tr("save_btn"))+'</button>'
+  );
+  function v(id){ return document.getElementById(id).value.trim(); }
+  document.getElementById("m-cancel").onclick = closeModal;
+  if(!isNew) document.getElementById("m-del").onclick = function(){ confirmDeleteStaff(m.id); };
+  document.getElementById("m-ok").onclick = function(){
+    var n = v("f-st-name"), nk = v("f-st-nick");
+    if(!n && !nk){ document.getElementById("f-st-name").focus(); return; }
+    m.name = n; m.nick = nk;
+    m.role = v("f-st-role"); m.type = document.getElementById("f-st-type").value;
+    m.color = document.getElementById("f-st-color").value;
+    m.skills = v("f-st-skills");
+    m.phone = v("f-st-phone"); m.email = v("f-st-email"); m.line = v("f-st-line");
+    m.since = v("f-st-since"); m.birthday = v("f-st-birth");
+    m.emergency = v("f-st-emerg"); m.notes = v("f-st-notes");
+    m.active = document.getElementById("f-st-active").checked;
+    if(isNew) state.staff.push(m);
+    closeModal(); touch(); render();
+  };
+  setTimeout(function(){ var el=document.getElementById("f-st-name"); if(el) el.focus(); }, 30);
+}
+function confirmDeleteStaff(id){
+  var m = staffOf(id); if(!m) return;
+  var n = (m.scores||[]).length + (m.reviews||[]).length;
+  modal(tr("staff_delete_title"),
+    '<p style="margin:0">'+tr("staff_delete_body",{name:esc(staffLabel(m)), extra:(n?esc(tr("staff_delete_extra",{n:n})):"")})+'</p>'+
+    '<span class="hint">'+esc(tr("staff_delete_hint"))+'</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn danger" id="m-ok">'+esc(tr("staff_delete_title"))+'</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  document.getElementById("m-ok").onclick = function(){
+    state.staff = state.staff.filter(function(x){ return x.id!==id; });
+    closeModal(); touch(); render();
+  };
+}
+
+/* ---- score per project ---- */
+function openScore(staffId, scoreId){
+  if(readOnly) return;
+  var m = staffOf(staffId); if(!m) return;
+  var sc = scoreId ? (m.scores||[]).filter(function(x){return x.id===scoreId;})[0] : null;
+  var isNew = !sc;
+  if(isNew) sc = {id:uid("sc"), sectionId:"", project:"", score:SCORE_MAX-1, date:ymd(todayUTC()), by:defaultReviewer(), note:""};
+  var groups = state.boards.map(function(b){
+    if(!b.sections.length) return "";
+    return '<optgroup label="'+esc(b.name)+'">'+b.sections.map(function(s){
+      return '<option value="'+esc(s.id)+'"'+(s.id===sc.sectionId?" selected":"")+'>'+esc(s.title)+'</option>';
+    }).join("")+'</optgroup>';
+  }).join("");
+  var customSel = !sc.sectionId || !findSectionAll(sc.sectionId);
+  var picks = ""; for(var i=1;i<=SCORE_MAX;i++)
+    picks += '<button type="button" class="pickbtn" data-sv="'+i+'" aria-pressed="'+(+sc.score===i)+'">'+i+'</button>';
+  modal(tr(isNew?"score_add_title":"score_edit_title",{name:staffLabel(m)}),
+    '<div class="field"><label>'+esc(tr("score_f_project"))+'</label>'+
+      '<select id="f-sc-sect"><option value=""'+(customSel?" selected":"")+'>'+esc(tr("score_custom_opt"))+'</option>'+groups+'</select></div>'+
+    '<div class="field" id="f-sc-projwrap" style="display:'+(customSel?"flex":"none")+'"><label>'+esc(tr("score_f_projname"))+'</label>'+
+      '<input id="f-sc-proj" value="'+esc(sc.project||"")+'" placeholder="'+esc(tr("score_f_projname_ph"))+'"></div>'+
+    '<div class="field"><label>'+esc(tr("score_f_score",{max:SCORE_MAX}))+'</label><div class="picks scorepicks" id="f-sc-picks">'+picks+'</div></div>'+
+    '<div class="grid2">'+
+      '<div class="field"><label>'+esc(tr("score_f_date"))+'</label><input type="date" id="f-sc-date" value="'+esc(sc.date||"")+'"></div>'+
+      '<div class="field"><label>'+esc(tr("score_f_by"))+'</label>'+teamSelect("f-sc-by", sc.by)+'</div>'+
+    '</div>'+
+    '<div class="field"><label>'+esc(tr("score_f_note"))+'</label><textarea id="f-sc-note" placeholder="'+esc(tr("score_f_note_ph"))+'">'+esc(sc.note||"")+'</textarea></div>',
+    (isNew?"":'<button class="btn danger" id="m-del">'+esc(tr("score_delete"))+'</button>')+
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn primary" id="m-ok">'+esc(isNew?tr("score_submit"):tr("save_btn"))+'</button>'
+  );
+  var cur = +sc.score || 0;
+  var sel = document.getElementById("f-sc-sect");
+  sel.onchange = function(){ document.getElementById("f-sc-projwrap").style.display = sel.value ? "none" : "flex"; };
+  document.querySelectorAll("#f-sc-picks [data-sv]").forEach(function(el){
+    el.onclick = function(){
+      cur = +el.getAttribute("data-sv");
+      document.querySelectorAll("#f-sc-picks [data-sv]").forEach(function(x){ x.setAttribute("aria-pressed", +x.getAttribute("data-sv")===cur); });
+    };
+  });
+  document.getElementById("m-cancel").onclick = closeModal;
+  if(!isNew) document.getElementById("m-del").onclick = function(){
+    m.scores = (m.scores||[]).filter(function(x){ return x.id!==sc.id; });
+    closeModal(); touch(); render();
+  };
+  document.getElementById("m-ok").onclick = function(){
+    var sid = sel.value, j = sid ? findSectionAll(sid) : null;
+    var name = j ? (j.board.name+" › "+j.sect.title) : document.getElementById("f-sc-proj").value.trim();
+    if(!name){ document.getElementById("f-sc-proj").focus(); return; }
+    if(!cur){ return; }
+    sc.sectionId = sid; sc.project = name; sc.score = cur;
+    sc.date = document.getElementById("f-sc-date").value || ymd(todayUTC());
+    sc.by = document.getElementById("f-sc-by").value;
+    sc.note = document.getElementById("f-sc-note").value.trim();
+    if(isNew){ m.scores = m.scores||[]; m.scores.push(sc); }
+    closeModal(); touch(); render();
+  };
+}
+
+/* ---- review notes ---- */
+function openReview(staffId, reviewId){
+  if(readOnly) return;
+  var m = staffOf(staffId); if(!m) return;
+  var rv = reviewId ? (m.reviews||[]).filter(function(x){return x.id===reviewId;})[0] : null;
+  var isNew = !rv;
+  if(isNew) rv = {id:uid("rv"), kind:"note", date:ymd(todayUTC()), by:defaultReviewer(), text:""};
+  var kinds = REVIEW_KINDS.map(function(k){
+    return '<button type="button" class="pickbtn" data-kind="'+k.id+'" aria-pressed="'+(rv.kind===k.id)+'">'+
+      '<span class="dot" style="--m:var('+k.v+')"></span>'+esc(tr(k.key))+'</button>';
+  }).join("");
+  modal(tr(isNew?"review_add_title":"review_edit_title",{name:staffLabel(m)}),
+    '<div class="field"><label>'+esc(tr("review_f_kind"))+'</label><div class="picks" id="f-rv-kinds">'+kinds+'</div></div>'+
+    '<div class="grid2">'+
+      '<div class="field"><label>'+esc(tr("review_f_date"))+'</label><input type="date" id="f-rv-date" value="'+esc(rv.date||"")+'"></div>'+
+      '<div class="field"><label>'+esc(tr("review_f_by"))+'</label>'+teamSelect("f-rv-by", rv.by)+'</div>'+
+    '</div>'+
+    '<div class="field"><label>'+esc(tr("review_f_text"))+'</label><textarea id="f-rv-text" style="min-height:96px" placeholder="'+esc(tr("review_f_text_ph"))+'">'+esc(rv.text||"")+'</textarea></div>',
+    (isNew?"":'<button class="btn danger" id="m-del">'+esc(tr("review_delete"))+'</button>')+
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn primary" id="m-ok">'+esc(tr("save_btn"))+'</button>'
+  );
+  var kind = rv.kind || "note";
+  document.querySelectorAll("#f-rv-kinds [data-kind]").forEach(function(el){
+    el.onclick = function(){
+      kind = el.getAttribute("data-kind");
+      document.querySelectorAll("#f-rv-kinds [data-kind]").forEach(function(x){ x.setAttribute("aria-pressed", x.getAttribute("data-kind")===kind); });
+    };
+  });
+  document.getElementById("m-cancel").onclick = closeModal;
+  if(!isNew) document.getElementById("m-del").onclick = function(){
+    m.reviews = (m.reviews||[]).filter(function(x){ return x.id!==rv.id; });
+    closeModal(); touch(); render();
+  };
+  document.getElementById("m-ok").onclick = function(){
+    var text = document.getElementById("f-rv-text").value.trim();
+    if(!text){ document.getElementById("f-rv-text").focus(); return; }
+    rv.kind = kind; rv.text = text;
+    rv.date = document.getElementById("f-rv-date").value || ymd(todayUTC());
+    rv.by = document.getElementById("f-rv-by").value;
+    if(isNew){ m.reviews = m.reviews||[]; m.reviews.push(rv); }
+    closeModal(); touch(); render();
+  };
+  setTimeout(function(){ var el=document.getElementById("f-rv-text"); if(el) el.focus(); }, 30);
+}
+function openReviewsAll(staffId){
+  var m = staffOf(staffId); if(!m) return;
+  var reviews = (m.reviews||[]).slice().sort(byDateDesc);
+  modal(tr("review_all_title",{name:staffLabel(m), n:reviews.length}),
+    '<div class="reviewlist">'+reviews.map(function(rv){ return reviewRow(staffId, rv); }).join("")+'</div>',
+    '<div class="spacer"></div>'+(readOnly?'':'<button class="btn" id="m-add">'+esc(tr("review_new"))+'</button>')+
+    '<button class="btn primary" id="m-cancel">'+esc(tr("close"))+'</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  var add = document.getElementById("m-add");
+  if(add) add.onclick = function(){ openReview(staffId, null); };
+  document.querySelectorAll("#scrim [data-review-edit]").forEach(function(el){
+    el.onclick = function(){ var p = el.getAttribute("data-review-edit").split("|"); openReview(p[0], p[1]); };
+  });
+}
+
+/* ---- csv ---- */
+function exportStaffCsv(){
+  var lines = [["Type","Name","Nickname","Role","Staff type","Active","Skills","Phone","Email","LINE","Project","Score","Kind","Date","By","Note"]];
+  state.staff.forEach(function(m){
+    var base = [m.name||"", m.nick||"", m.role||"", staffTypeLabel(m.type||""), m.active===false?"no":"yes", m.skills||"", m.phone||"", m.email||"", m.line||""];
+    lines.push(["profile"].concat(base, ["", fmtScore(avgScore(m)), "", m.since?fmtShort(m.since):"", "", m.notes||""]));
+    (m.scores||[]).slice().sort(byDateDesc).forEach(function(sc){
+      lines.push(["score"].concat(base, [scoreProjectName(sc), String(sc.score), "", fmtShort(sc.date), sc.by?member(sc.by).name:"", sc.note||""]));
+    });
+    (m.reviews||[]).slice().sort(byDateDesc).forEach(function(rv){
+      lines.push(["review"].concat(base, ["", "", tr(reviewKind(rv.kind).key), fmtShort(rv.date), rv.by?member(rv.by).name:"", rv.text||""]));
+    });
+  });
+  var csv = "﻿" + lines.map(function(r){
+    return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(",");
+  }).join("\r\n");
+  downloadBlob("staff-"+ymd(todayUTC())+".csv", csv, "text/csv;charset=utf-8");
 }
 
 /* ============ travel log ============ */

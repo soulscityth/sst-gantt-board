@@ -1963,15 +1963,17 @@ function visible(t){
    actually removed — once every task is Done or Cancel and its D-Day (and
    any leave span) is behind us. A D-DAY task never becomes Done, it just
    passes; until it has, the project stays up however tidy the to-do list
-   looks. A project with no D-DAY task hides on the Done/Cancel test alone. */
+   looks. A project with no D-DAY task (Back office, PR, ongoing work) is
+   never "finished" — it always stays on the board. */
 function isProjectDone(s){
-  if(!s.tasks.length) return false;
-  var tod = todayUTC();
-  return s.tasks.every(function(t){
+  var tod = todayUTC(), hasDday = false;
+  var allClosed = s.tasks.every(function(t){
     if(t.status === "Done" || t.status === "Cancel") return true;
-    if(isSpanStatus(t.status)){ var du = dueOf(t); return !!(du && du < tod); }
+    if(t.status === "D-DAY"){ hasDday = true; var du = dueOf(t); return !!(du && du < tod); }
+    if(t.status === "Leaving"){ var ld = dueOf(t); return !!(ld && ld < tod); }
     return false;
   });
+  return hasDday && allClosed;
 }
 
 /* ============ render ============ */

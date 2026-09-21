@@ -1958,11 +1958,20 @@ function visible(t){
   if(!view.showOldDone && isOldDone(t)) return false;
   return true;
 }
-/* a project whose tasks are all Done is finished business — hidden from the
-   default view like an old-done task, but findable via the same kind of
-   toggle rather than actually removed. */
+/* a project is finished business — hidden from the default view like an
+   old-done task, but findable via the same kind of toggle rather than
+   actually removed — once every task is Done or Cancel and its D-Day (and
+   any leave span) is behind us. A D-DAY task never becomes Done, it just
+   passes; until it has, the project stays up however tidy the to-do list
+   looks. A project with no D-DAY task hides on the Done/Cancel test alone. */
 function isProjectDone(s){
-  return s.tasks.length > 0 && s.tasks.every(function(t){ return t.status === "Done"; });
+  if(!s.tasks.length) return false;
+  var tod = todayUTC();
+  return s.tasks.every(function(t){
+    if(t.status === "Done" || t.status === "Cancel") return true;
+    if(isSpanStatus(t.status)){ var du = dueOf(t); return !!(du && du < tod); }
+    return false;
+  });
 }
 
 /* ============ render ============ */

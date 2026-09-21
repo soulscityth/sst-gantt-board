@@ -26,7 +26,7 @@ hook = '''window.__dbg = {
   remoteRecs: function(){ return remoteRecs; }, pendingWrites: function(){ return pendingWrites; },
   tripsLoaded: function(){ return tripsLoaded; }, tripsIndex: function(){ return tripsIndex; },
   archiveLoaded: function(){ return archiveLoaded; }, ensureArchive: ensureArchive, ensureTripsMonth: ensureTripsMonth,
-  findTaskAll: findTaskAll, setUser: function(u){ currentUser = u; }, uid: uid, isOldDone: isOldDone,
+  findTaskAll: findTaskAll, setUser: function(u){ currentUser = u; }, uid: uid, isOldDone: isOldDone, isProjectDone: isProjectDone,
   gcalForm: gcalForm, openCalendarExport: openCalendarExport, gcalEventBody: gcalEventBody, gcal: function(){ return gcal; },
   buildIcs: buildIcs, loadGcal: loadGcal, board: board, applyAutoStatuses: applyAutoStatuses,
   applyRestore: applyRestore, downloadBackup: downloadBackup, hoursTotal: hoursTotal, allHourEntries: allHourEntries,

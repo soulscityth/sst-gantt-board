@@ -731,6 +731,9 @@ button.scorerow:hover,button.reviewrow:hover{border-color:var(--border-strong);b
 }
 .teamrow{display:grid;grid-template-columns:74px 1fr 44px;gap:8px;align-items:center}
 .teamrow .email{grid-column:1 / -1;font-size:12px}
+.teamrow .fullname{grid-column:1 / -1;font-size:12px}
+.teamrow .bank{grid-column:1 / -1;display:grid;grid-template-columns:1.2fr 1fr .8fr;gap:8px}
+.teamrow .bank input{font-size:12px;min-width:0}
 .teamrow+.teamrow{border-top:1px solid var(--border);padding-top:12px}
 
 @media (max-width:900px){
@@ -887,6 +890,10 @@ var I18N = {
     hrs_month_note:"นับชั่วโมงเข้าเดือนตามวันครบกำหนดของงาน — งานที่ยังไม่มีวันที่จะแยกไว้ด้านล่าง ไม่ถูกนับในเดือนใด",
     hrs_open_task:"เปิดงานเพื่อแก้ไข/อนุมัติ",
     trip_month_label:"เดือน", trip_add_btn:"+ เพิ่มการเดินทาง", trip_csv_btn:"CSV เดือนนี้",
+    trip_claim_btn:"Excel ใบเบิก",
+    trip_claim_btn_title:"สร้างไฟล์ Excel สำหรับทำใบเบิกเงินค่าใช้จ่ายการเดินทาง — 1 แถวต่อ 1 คน จากการเดินทางในเดือนนี้ (ถ้ากรองรายคนอยู่ จะได้เฉพาะคนนั้น)",
+    trip_claim_loading:"กำลังเตรียมไฟล์ Excel…",
+    trip_claim_fail:"โหลดตัวสร้าง Excel ไม่สำเร็จ — ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่",
     trip_owner:"ผู้เดินทาง", trip_date:"วันที่", trip_from:"ต้นทาง", trip_to:"ปลายทาง",
     trip_km:"ระยะทาง (กม.)", trip_km_unit:"กม.", trip_trips_unit:"เที่ยว",
     trip_total_row:"รวมทั้งเดือน",
@@ -1006,7 +1013,9 @@ var I18N = {
     project_delete_submit:"ลบทั้งหัวข้อ",
     nickname_aria:"ชื่อเล่น", color_aria:"สี", email_ph:"อีเมลสำหรับเชิญเข้าปฏิทิน", email_aria:"อีเมล",
     team_title:"ทีม ({n} คน)", team_field_label:"Code / ชื่อเล่น / สี / อีเมล",
-    team_hint:"Code คือตัวย่อที่แสดงบนแถว PIC — เปลี่ยนแล้วงานเดิมจะถูกอัปเดตให้ตาม · อีเมลใช้สำหรับเชิญเป็น guest ตอนส่งงานเข้า Google Calendar",
+    team_hint:"Code คือตัวย่อที่แสดงบนแถว PIC — เปลี่ยนแล้วงานเดิมจะถูกอัปเดตให้ตาม · อีเมลใช้สำหรับเชิญเป็น guest ตอนส่งงานเข้า Google Calendar · ชื่อเต็มและบัญชีธนาคารใช้เติมใบเบิกค่าเดินทาง (เว้นว่างได้ แล้วไปกรอกใน Excel ทีหลัง)",
+    claim_full_ph:"ชื่อ-นามสกุลเต็มสำหรับใบเบิก เช่น นายณภัทร กิจสนาโยธิน", claim_full_aria:"ชื่อเต็ม (ใบเบิก)",
+    claim_acct_ph:"ชื่อบัญชี", claim_no_ph:"เลขที่บัญชี", claim_bank_ph:"ธนาคาร",
     gcal_checking:"กำลังตรวจสอบการเชื่อมต่อ…",
     gcal_not_configured_t:"ยังไม่ได้ตั้งค่า Google Calendar",
     gcal_not_configured_d:"ใส่ GOOGLE_CLIENT_ID ที่หัวไฟล์ HTML ก่อน (ดูคอมเมนต์ในไฟล์)",
@@ -1091,6 +1100,10 @@ var I18N = {
     hrs_month_note:"Hours fall into the month of the task's due date \u2014 tasks with no date are listed separately below and counted in no month.",
     hrs_open_task:"Open the task to edit or approve",
     trip_month_label:"Month", trip_add_btn:"+ Add Trip", trip_csv_btn:"CSV for month",
+    trip_claim_btn:"Claim form Excel",
+    trip_claim_btn_title:"Build an Excel file for the travel expense claim form (ใบเบิกเงินค่าใช้จ่ายการเดินทาง) — one row per person from this month's trips (only that person when a person filter is on)",
+    trip_claim_loading:"Preparing the Excel file…",
+    trip_claim_fail:"Couldn't load the Excel builder — check your connection and try again.",
     trip_owner:"Traveller", trip_date:"Date", trip_from:"From", trip_to:"To",
     trip_km:"Distance (km)", trip_km_unit:"km", trip_trips_unit:"trips",
     trip_total_row:"Month total",
@@ -1210,7 +1223,9 @@ var I18N = {
     project_delete_submit:"Delete Entire Project",
     nickname_aria:"Nickname", color_aria:"Color", email_ph:"Email for calendar invites", email_aria:"Email",
     team_title:"Team ({n} people)", team_field_label:"Code / Nickname / Color / Email",
-    team_hint:"Code is the short label shown on the PIC row — changing it updates existing tasks to match. · Email is used to invite guests when sending tasks to Google Calendar.",
+    team_hint:"Code is the short label shown on the PIC row — changing it updates existing tasks to match. · Email is used to invite guests when sending tasks to Google Calendar. · Full name and bank details fill the travel claim form (leave blank and fill them in the Excel later if you prefer).",
+    claim_full_ph:"Full name for the claim form, e.g. นายณภัทร กิจสนาโยธิน", claim_full_aria:"Full name (claim form)",
+    claim_acct_ph:"Account name", claim_no_ph:"Account number", claim_bank_ph:"Bank",
     gcal_checking:"Checking connection…",
     gcal_not_configured_t:"Google Calendar not configured",
     gcal_not_configured_d:"Set GOOGLE_CLIENT_ID at the top of the HTML file first (see the comment in the file).",
@@ -1994,6 +2009,14 @@ async function migrateLegacy(){
 /* Reimbursement rate per kilometre by vehicle. Edit here to change what the
    travel board pays out; the keys are what's stored on each trip. */
 var TRIP_RATES = {car:6, ev:4, moto:3};
+/* Who signs the travel claim form (ใบเบิกเงินค่าใช้จ่ายการเดินทาง) as payer
+   and approver. Pre-filled into the claim Excel so each month's forms come
+   out ready to sign; edit here if the signatories change. */
+var CLAIM_PAYER = "นายจิรสิน จานะพร";
+var CLAIM_APPROVER = "นายณภัทร กิจสนาโยธิน";
+/* SheetJS, loaded only when someone asks for the claim Excel — the board
+   itself never needs it, so it shouldn't cost every page load ~900 KB */
+var XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
 /* Who may sign off logged work hours. This is a record of who pressed the
    button, not a permission check — without login (deliberately not built)
    anyone with the link could set it, so treat it as an audit trail. */
@@ -2968,6 +2991,7 @@ function tripsView(){
     '<select id="trip-month">'+monthOpts+'</select>'+
     '<div class="spacer"></div>'+
     (allTrips.length?'<button class="btn sm" id="btn-trip-csv">'+esc(tr("trip_csv_btn"))+'</button>':'')+
+    (allTrips.length?'<button class="btn sm" id="btn-trip-claim" title="'+esc(tr("trip_claim_btn_title"))+'">'+esc(tr("trip_claim_btn"))+'</button>':'')+
     (readOnly?'':'<button class="btn primary sm" id="btn-trip-add">'+esc(tr("trip_add_btn"))+'</button>')+
   '</div>';
 
@@ -3062,6 +3086,8 @@ function wireTrips(){
   if(add) add.onclick = function(){ openTrip(null); };
   var csv = document.getElementById("btn-trip-csv");
   if(csv) csv.onclick = exportTripsCsv;
+  var claim = document.getElementById("btn-trip-claim");
+  if(claim) claim.onclick = function(){ exportTripsClaimXlsx(claim); };
   document.querySelectorAll("[data-trip-pic]").forEach(function(el){
     el.onclick = function(){
       var c = el.getAttribute("data-trip-pic");
@@ -3268,6 +3294,182 @@ function exportTripsCsv(){
     return r.map(function(c){ return '"' + String(c).replace(/"/g,'""') + '"'; }).join(",");
   }).join("\r\n");
   downloadBlob("trips-"+monthKey+".csv", csv, "text/csv;charset=utf-8");
+}
+
+/* ============ travel claim form (Excel) ============ */
+/* The company's claim form (ใบเบิกเงินค่าใช้จ่ายการเดินทาง) is filled in by
+   Claude's soulscity-travel-claim-form skill, which in bulk mode takes a
+   spreadsheet with one row per claim and writes one .docx per row. This
+   builds that spreadsheet from the board: one claim per person per month
+   (the unit the board already totals), with each outing as one line of the
+   form's itemized table. Headers are the form's own Thai field names so the
+   skill maps them by meaning, whatever language the board is showing. */
+var xlsxLoading = null;
+function loadXlsx(){
+  if(window.XLSX) return Promise.resolve(window.XLSX);
+  if(!xlsxLoading){
+    xlsxLoading = new Promise(function(res, rej){
+      var sc = document.createElement("script");
+      sc.src = XLSX_URL; sc.async = true;
+      sc.onload = function(){ window.XLSX ? res(window.XLSX) : rej(new Error("no XLSX")); };
+      sc.onerror = function(){ xlsxLoading = null; rej(new Error("load failed")); };
+      document.head.appendChild(sc);
+    });
+  }
+  return xlsxLoading;
+}
+/* the form is dated in Thai with a พ.ศ. year, whatever the board's language */
+function thaiDateLong(s){
+  var d = parse(s);
+  if(!d) return "";
+  return d.getUTCDate()+" "+MON_BY_LANG.th[d.getUTCMonth()]+" "+(d.getUTCFullYear()+543);
+}
+function thaiDateShort(s){
+  var d = parse(s);
+  if(!d) return "";
+  return d.getUTCDate()+" "+MONS_BY_LANG.th[d.getUTCMonth()]+" "+String(d.getUTCFullYear()+543).slice(2);
+}
+/* the form's own vehicle checkboxes are BTS / motorcycle / taxi / other —
+   the board pays by the kilometre for a person's own vehicle, so cars land
+   under "other" with the rate spelled out, and motorcycles on their box */
+function claimVehicle(v){
+  var rate = TRIP_RATES[v] || TRIP_RATES.car;
+  if(v === "moto") return "รถจักรยานยนต์ ("+rate+" บาท/กม.)";
+  if(v === "ev") return "อื่น ๆ (รถยนต์ไฟฟ้าส่วนตัว "+rate+" บาท/กม.)";
+  return "อื่น ๆ (รถยนต์ส่วนตัว "+rate+" บาท/กม.)";
+}
+function claimVehicleShort(v){
+  return v === "moto" ? "มอเตอร์ไซค์" : v === "ev" ? "รถยนต์ไฟฟ้า" : "รถยนต์";
+}
+/* one line of the form's itemized table: everything the reader needs to
+   check the figure against the board — date, project, every leg with its
+   distance, and the rate it was paid at */
+function claimLegText(t){
+  var legs = (t.routes||[]).map(function(rt){
+    return "จาก "+(rt.from||"")+" ไป "+(rt.to||"")+" ("+fmtKm(Math.max(0, parseFloat(rt.km)||0))+" กม.)";
+  }).join(" และ ");
+  var proj = projectLabel(t.sectId);
+  return "วันที่ "+thaiDateShort(t.date)+(proj ? " "+proj : "")+" — "+legs+
+    " — "+claimVehicleShort(t.vehicle)+" "+tripRate(t)+" บาท/กม.";
+}
+function uniq(arr){
+  var out = [];
+  arr.forEach(function(x){ if(x && out.indexOf(x) < 0) out.push(x); });
+  return out;
+}
+function buildClaimRows(trips){
+  /* team order first so the sheet reads like the cards above the table,
+     then anyone whose code has since left the team */
+  var codes = state.team.map(function(m){ return m.code; });
+  trips.forEach(function(t){ if(codes.indexOf(t.pic) < 0) codes.push(t.pic); });
+  var today = thaiDateLong(ymd(todayUTC()));
+  var rows = [];
+  codes.forEach(function(c){
+    var mine = trips.filter(function(t){ return t.pic === c; });
+    if(!mine.length) return;
+    var m = member(c);
+    var total = 0;
+    mine.forEach(function(t){ total += tripBaht(t); });
+    var legs = mine.map(function(t){ return claimLegText(t)+" | "+tripBaht(t); });
+    /* where they went: every leg's destination, minus where the outing
+       started — a return leg ends at the office, and the office is not a
+       place anyone travelled to */
+    var starts = mine.map(function(t){ return ((t.routes||[])[0]||{}).from || ""; }).map(function(x){ return x.trim(); });
+    var dests = uniq([].concat.apply([], mine.map(function(t){
+      return (t.routes||[]).map(function(rt){ return (rt.to||"").trim(); });
+    }))).filter(function(d){ return starts.indexOf(d) < 0; });
+    var projects = uniq(mine.map(function(t){ return projectLabel(t.sectId); }));
+    var vehicles = uniq(mine.map(function(t){ return claimVehicle(t.vehicle); }));
+    var notes = mine.filter(function(t){ return (t.note||"").trim(); })
+      .map(function(t){ return thaiDateShort(t.date)+": "+t.note.trim(); });
+    rows.push({
+      code: c,
+      /* nickname as a visible fallback, never a blank the skill would guess at */
+      name: (m.fullName||"").trim() || m.name,
+      docDate: today,
+      dests: dests.join(", "),
+      purpose: projects.join(", "),
+      vehicles: vehicles.join("; "),
+      legs: legs.join("\n"),
+      n: mine.length,
+      total: total,
+      notes: notes.join("\n"),
+      bankAccount: m.bankAccount||"", bankNo: m.bankNo||"", bankName: m.bankName||""
+    });
+  });
+  return rows;
+}
+function exportTripsClaimXlsx(btn){
+  var monthKey = activeTripMonth();
+  var trips = tripsInMonth(monthKey);
+  /* honour the person filter: "make my claim" is the common case */
+  var picF = filters.tripPic;
+  if(picF) trips = trips.filter(function(t){ return t.pic === picF; });
+  if(!trips.length) return;
+  var label = btn ? btn.textContent : "";
+  if(btn){ btn.disabled = true; btn.textContent = tr("trip_claim_loading"); }
+  loadXlsx().then(function(XLSX){
+    var rows = buildClaimRows(trips);
+    var monthTh = tripMonthLabelThai(monthKey);
+
+    var claimHead = ["ลำดับ","ผู้เบิก (คำนำหน้า ชื่อ-นามสกุล)","Code","วันที่ทำเอกสาร","เดือนที่เบิก",
+      "สถานที่ที่เดินทางไป","วัตถุประสงค์ / ชื่อกิจกรรม","วิธีการเดินทาง",
+      "รายการเดินทาง (1 บรรทัดต่อ 1 รายการ: รายละเอียด | จำนวนเงิน)","จำนวนรายการ","รวมเป็นเงิน (บาท)",
+      "หมายเหตุ","ชื่อบัญชี","เลขที่บัญชี","ธนาคาร","ผู้จ่ายเงิน","ผู้อนุมัติ"];
+    var claimAoa = [claimHead].concat(rows.map(function(r, i){
+      return [i+1, r.name, r.code, r.docDate, monthTh, r.dests, r.purpose, r.vehicles,
+        r.legs, r.n, r.total, r.notes, r.bankAccount, r.bankNo, r.bankName, CLAIM_PAYER, CLAIM_APPROVER];
+    }));
+    var wsClaim = XLSX.utils.aoa_to_sheet(claimAoa);
+    wsClaim["!cols"] = [6,30,8,20,16,30,30,34,80,10,14,30,22,18,16,24,24].map(function(w){ return {wch:w}; });
+
+    /* every leg on its own row, for checking the figures on the first sheet */
+    var detHead = ["ผู้เบิก","Code","วันที่","โปรเจกต์","ต้นทาง","ปลายทาง","ระยะทาง (กม.)","ยานพาหนะ","เรต (บาท/กม.)","เป็นเงิน (บาท)","หมายเหตุ"];
+    var detAoa = [detHead];
+    trips.forEach(function(t){
+      var m = member(t.pic);
+      (t.routes||[]).forEach(function(rt, i){
+        detAoa.push([
+          i===0 ? ((m.fullName||"").trim() || m.name) : "", i===0 ? t.pic : "",
+          i===0 ? thaiDateShort(t.date) : "", i===0 ? projectLabel(t.sectId) : "",
+          rt.from||"", rt.to||"", Math.round((Math.max(0, parseFloat(rt.km)||0))*10)/10,
+          i===0 ? claimVehicleShort(t.vehicle) : "", i===0 ? tripRate(t) : "",
+          i===0 ? tripBaht(t) : "", i===0 ? (t.note||"") : ""
+        ]);
+      });
+    });
+    var wsDet = XLSX.utils.aoa_to_sheet(detAoa);
+    wsDet["!cols"] = [26,8,14,24,22,26,14,12,12,14,30].map(function(w){ return {wch:w}; });
+
+    var wsHow = XLSX.utils.aoa_to_sheet([
+      ["วิธีใช้ไฟล์นี้"],
+      ["1. ตรวจแผ่น \"ใบเบิก\" — 1 แถว = ใบเบิก 1 ใบ (1 คน ต่อ 1 เดือน) เติมชื่อเต็มและบัญชีธนาคารที่ยังว่าง หรือแก้ข้อความได้ตามต้องการ"],
+      ["2. ช่อง \"รายการเดินทาง\" มี 1 บรรทัดต่อ 1 รายการในตารางของใบเบิก รูปแบบ \"รายละเอียด | จำนวนเงิน\" — ลบหรือเพิ่มบรรทัดได้"],
+      ["3. ส่งไฟล์นี้ให้ Claude แล้วพิมพ์ว่า \"ทำใบเบิกค่าเดินทางจากไฟล์นี้\" — Claude จะสร้างไฟล์ Word (.docx) ให้ 1 ไฟล์ต่อ 1 แถว (skill: soulscity-travel-claim-form)"],
+      ["4. ถ้ามีสลิปหรือใบเสร็จ แนบรูปไปพร้อมกันได้ — ค่าเดินทางแบบคิดตามกิโลเมตรไม่จำเป็นต้องมีสลิป"],
+      [""],
+      ["ตั้งชื่อเต็มและบัญชีธนาคารของแต่ละคนได้ที่ปุ่ม \"ทีม\" บนบอร์ด จะได้ไม่ต้องกรอกใหม่ทุกเดือน"],
+      ["สร้างจาก SSt Gantt Board · เดือน "+monthTh+" · "+thaiDateLong(ymd(todayUTC()))]
+    ]);
+    wsHow["!cols"] = [{wch:120}];
+
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, wsClaim, "ใบเบิก");
+    XLSX.utils.book_append_sheet(wb, wsDet, "รายละเอียด");
+    XLSX.utils.book_append_sheet(wb, wsHow, "วิธีใช้");
+    var out = XLSX.write(wb, {bookType:"xlsx", type:"array"});
+    downloadBlob("travel-claim-"+monthKey+(picF ? "-"+picF : "")+".xlsx", out,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+  }).catch(function(){
+    alert(tr("trip_claim_fail"));
+  }).then(function(){
+    if(btn){ btn.disabled = false; btn.textContent = label; }
+  });
+}
+function tripMonthLabelThai(key){
+  var p = key.split("-");
+  var mi = (parseInt(p[1],10)||1) - 1;
+  return MON_BY_LANG.th[mi] + " " + (parseInt(p[0],10)+543);
 }
 
 /* ============ backup / restore ============ */
@@ -4801,6 +5003,14 @@ function openTeam(){
       '<input type="color" data-tk="'+i+'" value="'+esc(m.color)+'" style="padding:2px;height:32px" aria-label="'+esc(tr("color_aria"))+'">'+
       '<input class="email" type="email" data-te="'+i+'" value="'+esc(m.email||"")+'" '+
         'placeholder="'+esc(tr("email_ph"))+'" aria-label="'+esc(tr("email_aria"))+'">'+
+      /* claim-form details: optional, only read by the travel claim export */
+      '<input class="fullname" data-tf="'+i+'" value="'+esc(m.fullName||"")+'" '+
+        'placeholder="'+esc(tr("claim_full_ph"))+'" aria-label="'+esc(tr("claim_full_aria"))+'">'+
+      '<div class="bank">'+
+        '<input data-tba="'+i+'" value="'+esc(m.bankAccount||"")+'" placeholder="'+esc(tr("claim_acct_ph"))+'" aria-label="'+esc(tr("claim_acct_ph"))+'">'+
+        '<input data-tbn="'+i+'" value="'+esc(m.bankNo||"")+'" placeholder="'+esc(tr("claim_no_ph"))+'" aria-label="'+esc(tr("claim_no_ph"))+'" inputmode="numeric">'+
+        '<input data-tbb="'+i+'" value="'+esc(m.bankName||"")+'" placeholder="'+esc(tr("claim_bank_ph"))+'" aria-label="'+esc(tr("claim_bank_ph"))+'">'+
+      '</div>'+
     '</div>';
   }).join("");
   modal(tr("team_title",{n:state.team.length}),
@@ -4827,6 +5037,10 @@ function openTeam(){
       if(n) m.name = n;
       m.color = k;
       m.email = em;
+      m.fullName = document.querySelector('[data-tf="'+i+'"]').value.trim();
+      m.bankAccount = document.querySelector('[data-tba="'+i+'"]').value.trim();
+      m.bankNo = document.querySelector('[data-tbn="'+i+'"]').value.trim();
+      m.bankName = document.querySelector('[data-tbb="'+i+'"]').value.trim();
     });
     closeModal(); touch(); render();
   };

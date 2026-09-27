@@ -1011,6 +1011,9 @@ var I18N = {
     add_project_submit:"เพิ่มหัวข้อ",
     project_delete_title:"ลบหัวข้อ", project_delete_body:"ลบ <b>{title}</b> และงาน {n} รายการข้างในทั้งหมด?",
     project_delete_submit:"ลบทั้งหัวข้อ",
+    board_delete_btn:"ลบบอร์ดนี้", board_delete_title:"ลบบอร์ด",
+    board_delete_body:"ลบบอร์ด <b>{name}</b> พร้อมหัวข้อ {p} รายการ และงาน {n} รายการข้างในทั้งหมด?",
+    board_delete_submit:"ลบทั้งบอร์ด", board_delete_backup_hint:"ถ้ายังไม่แน่ใจ กด Backup เก็บไฟล์ไว้ก่อนได้",
     nickname_aria:"ชื่อเล่น", color_aria:"สี", email_ph:"อีเมลสำหรับเชิญเข้าปฏิทิน", email_aria:"อีเมล",
     team_title:"ทีม ({n} คน)", team_field_label:"Code / ชื่อเล่น / สี / อีเมล",
     team_hint:"Code คือตัวย่อที่แสดงบนแถว PIC — เปลี่ยนแล้วงานเดิมจะถูกอัปเดตให้ตาม · อีเมลใช้สำหรับเชิญเป็น guest ตอนส่งงานเข้า Google Calendar · ชื่อเต็มและบัญชีธนาคารใช้เติมใบเบิกค่าเดินทาง (เว้นว่างได้ แล้วไปกรอกใน Excel ทีหลัง)",
@@ -1221,6 +1224,9 @@ var I18N = {
     add_project_submit:"Add Project",
     project_delete_title:"Delete Project", project_delete_body:"Delete <b>{title}</b> and all {n} tasks inside it?",
     project_delete_submit:"Delete Entire Project",
+    board_delete_btn:"Delete board", board_delete_title:"Delete Board",
+    board_delete_body:"Delete board <b>{name}</b> with all {p} projects and {n} tasks inside it?",
+    board_delete_submit:"Delete Entire Board", board_delete_backup_hint:"Take a Backup first if you are not sure.",
     nickname_aria:"Nickname", color_aria:"Color", email_ph:"Email for calendar invites", email_aria:"Email",
     team_title:"Team ({n} people)", team_field_label:"Code / Nickname / Color / Email",
     team_hint:"Code is the short label shown on the PIC row — changing it updates existing tasks to match. · Email is used to invite guests when sending tasks to Google Calendar. · Full name and bank details fill the travel claim form (leave blank and fill them in the Excel later if you prefer).",
@@ -3810,6 +3816,8 @@ function toolbar(b){
         esc(view.showOldDone?tr("hide_old_done"):tr("show_old_done",{n:oldDoneCount}))+'</button>' : '')+
       (doneProjectsCount>0 || view.showDoneProjects ? '<button class="btn sm" id="btn-show-doneproj" aria-pressed="'+(!!view.showDoneProjects)+'">'+
         esc(view.showDoneProjects?tr("hide_done_projects"):tr("show_done_projects",{n:doneProjectsCount}))+'</button>' : '')+
+      (readOnly || !isManager() || state.boards.length < 2 ? "" :
+        '<button class="btn sm danger" id="btn-board-del">'+esc(tr("board_delete_btn"))+'</button>')+
       (readOnly?"":'<button class="btn sm" id="btn-section">'+esc(tr("add_project_btn"))+'</button><button class="btn primary sm" id="btn-add">'+esc(tr("add_task_btn"))+'</button>')+
     '</div>'+
     '<div class="stats">'+
@@ -4063,6 +4071,9 @@ function wire(b, r, dayW){
 
   var ba = document.getElementById("btn-add");
   if(ba) ba.onclick = function(){ openTask(null, (b && b.sections[0]) ? b.sections[0].id : null); };
+
+  var bbd = document.getElementById("btn-board-del");
+  if(bbd) bbd.onclick = function(){ if(b) confirmDeleteBoard(b.id); };
 
   ["btn-section","btn-section-empty"].forEach(function(id){
     var e = document.getElementById(id);
@@ -5005,6 +5016,36 @@ function confirmDeleteSection(id){
   document.getElementById("m-cancel").onclick = closeModal;
   document.getElementById("m-ok").onclick = function(){
     b.sections = b.sections.filter(function(x){ return x.id !== id; });
+    closeModal(); touch(); render();
+  };
+}
+
+/* Boards have no editor of their own — they came from the seed and have only
+   ever been added in code — so deleting one is the exception that needs a UI:
+   an abandoned board otherwise sits in the tab strip forever. Managers only,
+   and never the last board, since the app needs one to render. Everything
+   under it goes too, which save()'s sweep handles for records this client has
+   loaded — hence ensureArchive() first, or an archived task whose board
+   record vanished would be orphaned in the database rather than removed. */
+async function confirmDeleteBoard(id){
+  if(readOnly || !isManager()) return;
+  var b = state.boards.filter(function(x){ return x.id === id; })[0];
+  if(!b || state.boards.length < 2) return;
+  if(!archiveLoaded && fbDb) await ensureArchive();
+  var np = b.sections.length, nt = 0;
+  b.sections.forEach(function(s){ nt += s.tasks.length; });
+  modal(tr("board_delete_title"),
+    '<p style="margin:0">'+tr("board_delete_body",{name:esc(b.name), p:np, n:nt})+'</p>'+
+    '<span class="hint">'+esc(tr("undo_hint"))+' '+esc(tr("board_delete_backup_hint"))+'</span>',
+    '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
+    '<button class="btn danger" id="m-ok">'+esc(tr("board_delete_submit"))+'</button>'
+  );
+  document.getElementById("m-cancel").onclick = closeModal;
+  document.getElementById("m-ok").onclick = function(){
+    state.boards = state.boards.filter(function(x){ return x.id !== id; });
+    if(view.activeBoard === id) view.activeBoard = state.boards[0].id;
+    if(state.activeBoard === id) state.activeBoard = state.boards[0].id;
+    saveView();
     closeModal(); touch(); render();
   };
 }

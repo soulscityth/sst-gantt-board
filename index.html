@@ -1046,10 +1046,10 @@ var I18N = {
     gcal_scope_all:"ทุกบอร์ด ({n} บอร์ด)", gcal_scope_board:"เฉพาะบอร์ดที่เปิดอยู่",
     gcal_reminder_label:"แจ้งเตือน",
     lead_dday:"D-Day", lead_meeting:"โปรเจกต์ประชุม", lead_other:"งานอื่น ๆ",
-    lead_none:"ไม่แจ้งเตือน", lead_day0:"เช้าวันนั้น (09:00)", lead_h12:"เที่ยงวันก่อนหน้า (12:00)",
+    lead_none:"ไม่แจ้งเตือน", lead_day0:"09:00 วันงาน (งานทั้งวัน = 09:00 วันก่อน)", lead_h12:"เที่ยงวันก่อนหน้า (12:00)",
     lead_1d:"ล่วงหน้า 1 วัน", lead_2d:"ล่วงหน้า 2 วัน",
     lead_3d:"ล่วงหน้า 3 วัน", lead_1w:"ล่วงหน้า 1 สัปดาห์",
-    lead_hint:"\"เช้าวันนั้น\" และ \"เที่ยงวันก่อนหน้า\" เตือนตามเวลานาฬิกาเสมอ ไม่ขึ้นกับเวลาของงาน · ตัวเลือกแบบวัน/สัปดาห์ จะนับถอยหลังจากเวลาเริ่มงาน (ถ้าไม่ระบุเวลา จะเตือน 09:00) · \"โปรเจกต์ประชุม\" = โปรเจกต์ที่ชื่อมีคำว่า meeting/ประชุม",
+    lead_hint:"\"09:00 วันงาน\" และ \"เที่ยงวันก่อนหน้า\" เตือนตามเวลานาฬิกา ไม่ขึ้นกับเวลาของงาน · งานทั้งวัน (ไม่ระบุเวลา) Google ไม่ให้เตือนหลังเที่ยงคืนของวันงาน จึงเตือน 09:00 วันก่อนแทน · ไม่มีงานไหนเตือนตอนเที่ยงคืน · \"โปรเจกต์ประชุม\" = โปรเจกต์ที่ชื่อมีคำว่า meeting/ประชุม",
     gcal_attendees_label:"ผู้ร่วมงาน",
     gcal_invite_label:"เชิญ PIC ของแต่ละงานเป็น guest ({have}/{total} คนมีอีเมลแล้ว)",
     gcal_invite_hint:'ใส่อีเมลที่เหลือได้ที่ปุ่ม "ทีม"',
@@ -1260,10 +1260,10 @@ var I18N = {
     gcal_scope_all:"All Boards ({n} boards)", gcal_scope_board:"Current Board Only",
     gcal_reminder_label:"Reminders",
     lead_dday:"D-Day", lead_meeting:"Meeting projects", lead_other:"Other tasks",
-    lead_none:"None", lead_day0:"Morning of the day (09:00)", lead_h12:"Noon the day before (12:00)",
+    lead_none:"None", lead_day0:"09:00 on the day (all-day = 09:00 day before)", lead_h12:"Noon the day before (12:00)",
     lead_1d:"1 day before", lead_2d:"2 days before",
     lead_3d:"3 days before", lead_1w:"1 week before",
-    lead_hint:"\"Morning of the day\" and \"Noon the day before\" always fire at that clock time, whatever time the task is at. The day/week options count back from the task\'s start (09:00 if it has no time). \"Meeting projects\" = projects whose name contains meeting/ประชุม.",
+    lead_hint:"\"09:00 on the day\" and \"Noon the day before\" fire at that clock time, whatever time the task is at. All-day tasks (no time set) can't be reminded after midnight of the day in Google, so they get 09:00 the day before instead. Nothing ever fires at midnight. \"Meeting projects\" = projects whose name contains meeting/ประชุม.",
     gcal_attendees_label:"Attendees",
     gcal_invite_label:"Invite each task's PIC as a guest ({have}/{total} people have an email)",
     gcal_invite_hint:'Add the remaining emails from the "Team" button',
@@ -5292,22 +5292,33 @@ function leadKind(t, s){
   return "other";
 }
 /* -> Google's "minutes before start", or null for no reminder.
-   Google always counts backwards from the event's start — 00:00 of the first
-   day for an all-day event — so a plain 1440 on an all-day task pops at
-   midnight. "day0" and "h12" are wall-clock reminders (09:00 that morning,
-   12:00 the previous day) that must land at the same hour no matter what
-   time the task itself is at, so they're computed from the task's start
-   minute rather than being fixed offsets. A reminder falling *after* the
-   event's start reference needs a negative value; the API docs don't
-   advertise negatives but the service accepts and stores them (checked
-   against a real calendar). */
+   Google counts backwards from the event's start — 00:00 of the first day
+   for an all-day event. "day0" (09:00 on the day) and "h12" (12:00 the day
+   before) are wall-clock reminders, computed from the task's start minute
+   so they land at the same hour whatever time the task is at.
+   The Calendar REST API only accepts minutes >= 0 and silently turns a
+   negative value into 0 — which on an all-day event fires at MIDNIGHT (an
+   earlier test that "proved" negatives work went through a different Google
+   interface). So a reminder can never land after the start: when 09:00 on
+   the day isn't before the start (every all-day task, or a task timed before
+   09:00), it moves to 09:00 the day before. safeLead() then makes sure
+   nothing ever fires at 00:00. */
 function leadMinutes(code, startTime){
   var days = {d1:1, d2:2, d3:3, w1:7}[code];
-  var startMin = isHHMM(startTime) ? (+startTime.split(":")[0])*60 + (+startTime.split(":")[1]) : 0;
-  if(code === "day0") return startMin - REMIND_HOUR*60;      /* 09:00, same day */
-  if(code === "h12")  return startMin + (24 - 12)*60;        /* 12:00, day before */
-  if(days === undefined) return null;
-  return days*1440 - (isHHMM(startTime) ? 0 : REMIND_HOUR*60);
+  var timed = isHHMM(startTime);
+  var startMin = timed ? (+startTime.split(":")[0])*60 + (+startTime.split(":")[1]) : 0;
+  var m;
+  if(code === "day0") m = startMin - REMIND_HOUR*60;         /* 09:00, same day */
+  else if(code === "h12") m = startMin + (24 - 12)*60;       /* 12:00, day before */
+  else if(days !== undefined) m = days*1440 - (timed ? 0 : REMIND_HOUR*60);
+  else return null;
+  return safeLead(m, startMin);
+}
+function safeLead(m, startMin){
+  while(m < 0) m += 1440;                       /* API clamps negatives to 0 */
+  var fireTod = ((startMin - m) % 1440 + 1440) % 1440;
+  if(fireTod === 0) m = m >= REMIND_HOUR*60 ? m - REMIND_HOUR*60 : m + 1440 - REMIND_HOUR*60;
+  return m;
 }
 function taskReminders(t, s, startTime){
   if(!gcal.leads) normLeads();

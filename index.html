@@ -1011,6 +1011,10 @@ var I18N = {
     add_project_submit:"เพิ่มหัวข้อ",
     project_delete_title:"ลบหัวข้อ", project_delete_body:"ลบ <b>{title}</b> และงาน {n} รายการข้างในทั้งหมด?",
     project_delete_submit:"ลบทั้งหัวข้อ",
+    mig_central_title:"ย้ายหัวข้อไปบอร์ดงานกลางแล้ว",
+    mig_central_moved:"ย้ายไป <b>{board}</b>: {list}", mig_central_missing:"หาไม่เจอ (ไม่ได้ย้าย): {list}",
+    mig_central_renamed:"เปลี่ยนชื่อบอร์ด <b>{from}</b> เป็น <b>{to}</b>",
+    mig_central_gcal:"ปฏิทิน Google ที่ยิงไปแล้วของงานเหล่านี้ยังผูกอยู่เหมือนเดิม ไม่ถูกลบหรือส่งซ้ำ",
     board_delete_btn:"ลบบอร์ดนี้", board_delete_title:"ลบบอร์ด",
     board_delete_body:"ลบบอร์ด <b>{name}</b> พร้อมหัวข้อ {p} รายการ และงาน {n} รายการข้างในทั้งหมด?",
     board_delete_submit:"ลบทั้งบอร์ด", board_delete_backup_hint:"ถ้ายังไม่แน่ใจ กด Backup เก็บไฟล์ไว้ก่อนได้",
@@ -1224,6 +1228,10 @@ var I18N = {
     add_project_submit:"Add Project",
     project_delete_title:"Delete Project", project_delete_body:"Delete <b>{title}</b> and all {n} tasks inside it?",
     project_delete_submit:"Delete Entire Project",
+    mig_central_title:"Projects moved to the central board",
+    mig_central_moved:"Moved to <b>{board}</b>: {list}", mig_central_missing:"Not found (not moved): {list}",
+    mig_central_renamed:"Renamed board <b>{from}</b> to <b>{to}</b>",
+    mig_central_gcal:"Calendar events already sent for these tasks stay linked — nothing is deleted or re-sent.",
     board_delete_btn:"Delete board", board_delete_title:"Delete Board",
     board_delete_body:"Delete board <b>{name}</b> with all {p} projects and {n} tasks inside it?",
     board_delete_submit:"Delete Entire Board", board_delete_backup_hint:"Take a Backup first if you are not sure.",
@@ -1586,7 +1594,7 @@ function copyOmit(obj, omit){
 function flattenState(st){
   var recs = {};
   var mgr = isManager();
-  recs[recPath("meta")]  = {v:2, activeBoard: st.activeBoard || "", dayW: st.dayW || 24};
+  recs[recPath("meta")]  = {v:2, activeBoard: st.activeBoard || "", dayW: st.dayW || 24, migrations: st.migrations || {}};
   recs[recPath("goals")] = st.goals2027 || {};
   (st.team||[]).forEach(function(m, i){ recs[recPath("team", m.code)] = Object.assign(copyOmit(m, []), {order:i}); });
   (st.boards||[]).forEach(function(b, bi){
@@ -1630,7 +1638,7 @@ function byOrder(a, b){ return ((a.order||0) - (b.order||0)); }
 function assembleState(recs){
   var st = {v:2, activeBoard:"", dayW:24, team:[], boards:[], customers:[], staff:[], trips:[], goals2027:{}};
   var meta = recs[recPath("meta")] || {};
-  st.activeBoard = meta.activeBoard || ""; st.dayW = meta.dayW || 24;
+  st.activeBoard = meta.activeBoard || ""; st.dayW = meta.dayW || 24; st.migrations = meta.migrations || {};
   st.goals2027 = recs[recPath("goals")] || {};
   var groups = {team:[], boards:[], sections:[], tasks:[], hours:[], customers:[], staff:[], trips:[]};
   Object.keys(recs).forEach(function(p){
@@ -1873,7 +1881,7 @@ function patchState(path, obj){
   var id = parts[1];
   var full = true, rowOnly = null;
 
-  if(coll === "meta" && obj){ state.activeBoard = obj.activeBoard || ""; state.dayW = obj.dayW || 24; full = false; }
+  if(coll === "meta" && obj){ state.activeBoard = obj.activeBoard || ""; state.dayW = obj.dayW || 24; state.migrations = obj.migrations || {}; full = false; }
   else if(coll === "goals"){
     Object.keys(state.goals2027).forEach(function(k){ delete state.goals2027[k]; });
     Object.assign(state.goals2027, obj || {});
@@ -2971,8 +2979,10 @@ function allProjects(){
    each row would be the same words repeated down the column */
 function projectLabel(sectId){
   if(!sectId) return "";
-  var hit = allProjects().filter(function(p){ return p.section.id === sectId; })[0];
-  return hit ? hit.section.title : "";
+  /* any board, not just the trip board: a project moved to another board
+     (e.g. Back office → งานกลาง) must not blank out the trips logged to it */
+  var hit = findSectionAll(sectId);
+  return hit ? hit.sect.title : "";
 }
 function tripsView(){
   var monthKey = activeTripMonth();
@@ -3124,9 +3134,15 @@ function openTrip(id){
   var picOpts = state.team.map(function(m){
     return '<option value="'+esc(m.code)+'"'+(t.pic===m.code?" selected":"")+'>'+esc(m.name)+' ('+esc(m.code)+')</option>';
   }).join("");
+  var pickable = allProjects().map(function(p){ return p.section; });
+  /* a trip already tagged to a project on another board keeps it — without
+     this the select would drop the value and saving would silently untag it */
+  if(t.sectId && !pickable.some(function(x){ return x.id === t.sectId; })){
+    var cur = findSectionAll(t.sectId); if(cur) pickable.unshift(cur.sect);
+  }
   var projOpts = '<option value="">'+esc(tr("trip_no_project"))+'</option>' +
-    allProjects().map(function(p){
-      return '<option value="'+esc(p.section.id)+'"'+(t.sectId===p.section.id?" selected":"")+'>'+esc(p.section.title)+'</option>';
+    pickable.map(function(sec){
+      return '<option value="'+esc(sec.id)+'"'+(t.sectId===sec.id?" selected":"")+'>'+esc(sec.title)+'</option>';
     }).join("");
   var vehOpts = [["car","trip_v_car"],["ev","trip_v_ev"],["moto","trip_v_moto"]].map(function(v){
     return '<option value="'+v[0]+'"'+(t.vehicle===v[0]?" selected":"")+'>'+esc(tr(v[1]))+
@@ -5020,6 +5036,81 @@ function confirmDeleteSection(id){
   };
 }
 
+/* ---- one-time reorganisation (Sept 2026) ----
+   Team-wide projects move off the main board onto their own "งานกลาง" board,
+   and the main board is renamed. Runs once, for whichever manager loads the
+   app first after this deploys; the flag in meta stops it ever running again
+   (so a project created later with one of these names is left alone).
+   Titles match case- and space-insensitively; anything not found is reported
+   rather than guessed at.
+   Calendar: sync keys are calendar|board|task, so a task changing board would
+   look like a deleted event plus a brand-new one — every PIC would get a
+   cancellation and a fresh invite. The ledger is re-keyed to the new board in
+   the same step, from the team's copy in Firebase, so events carry on as-is. */
+var MIG_CENTRAL = {
+  flag: "central2026",
+  from: "b-master", renameFrom: "SSt Gantt Chart", renameTo: "Project Gantt Chart",
+  board: {id:"b-central", name:"งานกลาง Gantt Chart", sub:""},
+  titles: ["Back office", "New year gift", "Team game", "meeting", "วันลา"]
+};
+function normTitle(x){ return String(x||"").toLowerCase().replace(/\s+/g," ").trim(); }
+async function migrateCentralBoard(){
+  var M = MIG_CENTRAL;
+  if(!state || !isManager() || readOnly) return;
+  state.migrations = state.migrations || {};
+  if(state.migrations[M.flag]) return;
+  var src = state.boards.filter(function(b){ return b.id === M.from; })[0];
+  if(!src) return;
+  if(fbDb && !archiveLoaded) await ensureArchive();   /* archived tasks move too */
+
+  var want = {}; M.titles.forEach(function(t){ want[normTitle(t)] = t; });
+  var moving = src.sections.filter(function(s){ return want[normTitle(s.title)]; });
+  var found = {}; moving.forEach(function(s){ found[normTitle(s.title)] = true; });
+  var missing = M.titles.filter(function(t){ return !found[normTitle(t)]; });
+  /* the team's calendar ledger must be in hand BEFORE anything moves: moving
+     without re-keying it would make every moved event look deleted. If it
+     can't be read, change nothing and try again on the next load. */
+  if(moving.length && fbDb && !(await loadGcalRemote())) return;
+
+  var dest = state.boards.filter(function(b){ return b.id === M.board.id; })[0];
+  if(moving.length && !dest){
+    dest = {id:M.board.id, name:M.board.name, sub:M.board.sub, sections:[]};
+    state.boards.splice(state.boards.indexOf(src)+1, 0, dest);
+  }
+  var movedTask = {};
+  moving.forEach(function(s){
+    s.tasks.forEach(function(t){ movedTask[t.id] = true; });
+    src.sections.splice(src.sections.indexOf(s), 1);
+    dest.sections.push(s);                               /* same object: ids and order kept */
+  });
+
+  if(moving.length){
+    var n = 0;
+    Object.keys(gcal.map).forEach(function(k){
+      var p = k.split("|");
+      if(p.length !== 3 || p[1] !== M.from || !movedTask[p[2]]) return;
+      var nk = p[0]+"|"+dest.id+"|"+p[2];
+      if(!gcal.map.hasOwnProperty(nk)) gcal.map[nk] = gcal.map[k];
+      delete gcal.map[k]; n++;
+    });
+    if(n) saveGcal();
+  }
+
+  var renamed = normTitle(src.name) === normTitle(M.renameFrom);
+  if(renamed) src.name = M.renameTo;
+
+  state.migrations[M.flag] = true;
+  touch(); render();
+  if(!moving.length && !renamed) return;
+  modal(tr("mig_central_title"),
+    (moving.length ? '<p style="margin:0">'+tr("mig_central_moved",{board:esc(dest.name), list:moving.map(function(s){ return esc(s.title); }).join(", ")})+'</p>' : '')+
+    (missing.length ? '<p style="margin:0;color:var(--danger)">'+tr("mig_central_missing",{list:missing.map(esc).join(", ")})+'</p>' : '')+
+    (renamed ? '<p style="margin:0">'+tr("mig_central_renamed",{from:esc(M.renameFrom), to:esc(M.renameTo)})+'</p>' : '')+
+    (moving.length ? '<span class="hint">'+esc(tr("mig_central_gcal"))+'</span>' : ''),
+    '<div class="spacer"></div><button class="btn primary" id="m-cancel">OK</button>');
+  document.getElementById("m-cancel").onclick = closeModal;
+}
+
 /* Boards have no editor of their own — they came from the seed and have only
    ever been added in code — so deleting one is the exception that needs a UI:
    an abandoned board otherwise sits in the tab strip forever. Managers only,
@@ -5351,20 +5442,36 @@ function loadGcal(){
    that clobbers a selection the user just made with whatever this browser
    last read. */
 async function loadGcalRemote(){
-  if(!fbDb) return;
+  if(!fbDb) return false;
   try{
-    var res = await withTimeout(fbDb.ref(GCAL_FB_PATH).once("value"), 4000);
+    /* readOnce, not the old withTimeout(): that helper went away in the
+       keyed-records rewrite and this call kept throwing a ReferenceError the
+       catch below swallowed — every browser silently ran on its own local
+       ledger and saveGcal() then overwrote the team's copy with it. */
+    var res = await readOnce(GCAL_FB_PATH);
     if(res.ok){
-      var v = res.value.val();
+      var v = res.value;
       if(v && typeof v === "object"){
+        /* merge, don't replace: while this load was broken each browser kept
+           its own ledger, so an event may be tracked only here. Dropping it
+           would make the next sync create a duplicate. The team copy wins
+           where both know a task; a local-only entry for a task that has
+           since gone is cleaned up by the next sync (a 404/410 on delete is
+           treated as already gone, and deletes never email anyone). */
+        var localMap = (gcal.map && typeof gcal.map === "object") ? gcal.map : {};
         Object.assign(gcal, v);
         if(!gcal.map || typeof gcal.map !== "object") gcal.map = {};
+        Object.keys(localMap).forEach(function(k){
+          if(!gcal.map.hasOwnProperty(k)) gcal.map[k] = localMap[k];
+        });
         normLeads();
         migrateGcalMapKeys();
         saveGcalLocal();
       }
+      return true;
     }
   }catch(e){}
+  return false;
 }
 function saveGcalLocal(){ try{ localStorage.setItem(GCAL_KEY, JSON.stringify(gcal)); }catch(e){} }
 function saveGcal(){
@@ -6090,7 +6197,7 @@ async function boot(){
   loadView();
   loadGcal();
   fbDb = initFirebase();
-  var remoteConfirmedEmpty = false;
+  var remoteConfirmedEmpty = false, loadedRemote = false;
 
   if(authAvailable()){
     var user = await waitForAuth();
@@ -6105,7 +6212,7 @@ async function boot(){
       /* this version's layout is in place: load it */
       var loaded = await loadCore();
       state = assembleState(recsFromRemote());
-      if(!loaded) setSave("error");
+      if(!loaded) setSave("error"); else loadedRemote = true;
     }else if(probe.ok){
       /* nothing under v2 yet: first run on this version. Bring the old
          single-blob board across, or start from the seed if there's nothing
@@ -6127,6 +6234,7 @@ async function boot(){
   render();
   setSave(fbDb ? "saved" : "unconfigured");
   if(fbDb) subscribeRealtime();
+  if(loadedRemote) migrateCentralBoard();
 }
 boot();
 

@@ -5047,15 +5047,22 @@ function confirmDeleteSection(id){
    look like a deleted event plus a brand-new one — every PIC would get a
    cancellation and a fresh invite. The ledger is re-keyed to the new board in
    the same step, from the team's copy in Firebase, so events carry on as-is. */
-var MIG_CENTRAL = {
-  flag: "central2026",
-  from: "b-master", renameFrom: "SSt Gantt Chart", renameTo: "Project Gantt Chart",
-  board: {id:"b-central", name:"งานกลาง Gantt Chart", sub:""},
-  titles: ["Back office", "New year gift", "Team game", "meeting", "วันลา"]
-};
+var CENTRAL_BOARD = {id:"b-central", name:"งานกลาง Gantt Chart", sub:""};
+var MIGRATIONS = [
+  {flag: "central2026", from: "b-master", board: CENTRAL_BOARD,
+   renameFrom: "SSt Gantt Chart", renameTo: "Project Gantt Chart",
+   titles: ["Back office", "New year gift", "Team game", "meeting", "Leaving (วันลา)"]},
+  /* the first version of the list said "วันลา" but the project is titled
+     "Leaving (วันลา)", so if that one already ran, the leave project was left
+     behind. Moves it on its own; finds nothing (and says nothing) otherwise. */
+  {flag: "central2026-leave", from: "b-master", board: CENTRAL_BOARD, quiet: true,
+   titles: ["Leaving (วันลา)"]}
+];
 function normTitle(x){ return String(x||"").toLowerCase().replace(/\s+/g," ").trim(); }
-async function migrateCentralBoard(){
-  var M = MIG_CENTRAL;
+async function runMigrations(){
+  for(var i=0;i<MIGRATIONS.length;i++) await migrateCentralBoard(MIGRATIONS[i]);
+}
+async function migrateCentralBoard(M){
   if(!state || !isManager() || readOnly) return;
   state.migrations = state.migrations || {};
   if(state.migrations[M.flag]) return;
@@ -5096,15 +5103,16 @@ async function migrateCentralBoard(){
     if(n) saveGcal();
   }
 
-  var renamed = normTitle(src.name) === normTitle(M.renameFrom);
+  var renamed = !!M.renameFrom && normTitle(src.name) === normTitle(M.renameFrom);
   if(renamed) src.name = M.renameTo;
 
   state.migrations[M.flag] = true;
   touch(); render();
   if(!moving.length && !renamed) return;
+  if(M.quiet && !moving.length) return;
   modal(tr("mig_central_title"),
     (moving.length ? '<p style="margin:0">'+tr("mig_central_moved",{board:esc(dest.name), list:moving.map(function(s){ return esc(s.title); }).join(", ")})+'</p>' : '')+
-    (missing.length ? '<p style="margin:0;color:var(--danger)">'+tr("mig_central_missing",{list:missing.map(esc).join(", ")})+'</p>' : '')+
+    (missing.length && !M.quiet ? '<p style="margin:0;color:var(--danger)">'+tr("mig_central_missing",{list:missing.map(esc).join(", ")})+'</p>' : '')+
     (renamed ? '<p style="margin:0">'+tr("mig_central_renamed",{from:esc(M.renameFrom), to:esc(M.renameTo)})+'</p>' : '')+
     (moving.length ? '<span class="hint">'+esc(tr("mig_central_gcal"))+'</span>' : ''),
     '<div class="spacer"></div><button class="btn primary" id="m-cancel">OK</button>');
@@ -6234,7 +6242,7 @@ async function boot(){
   render();
   setSave(fbDb ? "saved" : "unconfigured");
   if(fbDb) subscribeRealtime();
-  if(loadedRemote) migrateCentralBoard();
+  if(loadedRemote) runMigrations();
 }
 boot();
 

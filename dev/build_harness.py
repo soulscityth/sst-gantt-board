@@ -26,7 +26,7 @@ hook = '''window.__dbg = {
   remoteRecs: function(){ return remoteRecs; }, pendingWrites: function(){ return pendingWrites; },
   tripsLoaded: function(){ return tripsLoaded; }, tripsIndex: function(){ return tripsIndex; },
   archiveLoaded: function(){ return archiveLoaded; }, ensureArchive: ensureArchive, ensureTripsMonth: ensureTripsMonth,
-  findTaskAll: findTaskAll, setUser: function(u){ currentUser = u; }, uid: uid, isOldDone: isOldDone, confirmDeleteBoard: confirmDeleteBoard, migrateCentralBoard: migrateCentralBoard, gcalStaleKeys: gcalStaleKeys, gcalSyncTargets: gcalSyncTargets, gcalEventHash: gcalEventHash, fbEscape: fbEscape, loadGcalRemote: loadGcalRemote, projectLabel: projectLabel, isProjectDone: isProjectDone,
+  findTaskAll: findTaskAll, setUser: function(u){ currentUser = u; }, uid: uid, isOldDone: isOldDone, confirmDeleteBoard: confirmDeleteBoard, migrateCentralBoard: migrateCentralBoard, runMigrations: runMigrations, gcalStaleKeys: gcalStaleKeys, gcalSyncTargets: gcalSyncTargets, gcalEventHash: gcalEventHash, fbEscape: fbEscape, loadGcalRemote: loadGcalRemote, projectLabel: projectLabel, isProjectDone: isProjectDone,
   gcalForm: gcalForm, openCalendarExport: openCalendarExport, gcalEventBody: gcalEventBody, gcal: function(){ return gcal; },
   buildIcs: buildIcs, loadGcal: loadGcal, board: board, applyAutoStatuses: applyAutoStatuses,
   applyRestore: applyRestore, downloadBackup: downloadBackup, hoursTotal: hoursTotal, allHourEntries: allHourEntries,

@@ -365,6 +365,15 @@ select.ctl:hover,input.ctl:hover{border-color:var(--border-strong)}
   font-variant-numeric:tabular-nums;flex:0 0 auto;white-space:nowrap;
 }
 .sect .grow{flex:1 1 auto}
+/* project that mirrors a deal in the Sales app: its stage, linking back */
+.dealbadge{
+  flex:0 0 auto;font-size:10px;font-weight:600;white-space:nowrap;text-decoration:none;
+  color:var(--s-process);background:color-mix(in srgb, var(--s-process) 14%, transparent);
+  border-radius:5px;padding:1px 6px;
+}
+.dealbadge.won{color:var(--s-done);background:color-mix(in srgb, var(--s-done) 14%, transparent)}
+.dealbadge.lost,.dealbadge.archived{color:var(--s-cancel);background:color-mix(in srgb, var(--s-cancel) 14%, transparent);text-decoration:line-through}
+.dealbadge:hover{text-decoration:underline}
 .sectacts{display:flex;gap:4px;opacity:0;transition:opacity .12s;flex:0 0 auto}
 .sect:hover .sectacts,.sect:focus-within .sectacts{opacity:1}
 
@@ -1004,6 +1013,12 @@ var I18N = {
     project_rename_title:"แก้ชื่อหัวข้อ", project_add_title:"เพิ่มหัวข้อใหม่",
     project_title_label:"ชื่อหัวข้อ", project_title_ph:"เช่น Selling product to school",
     project_title_hint:"หัวข้อใช้จัดกลุ่มงานตามโปรเจกต์หรือสายงาน เหมือนใน Gantt sheet เดิม",
+    deal_open_title:"เปิดดีลนี้ในระบบ Sales",
+    deal_locked_hint:"หัวข้อนี้ผูกกับดีลในระบบ Sales — ชื่อและลูกค้าแก้ที่ Sales แล้วจะอัปเดตมาที่นี่เอง",
+    deal_dday_hint:"วัน D-DAY สถานะ และยอดของงานนี้มาจากดีลในระบบ Sales (นับยอดเมื่อปิดดีลได้) — แก้ที่ Sales",
+    deal_delete_hint:"หัวข้อนี้ผูกกับดีลในระบบ Sales — ถ้าดีลยังเปิดอยู่ ระบบจะสร้างหัวข้อกลับมาเมื่อมีการแก้ดีลครั้งถัดไป",
+    deal_tpl_hint:"วันจริงมาจากดีลในระบบ Sales แล้ว — เทมเพลตจะเพิ่มเฉพาะงานเตรียม",
+    cust_from_sales:"จาก Sales", cust_from_sales_title:"ข้อมูลลูกค้านี้มาจากระบบ Sales — แก้ที่ Sales",
     color_label:"สี (Google Calendar)",
     color_hint:"ใช้เป็นสี event ตอนส่งงานในหัวข้อนี้เข้า Google Calendar — เลือก Auto ให้ระบบสุ่มสีคงที่ให้เอง",
     cust_optional_label:"ลูกค้า (ถ้ามี)",
@@ -1221,6 +1236,12 @@ var I18N = {
     project_rename_title:"Rename Project", project_add_title:"Add New Project",
     project_title_label:"Project Title", project_title_ph:"e.g. Selling product to school",
     project_title_hint:"Projects group tasks by project or work stream, like the original Gantt sheet.",
+    deal_open_title:"Open this deal in the Sales app",
+    deal_locked_hint:"This project is linked to a deal in the Sales app \u2014 edit its name and customer there and they update here.",
+    deal_dday_hint:"This task's D-DAY dates, status and amounts come from the deal in the Sales app (counted once the deal is won) \u2014 edit them there.",
+    deal_delete_hint:"This project is linked to a deal in the Sales app \u2014 while the deal is open, it comes back the next time the deal is edited.",
+    deal_tpl_hint:"The event day already comes from the deal in the Sales app \u2014 the template only adds the prep tasks.",
+    cust_from_sales:"From Sales", cust_from_sales_title:"This customer comes from the Sales app \u2014 edit it there.",
     color_label:"Color (Google Calendar)",
     color_hint:"Used as the event color when sending this project's tasks to Google Calendar — choose Auto to let the system pick a consistent color for you.",
     cust_optional_label:"Customer (optional)",
@@ -2160,7 +2181,26 @@ function visible(t){
    passes; until it has, the project stays up however tidy the to-do list
    looks. A project with no D-DAY task (Back office, PR, ongoing work) is
    never "finished" — it always stays on the board. */
+/* Projects created by the Sales app carry `deal` (see Sales src/lib/gantt/model.ts): the deal's
+   stage, a link back, and the D-DAY tasks it manages. Sales owns those fields; the team owns the rest. */
+function dealTaskIds(s){
+  var ids = s && s.deal && s.deal.taskIds;
+  if(!ids) return [];
+  return Array.isArray(ids) ? ids : Object.keys(ids).map(function(k){ return ids[k]; });
+}
+function isDealTask(s, t){ return dealTaskIds(s).indexOf(t.id) >= 0; }
+function dealClosed(s){ return !!(s && s.deal && (s.deal.status === "lost" || s.deal.status === "archived")); }
+function dealBadge(s){
+  if(!s.deal) return "";
+  var url = /^https?:\/\//.test(s.deal.url||"") ? s.deal.url : "";
+  var cls = "dealbadge " + esc(s.deal.status||"");
+  var txt = esc(s.deal.stageLabel || s.deal.stage || "Sales");
+  return url
+    ? '<a class="'+cls+'" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer" title="'+esc(tr("deal_open_title"))+'">'+txt+' &#8599;</a>'
+    : '<span class="'+cls+'">'+txt+'</span>';
+}
 function isProjectDone(s){
+  if(dealClosed(s)) return true;
   var tod = todayUTC(), hasDday = false;
   var allClosed = s.tasks.every(function(t){
     if(t.status === "Done" || t.status === "Cancel") return true;
@@ -2409,7 +2449,10 @@ function customersView(){
     return '<div class="custcard" data-cust="'+esc(c.id)+'">'+
       '<div class="custhead">'+
         '<div><h3>'+esc(c.name)+'</h3>'+(c.org?'<span class="custorg">'+esc(c.org)+'</span>':'')+'</div>'+
-        (readOnly?'':'<div class="custacts"><button class="btn sm" data-cust-edit="'+esc(c.id)+'">'+esc(tr("edit"))+'</button>'+
+        (c.fromSales ? '<div class="custacts">'+
+            (/^https?:\/\//.test(c.salesUrl||"") ? '<a class="dealbadge" href="'+esc(c.salesUrl)+'" target="_blank" rel="noopener noreferrer" title="'+esc(tr("cust_from_sales_title"))+'">'+esc(tr("cust_from_sales"))+' &#8599;</a>'
+              : '<span class="dealbadge" title="'+esc(tr("cust_from_sales_title"))+'">'+esc(tr("cust_from_sales"))+'</span>')+'</div>' :
+        readOnly?'':'<div class="custacts"><button class="btn sm" data-cust-edit="'+esc(c.id)+'">'+esc(tr("edit"))+'</button>'+
           '<button class="btn sm danger" data-cust-del="'+esc(c.id)+'">'+esc(tr("delete"))+'</button></div>')+
       '</div>'+
       (c.contact?'<div class="custrow"><span class="custlabel">'+esc(tr("cust_contact_label"))+'</span>'+esc(c.contact)+'</div>':'')+
@@ -2440,6 +2483,7 @@ function wireCustomers(){
 function openCustomer(id){
   if(readOnly) return;
   var c = id ? state.customers.filter(function(x){return x.id===id;})[0] : null;
+  if(c && c.fromSales) return;
   var isNew = !c;
   if(isNew) c = {id:uid("cu"), name:"", contact:"", org:""};
   modal(isNew?tr("cust_add_title"):tr("cust_edit_title"),
@@ -3929,6 +3973,7 @@ function rows(b, r, dayW, trackW){
         (readOnly?'':'<button class="grip" draggable="true" data-grip-sect="'+esc(s.id)+'" title="'+esc(tr("drag_sect_handle"))+'" aria-label="'+esc(tr("drag_sect_handle"))+'">&#8942;&#8942;</button>')+
         '<button class="collapsebtn" data-collapse="'+esc(s.id)+'" aria-label="'+esc(collapsed?tr("expand_project"):tr("collapse_project"))+'" title="'+esc(collapsed?tr("expand_short"):tr("collapse_short"))+'">'+(collapsed?"&#9656;":"&#9662;")+'</button>'+
         '<h2>'+esc(s.title)+'</h2>'+
+        dealBadge(s)+
         (ddayRange?'<span class="sectdday">'+esc(ddayRange)+'</span>':'')+
         '<span class="count">'+ts.length+(ts.length!==s.tasks.length?"/"+s.tasks.length:"")+'</span><span class="grow"></span>'+
         (readOnly?"":'<span class="sectacts">'+
@@ -4512,6 +4557,7 @@ function openTask(id, sectId){
   var t = found ? found.task : {id:uid("t"), pic:[], title:"", remark:"", status:"Not started", start:ymd(todayUTC()), dur:1, link:"", isProposal:false, proposal:{}, d2027:{}, gcalColor:""};
   var sid = found ? found.sect.id : (sectId || (b.sections[0] && b.sections[0].id));
   if(!sid){ openSection(null); return; }
+  var synced = !!(found && isDealTask(found.sect, t));
   if(!t.proposal || typeof t.proposal !== "object") t.proposal = {};
 
   var curTColor = t.gcalColor||"";
@@ -4588,7 +4634,8 @@ function openTask(id, sectId){
         '<div class="field"><label>'+esc(tr("d2work_label"))+'</label><input type="number" min="0" id="f-d2work" value="'+((t.d2027&&t.d2027.workshops!=null)?t.d2027.workshops:1)+'"></div>'+
       '</div>'+
       '<span class="hint">'+esc(tr("d2027_hint"))+'</span>'+
-    '</div>',
+    '</div>'+
+    (synced ? '<span class="hint" style="color:var(--s-process)">'+esc(tr("deal_dday_hint"))+'</span>' : ''),
     (found ? '<button class="btn danger" id="m-del">'+esc(tr("delete_task_btn"))+'</button>' : '')+
     (found ? '<a class="btn" id="m-gcal" target="_blank" rel="noopener noreferrer" href="'+esc(gcalUrl(t))+'">'+esc(tr("add_to_calendar_btn"))+'</a>' : '')+
     '<div class="spacer"></div>'+
@@ -4769,6 +4816,11 @@ function openTask(id, sectId){
   fDur.oninput = syncDue;
   fDue.onchange = syncDur;
 
+  if(synced){
+    ["f-sect","f-st","f-start","f-dur","f-due","f-d2sales","f-d2part","f-d2work"].forEach(function(fid){
+      var el = document.getElementById(fid); if(el) el.disabled = true;
+    });
+  }
   document.getElementById("m-cancel").onclick = closeModal;
   if(found){
     document.getElementById("m-del").onclick = function(){
@@ -4793,20 +4845,22 @@ function openTask(id, sectId){
       notes: document.getElementById("f-pnotes").value.trim()
     };
     t.pic = picked;
-    t.status = document.getElementById("f-st").value;
-    t.start = fStart.value || ymd(todayUTC());
-    t.dur = Math.max(1, parseInt(fDur.value,10) || 1);
+    if(!synced){
+      t.status = document.getElementById("f-st").value;
+      t.start = fStart.value || ymd(todayUTC());
+      t.dur = Math.max(1, parseInt(fDur.value,10) || 1);
+    }
     t.startTime = document.getElementById("f-starttime").value || "";
     t.dueTime = document.getElementById("f-duetime").value || "";
     readHours();
     /* a zero-hour row is an abandoned "+ Add hours" click, not data */
     t.hours = hrs.filter(function(e){ return (parseFloat(e.h) || 0) > 0; });
-    t.d2027 = {
+    if(!synced) t.d2027 = {
       sales: Math.max(0, parseFloat(document.getElementById("f-d2sales").value)||0),
       participants: Math.max(0, parseInt(document.getElementById("f-d2part").value,10)||0),
       workshops: Math.max(0, parseInt(document.getElementById("f-d2work").value,10)||0)
     };
-    var target = document.getElementById("f-sect").value;
+    var target = synced ? found.sect.id : document.getElementById("f-sect").value;
     if(found){
       if(found.sect.id !== target){
         found.sect.tasks = found.sect.tasks.filter(function(x){ return x.id !== t.id; });
@@ -4890,7 +4944,9 @@ function openTemplatePicker(sectId){
   var b = board();
   var s = b.sections.filter(function(x){return x.id===sectId;})[0];
   if(!s) return;
+  var dealDday = dealTaskIds(s).length > 0;
   var rows = WORKFLOW_TEMPLATE.map(function(item, i){
+    if(item.dday && dealDday) return "";
     var names = item.dday ? tr("tpl_everyone") : tplPics(item).map(function(code){ return member(code).name; }).join(", ");
     return '<label class="chk"><input type="checkbox" data-tpl="'+i+'" checked>'+
       '<span>'+esc(tplTitle(item))+
@@ -4904,11 +4960,12 @@ function openTemplatePicker(sectId){
       '<span class="hint" id="tpl-count" style="margin-left:auto"></span>'+
     '</div>'+
     '<div class="field" style="gap:2px">'+rows+'</div>'+
+    (dealDday ? '<span class="hint">'+esc(tr("deal_tpl_hint"))+'</span>' :
     '<div class="grid2">'+
       '<div class="field"><label>'+esc(tr("tpl_dday_label"))+'</label><input type="date" id="tpl-dday" value="'+ymd(todayUTC())+'"></div>'+
       '<div class="field"><label>'+esc(tr("tpl_dday_dur_label"))+'</label><input type="number" id="tpl-dday-dur" min="1" step="1" value="1"></div>'+
     '</div>'+
-    '<span class="hint">'+esc(tr("tpl_seq_hint"))+'</span>'+
+    '<span class="hint">'+esc(tr("tpl_seq_hint"))+'</span>')+
     '<span class="hint" id="tpl-warn" style="display:none;color:var(--danger)">'+esc(tr("tpl_warn"))+'</span>',
     '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
     '<button class="btn primary" id="m-ok">'+esc(tr("tpl_add_submit"))+'</button>'
@@ -4916,7 +4973,7 @@ function openTemplatePicker(sectId){
   document.getElementById("m-cancel").onclick = closeModal;
   function tplUpdateCount(){
     var n = document.querySelectorAll("[data-tpl]:checked").length;
-    document.getElementById("tpl-count").textContent = tr("tpl_count",{n:n, total:WORKFLOW_TEMPLATE.length});
+    document.getElementById("tpl-count").textContent = tr("tpl_count",{n:n, total:document.querySelectorAll("[data-tpl]").length});
   }
   document.querySelectorAll("[data-tpl]").forEach(function(cb){ cb.onchange = tplUpdateCount; });
   document.getElementById("tpl-selall").onclick = function(){
@@ -4939,8 +4996,8 @@ function openTemplatePicker(sectId){
        corrected by hand. They come in dateless instead; a task with no start
        renders "—", draws no bar, is skipped by the auto-status pass, and is
        excluded from calendar sync until someone gives it a real date. */
-    var ddayDate = document.getElementById("tpl-dday").value || "";
-    var ddayDur = Math.max(1, parseInt(document.getElementById("tpl-dday-dur").value, 10) || 1);
+    var ddayDate = dealDday ? "" : (document.getElementById("tpl-dday").value || "");
+    var ddayDur = dealDday ? 1 : Math.max(1, parseInt(document.getElementById("tpl-dday-dur").value, 10) || 1);
     var added = 0;
     WORKFLOW_TEMPLATE.forEach(function(item, i){
       var cb = document.querySelector('[data-tpl="'+i+'"]');
@@ -4982,13 +5039,15 @@ function openSection(id){
     var label = c.name + (c.org ? ", "+c.org : "");
     return '<option value="'+esc(c.id)+'"'+((s&&s.customerId===c.id)?" selected":"")+'>'+esc(label)+'</option>';
   }).join("");
+  var fromDeal = !!(s && s.deal);
+  var lockAttr = fromDeal ? ' disabled' : '';
   modal(s ? tr("project_rename_title") : tr("project_add_title"),
     '<div class="field"><label>'+esc(tr("project_title_label"))+'</label>'+
-      '<input id="f-sname" value="'+esc(s?s.title:"")+'" placeholder="'+esc(tr("project_title_ph"))+'"></div>'+
-      '<span class="hint">'+esc(tr("project_title_hint"))+'</span>'+
+      '<input id="f-sname" value="'+esc(s?s.title:"")+'" placeholder="'+esc(tr("project_title_ph"))+'"'+lockAttr+'></div>'+
+      '<span class="hint">'+esc(tr(fromDeal ? "deal_locked_hint" : "project_title_hint"))+'</span>'+
     '<div class="field"><label>'+esc(tr("color_label"))+'</label><div class="colorswatches">'+swatches+'</div>'+
       '<span class="hint">'+esc(tr("color_hint"))+'</span></div>'+
-    '<div class="field"><label>'+esc(tr("cust_optional_label"))+'</label><select id="f-scust">'+custOpts+'</select>'+
+    '<div class="field"><label>'+esc(tr("cust_optional_label"))+'</label><select id="f-scust"'+lockAttr+'>'+custOpts+'</select>'+
       '<span class="hint">'+esc(tr("cust_optional_hint"))+'</span></div>',
     '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
     '<button class="btn primary" id="m-ok">'+(s?esc(tr("save_btn")):esc(tr("add_project_submit")))+'</button>'
@@ -5025,6 +5084,7 @@ function confirmDeleteSection(id){
   if(!s) return;
   modal(tr("project_delete_title"),
     '<p style="margin:0">'+tr("project_delete_body",{title:esc(s.title), n:s.tasks.length})+'</p>'+
+    (s.deal ? '<span class="hint" style="color:var(--danger)">'+esc(tr("deal_delete_hint"))+'</span>' : '')+
     '<span class="hint">'+esc(tr("undo_hint"))+'</span>',
     '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
     '<button class="btn danger" id="m-ok">'+esc(tr("project_delete_submit"))+'</button>'

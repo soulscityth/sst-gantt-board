@@ -2997,11 +2997,13 @@ function tripRate(t){ return TRIP_RATES[t.vehicle] || TRIP_RATES.car; }
 /* money is rounded once, per trip, not per leg and not on the running total —
    so what's paid out always matches the per-trip figures someone can check
    by hand against the table */
-function tripBaht(t){ return Math.round(tripKm(t) * tripRate(t)); }
+/* kept to the satang: rounding each trip to whole baht first made a 421.80
+   trip read 422 and the month total a sum of already-rounded figures */
+function tripBaht(t){ return Math.round(tripKm(t) * tripRate(t) * 100) / 100; }
 /* trailing zeros look wrong on a distance ("12.50 km"), but so does dropping
    a real decimal — so only show one when the value actually has one */
 function fmtKm(n){ return (Math.round(n*10)/10).toLocaleString(undefined, {maximumFractionDigits:1}); }
-function fmtBaht(n){ return Math.round(n).toLocaleString(); }
+function fmtBaht(n){ return (Math.round(n*100)/100).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
 function vehicleLabel(v){
   return tr(v === "ev" ? "trip_v_ev" : v === "moto" ? "trip_v_moto" : "trip_v_car");
 }

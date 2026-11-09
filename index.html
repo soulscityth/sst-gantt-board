@@ -824,8 +824,8 @@ button.scorerow:hover,button.reviewrow:hover{border-color:var(--border-strong);b
   /* route editor (from → to / km ✕) and hours editor (who h / by ✕): two
      lines each instead of five cramped columns */
   .rtrow{grid-template-columns:1fr 14px 1fr;grid-template-areas:"a b c" "d d e";row-gap:6px}
-  .rtrow .rt-km{width:120px}
-  .rt-from{grid-area:a}.rtarrow{grid-area:b}.rt-to{grid-area:c}.rt-km{grid-area:d}.rt-del{grid-area:e;justify-self:end}
+  .rtrow .rt-km,.rtrow .rt-fare{width:120px}
+  .rt-from{grid-area:a}.rtarrow{grid-area:b}.rt-to{grid-area:c}.rt-km,.rt-fare{grid-area:d}.rt-del{grid-area:e;justify-self:end}
   .rtrow+.rtrow{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border)}
   .hrrow{grid-template-columns:1fr 84px 32px;grid-template-areas:"p h u" "b b d";row-gap:6px}
   .hr-pic{grid-area:p}.hr-h{grid-area:h}.hrunit{grid-area:u}.hr-by{grid-area:b}
@@ -919,9 +919,10 @@ var I18N = {
     hours_hint_locked:"ลงชั่วโมงได้เลย ส่วนช่องอนุมัติเปิดให้เฉพาะ {names}",
     hours_badge_all:"{h} ชม. · อนุมัติครบแล้ว", hours_badge_pending:"{h} ชม. · รออนุมัติ {n} รายการ",
     trip_project:"โปรเจกต์", trip_no_project:"— ไม่ระบุโปรเจกต์ —",
-    trip_vehicle:"ยานพาหนะ", trip_v_car:"รถยนต์", trip_v_ev:"รถยนต์ไฟฟ้า", trip_v_moto:"มอเตอร์ไซค์",
+    trip_vehicle:"ยานพาหนะ", trip_v_car:"รถยนต์", trip_v_ev:"รถยนต์ไฟฟ้า", trip_v_moto:"มอเตอร์ไซค์", trip_v_public:"ขนส่งสาธารณะ",
+    trip_fare_ph:"ค่าโดยสาร (บาท)", trip_fare_opt:"ใส่ราคาเอง", trip_fare_hint:"ขนส่งสาธารณะ (รถไฟฟ้า รถเมล์ แท็กซี่ ฯลฯ) ไม่คิดตามระยะทาง — ใส่ค่าโดยสารของแต่ละช่วงเป็นบาท",
     trip_routes:"เส้นทาง", trip_add_route:"+ เพิ่มเส้นทาง", trip_del_route:"ลบเส้นทางนี้",
-    trip_baht:"เป็นเงิน (บาท)", trip_baht_unit:"บาท", trip_rate_note:"เรต: รถยนต์ {car} · รถยนต์ไฟฟ้า {ev} · มอเตอร์ไซค์ {moto} บาท/กม.",
+    trip_baht:"เป็นเงิน (บาท)", trip_baht_unit:"บาท", trip_rate_note:"เรต: รถยนต์ {car} · รถยนต์ไฟฟ้า {ev} · มอเตอร์ไซค์ {moto} บาท/กม. · ขนส่งสาธารณะ ตามค่าโดยสารจริง",
     trip_route_warn:"ใส่ต้นทางและปลายทางอย่างน้อย 1 เส้นทาง",
     trip_form_hint:"ระยะทางใส่เป็นกิโลเมตร ใส่ทศนิยมได้ เช่น 12.5",
     trip_add_submit:"เพิ่ม", trip_delete_this:"ลบรายการนี้",
@@ -1142,9 +1143,10 @@ var I18N = {
     hours_hint_locked:"Log your hours here; the approval box is available to {names} only.",
     hours_badge_all:"{h}h · all approved", hours_badge_pending:"{h}h · {n} awaiting approval",
     trip_project:"Project", trip_no_project:"— No project —",
-    trip_vehicle:"Vehicle", trip_v_car:"Car", trip_v_ev:"EV car", trip_v_moto:"Motorcycle",
+    trip_vehicle:"Vehicle", trip_v_car:"Car", trip_v_ev:"EV car", trip_v_moto:"Motorcycle", trip_v_public:"Public transport",
+    trip_fare_ph:"Fare (THB)", trip_fare_opt:"enter the fare", trip_fare_hint:"Public transport (BTS, bus, taxi…) isn't paid by distance — enter what each leg cost, in baht",
     trip_routes:"Routes", trip_add_route:"+ Add route", trip_del_route:"Remove this route",
-    trip_baht:"Amount (THB)", trip_baht_unit:"THB", trip_rate_note:"Rates: car {car} · EV {ev} · motorcycle {moto} THB/km",
+    trip_baht:"Amount (THB)", trip_baht_unit:"THB", trip_rate_note:"Rates: car {car} · EV {ev} · motorcycle {moto} THB/km · public transport at the actual fare",
     trip_route_warn:"Fill in at least one route with an origin and a destination.",
     trip_form_hint:"Distance in kilometres; decimals are fine, e.g. 12.5",
     trip_add_submit:"Add", trip_delete_this:"Delete this trip",
@@ -2044,6 +2046,11 @@ async function migrateLegacy(){
 /* Reimbursement rate per kilometre by vehicle. Edit here to change what the
    travel board pays out; the keys are what's stored on each trip. */
 var TRIP_RATES = {car:6, ev:4, moto:3};
+/* Public transport isn't paid by the kilometre: each leg carries the fare
+   actually paid ("fare", in baht) instead of a distance, and the trip pays
+   the sum of its fares. */
+var FARE_VEHICLE = "public";
+function isFareTrip(t){ return !!t && t.vehicle === FARE_VEHICLE; }
 /* SheetJS, loaded only when someone asks for the claim Excel — the board
    itself never needs it, so it shouldn't cost every page load ~900 KB */
 var XLSX_URL = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
@@ -2108,7 +2115,7 @@ function normalizeState(s){
       t.routes = [{from: t.from || "", to: t.to || "", km: Math.max(0, parseFloat(t.km) || 0)}];
     }
     delete t.from; delete t.to; delete t.km;
-    if(!TRIP_RATES[t.vehicle]) t.vehicle = "car";
+    if(!TRIP_RATES[t.vehicle] && t.vehicle !== FARE_VEHICLE) t.vehicle = "car";
     if(typeof t.sectId !== "string") t.sectId = "";
   });
   /* named goals2027 historically — now tracks 2026, kept the key so live data isn't migrated */
@@ -2990,22 +2997,30 @@ function tripsInMonth(key){
     .sort(function(a,b){ return String(a.date).localeCompare(String(b.date)); });
 }
 /* a trip's distance is the sum of its legs */
+function legKm(r){ return Math.max(0, parseFloat(r && r.km) || 0); }
+function legFare(r){ return Math.max(0, parseFloat(r && r.fare) || 0); }
 function tripKm(t){
-  return (t.routes||[]).reduce(function(a, r){ return a + Math.max(0, parseFloat(r.km) || 0); }, 0);
+  if(isFareTrip(t)) return 0;          /* fares, not distance: no km to reimburse */
+  return (t.routes||[]).reduce(function(a, r){ return a + legKm(r); }, 0);
 }
-function tripRate(t){ return TRIP_RATES[t.vehicle] || TRIP_RATES.car; }
+function tripRate(t){ return isFareTrip(t) ? 0 : (TRIP_RATES[t.vehicle] || TRIP_RATES.car); }
 /* money is rounded once, per trip, not per leg and not on the running total —
    so what's paid out always matches the per-trip figures someone can check
    by hand against the table */
 /* kept to the satang: rounding each trip to whole baht first made a 421.80
    trip read 422 and the month total a sum of already-rounded figures */
-function tripBaht(t){ return Math.round(tripKm(t) * tripRate(t) * 100) / 100; }
+function tripBaht(t){
+  if(isFareTrip(t)) return Math.round((t.routes||[]).reduce(function(a, r){ return a + legFare(r); }, 0) * 100) / 100;
+  return Math.round(tripKm(t) * tripRate(t) * 100) / 100;
+}
+/* a leg's figure as shown beside it: distance, or the fare for public transport */
+function legLabel(t, r){ return isFareTrip(t) ? fmtBaht(legFare(r))+" ฿" : fmtKm(legKm(r)); }
 /* trailing zeros look wrong on a distance ("12.50 km"), but so does dropping
    a real decimal — so only show one when the value actually has one */
 function fmtKm(n){ return (Math.round(n*10)/10).toLocaleString(undefined, {maximumFractionDigits:1}); }
 function fmtBaht(n){ return (Math.round(n*100)/100).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}); }
 function vehicleLabel(v){
-  return tr(v === "ev" ? "trip_v_ev" : v === "moto" ? "trip_v_moto" : "trip_v_car");
+  return tr(v === "ev" ? "trip_v_ev" : v === "moto" ? "trip_v_moto" : v === FARE_VEHICLE ? "trip_v_public" : "trip_v_car");
 }
 /* Trips are filed against the main board's projects only — the PR and Sales
    boards track their own streams of work, not the client jobs people travel
@@ -3103,10 +3118,10 @@ function tripsView(){
       '<td class="tripproj" data-l="'+esc(tr("trip_project"))+'">'+esc(projectLabel(t.sectId))+'</td>'+
       '<td class="triproutes" data-l="'+esc(tr("trip_routes"))+'">'+(t.routes||[]).map(function(rt){
         return '<span class="triproute">'+esc(rt.from||"")+' &rarr; '+esc(rt.to||"")+
-          '<i>'+esc(fmtKm(Math.max(0, parseFloat(rt.km)||0)))+'</i></span>';
+          '<i>'+esc(legLabel(t, rt))+'</i></span>';
       }).join("")+'</td>'+
       '<td data-l="'+esc(tr("trip_vehicle"))+'">'+esc(vehicleLabel(t.vehicle))+'</td>'+
-      '<td class="num" data-l="'+esc(tr("trip_km"))+'">'+esc(fmtKm(tripKm(t)))+'</td>'+
+      '<td class="num" data-l="'+esc(tr("trip_km"))+'">'+(isFareTrip(t)?'&mdash;':esc(fmtKm(tripKm(t))))+'</td>'+
       '<td class="num" data-l="'+esc(tr("trip_baht"))+'">'+esc(fmtBaht(tripBaht(t)))+'</td>'+
       '<td class="tripnote" data-l="'+esc(tr("trip_note"))+'">'+esc(t.note||"")+'</td>'+
       '<td class="acts">'+(readOnly?'':
@@ -3190,9 +3205,10 @@ function openTrip(id){
     pickable.map(function(sec){
       return '<option value="'+esc(sec.id)+'"'+(t.sectId===sec.id?" selected":"")+'>'+esc(sec.title)+'</option>';
     }).join("");
-  var vehOpts = [["car","trip_v_car"],["ev","trip_v_ev"],["moto","trip_v_moto"]].map(function(v){
-    return '<option value="'+v[0]+'"'+(t.vehicle===v[0]?" selected":"")+'>'+esc(tr(v[1]))+
-      ' ('+TRIP_RATES[v[0]]+' '+esc(tr("trip_baht_unit"))+'/'+esc(tr("trip_km_unit"))+')</option>';
+  var vehOpts = [["car","trip_v_car"],["ev","trip_v_ev"],["moto","trip_v_moto"],[FARE_VEHICLE,"trip_v_public"]].map(function(v){
+    var how = v[0] === FARE_VEHICLE ? tr("trip_fare_opt")
+      : TRIP_RATES[v[0]]+' '+tr("trip_baht_unit")+'/'+tr("trip_km_unit");
+    return '<option value="'+v[0]+'"'+(t.vehicle===v[0]?" selected":"")+'>'+esc(tr(v[1]))+' ('+esc(how)+')</option>';
   }).join("");
 
   modal(isNew?tr("trip_add_title"):tr("trip_edit_title"),
@@ -3208,7 +3224,7 @@ function openTrip(id){
       '<button type="button" class="btn sm" id="f-tr-addroute" style="align-self:flex-start;margin-top:6px">'+esc(tr("trip_add_route"))+'</button>'+
     '</div>'+
     '<div class="field"><label>'+esc(tr("trip_note"))+'</label><input id="f-tr-note" value="'+esc(t.note||"")+'" placeholder="'+esc(tr("trip_note_ph"))+'"></div>'+
-    '<span class="hint">'+esc(tr("trip_form_hint"))+'</span>'+
+    '<span class="hint" id="tr-hint"></span>'+
     '<span class="hint" id="tr-warn" style="display:none;color:var(--danger)">'+esc(tr("trip_route_warn"))+'</span>',
     (isNew?"":'<button class="btn danger" id="m-del">'+esc(tr("trip_delete_this"))+'</button>')+
     '<div class="spacer"></div><button class="btn" id="m-cancel">'+esc(tr("cancel"))+'</button>'+
@@ -3218,22 +3234,32 @@ function openTrip(id){
   /* Route rows are re-rendered from `draft` on every add/remove, so the
      current field values have to be read back into it first — otherwise
      adding a second leg would wipe what was typed into the first. */
+  /* the number on each leg is km for an own vehicle and the fare for public
+     transport; both are kept on the draft so flipping the vehicle back and
+     forth mid-edit doesn't lose what was typed */
+  function fareMode(){ return document.getElementById("f-tr-veh").value === FARE_VEHICLE; }
   function readRoutes(){
     document.querySelectorAll("[data-route-i]").forEach(function(row){
       var i = +row.getAttribute("data-route-i");
       if(!draft[i]) return;
       draft[i].from = row.querySelector(".rt-from").value;
       draft[i].to   = row.querySelector(".rt-to").value;
-      draft[i].km   = Math.max(0, parseFloat(row.querySelector(".rt-km").value) || 0);
+      var km = row.querySelector(".rt-km"), fare = row.querySelector(".rt-fare");
+      if(km)   draft[i].km   = Math.max(0, parseFloat(km.value) || 0);
+      if(fare) draft[i].fare = Math.max(0, parseFloat(fare.value) || 0);
     });
   }
   function renderRoutes(){
+    var fm = fareMode();
+    document.getElementById("tr-hint").textContent = tr(fm ? "trip_fare_hint" : "trip_form_hint");
     document.getElementById("f-tr-routes").innerHTML = draft.map(function(r, i){
       return '<div class="rtrow" data-route-i="'+i+'">'+
         '<input class="rt-from" value="'+esc(r.from||"")+'" placeholder="'+esc(tr("trip_from_ph"))+'">'+
         '<span class="rtarrow">&rarr;</span>'+
         '<input class="rt-to" value="'+esc(r.to||"")+'" placeholder="'+esc(tr("trip_to_ph"))+'">'+
-        '<input class="rt-km" type="number" min="0" step="0.1" value="'+esc(String(Math.max(0, parseFloat(r.km)||0)))+'">'+
+        (fm
+          ? '<input class="rt-fare" type="number" min="0" step="0.01" inputmode="decimal" value="'+esc(String(legFare(r)))+'" title="'+esc(tr("trip_fare_ph"))+'" aria-label="'+esc(tr("trip_fare_ph"))+'">'
+          : '<input class="rt-km" type="number" min="0" step="0.1" value="'+esc(String(legKm(r)))+'">')+
         '<button type="button" class="iconbtn rt-del" data-route-del="'+i+'" title="'+esc(tr("trip_del_route"))+'"'+
           (draft.length>1?'':' disabled')+'>&#10005;</button>'+
       '</div>';
@@ -3248,6 +3274,7 @@ function openTrip(id){
     });
   }
   renderRoutes();
+  document.getElementById("f-tr-veh").onchange = function(){ readRoutes(); renderRoutes(); };
   document.getElementById("f-tr-addroute").onclick = function(){
     readRoutes();
     draft.push({from:"", to:"", km:0});
@@ -3264,8 +3291,13 @@ function openTrip(id){
     readRoutes();
     /* a half-filled extra leg is a slip, not data — drop blanks, then insist
        on at least one real route so a trip can't be saved with no journey */
+    var fm = fareMode();
     var routes = draft.filter(function(r){ return r.from.trim() && r.to.trim(); })
-                      .map(function(r){ return {from:r.from.trim(), to:r.to.trim(), km:r.km}; });
+                      .map(function(r){
+                        var leg = {from:r.from.trim(), to:r.to.trim()};
+                        if(fm) leg.fare = legFare(r); else leg.km = legKm(r);
+                        return leg;
+                      });
     if(!date || !routes.length){
       document.getElementById("tr-warn").style.display = "block";
       return;
@@ -3332,9 +3364,9 @@ function exportTripsCsv(){
       lines.push([
         i===0 ? member(t.pic).name : "", i===0 ? (t.pic||"") : "",
         i===0 ? fmtShort(t.date) : "", i===0 ? projectLabel(t.sectId) : "",
-        rt.from||"", rt.to||"", fmtKm(Math.max(0, parseFloat(rt.km)||0)),
-        i===0 ? vehicleLabel(t.vehicle) : "", i===0 ? String(tripRate(t)) : "",
-        i===0 ? fmtBaht(tripBaht(t)) : "", i===0 ? (t.note||"") : ""
+        rt.from||"", rt.to||"", isFareTrip(t) ? "" : fmtKm(legKm(rt)),
+        i===0 ? vehicleLabel(t.vehicle) : "", i===0 ? (isFareTrip(t) ? "fare" : String(tripRate(t))) : "",
+        isFareTrip(t) ? fmtBaht(legFare(rt)) : (i===0 ? fmtBaht(tripBaht(t)) : ""), i===0 ? (t.note||"") : ""
       ]);
     });
   });
@@ -3444,7 +3476,7 @@ function claimVehicle(v){
   return v === "moto" ? "รถจักรยานยนต์ส่วนตัว" : "อื่นๆ";
 }
 function claimVehicleOther(v){
-  return v === "moto" ? "" : v === "ev" ? "รถยนต์ไฟฟ้าส่วนตัว" : "รถยนต์ส่วนตัว";
+  return v === "moto" ? "" : v === "ev" ? "รถยนต์ไฟฟ้าส่วนตัว" : v === FARE_VEHICLE ? "ขนส่งสาธารณะ" : "รถยนต์ส่วนตัว";
 }
 /* "นายณภัทร กิจสนาโยธิน" -> ["นาย", "ณภัทร กิจสนาโยธิน"]; a name with no
    recognised title goes whole into the name column with the title blank */
@@ -3457,18 +3489,19 @@ function splitTitle(full){
   return ["", full];
 }
 function claimVehicleShort(v){
-  return v === "moto" ? "มอเตอร์ไซค์" : v === "ev" ? "รถยนต์ไฟฟ้า" : "รถยนต์";
+  return v === "moto" ? "มอเตอร์ไซค์" : v === "ev" ? "รถยนต์ไฟฟ้า" : v === FARE_VEHICLE ? "ขนส่งสาธารณะ" : "รถยนต์";
 }
 /* one line of the form's itemized table: everything the reader needs to
    check the figure against the board — date, project, every leg with its
    distance, and the rate it was paid at */
 function claimLegText(t){
   var legs = (t.routes||[]).map(function(rt){
-    return "จาก "+(rt.from||"")+" ไป "+(rt.to||"")+" ("+fmtKm(Math.max(0, parseFloat(rt.km)||0))+" กม.)";
+    return "จาก "+(rt.from||"")+" ไป "+(rt.to||"")+" ("+
+      (isFareTrip(t) ? fmtBaht(legFare(rt))+" บาท" : fmtKm(legKm(rt))+" กม.")+")";
   }).join(" และ ");
   var proj = projectLabel(t.sectId);
   return "วันที่ "+thaiDateShort(t.date)+(proj ? " "+proj : "")+" — "+legs+
-    " — "+claimVehicleShort(t.vehicle)+" "+tripRate(t)+" บาท/กม.";
+    " — "+claimVehicleShort(t.vehicle)+(isFareTrip(t) ? " ตามค่าโดยสารจริง" : " "+tripRate(t)+" บาท/กม.");
 }
 function uniq(arr){
   var out = [];
@@ -3533,9 +3566,9 @@ function exportTripsClaimXlsx(btn){
         detAoa.push([
           i===0 ? (claimInfo(m).fullName || m.name) : "", i===0 ? t.pic : "",
           i===0 ? thaiDateShort(t.date) : "", i===0 ? projectLabel(t.sectId) : "",
-          rt.from||"", rt.to||"", Math.round((Math.max(0, parseFloat(rt.km)||0))*10)/10,
-          i===0 ? claimVehicleShort(t.vehicle) : "", i===0 ? tripRate(t) : "",
-          i===0 ? tripBaht(t) : "", i===0 ? (t.note||"") : ""
+          rt.from||"", rt.to||"", isFareTrip(t) ? "" : Math.round(legKm(rt)*10)/10,
+          i===0 ? claimVehicleShort(t.vehicle) : "", i===0 ? (isFareTrip(t) ? "ค่าโดยสาร" : tripRate(t)) : "",
+          isFareTrip(t) ? legFare(rt) : (i===0 ? tripBaht(t) : ""), i===0 ? (t.note||"") : ""
         ]);
       });
     });

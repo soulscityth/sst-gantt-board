@@ -1082,6 +1082,7 @@ var I18N = {
     gcal_close_keep_going:"ปิด (ทำต่อเบื้องหลัง)",
     gcal_step_updating:"กำลังอัปเดต: {title}", gcal_step_creating:"กำลังสร้างใหม่: {title}",
     gcal_step_removing:"กำลังลบ event เก่าที่ไม่ใช้แล้ว",
+    gcal_step_scanning:"กำลังตรวจหา event ในปฏิทินที่ระบบไม่ได้ติดตามไว้",
     gcal_send_fail_t:"ส่งไม่สำเร็จ",
     gcal_timeout_msg:"หมดเวลารอการตอบกลับจาก Google — ลองกดส่งใหม่อีกครั้ง",
     gcal_created:"สร้างใหม่", gcal_updated:"อัปเดต", gcal_removed:"ลบออก (Cancel)", gcal_invited:"เชิญ PIC เป็น guest",
@@ -1307,6 +1308,7 @@ var I18N = {
     gcal_close_keep_going:"Close (keep sending in background)",
     gcal_step_updating:"Updating: {title}", gcal_step_creating:"Creating: {title}",
     gcal_step_removing:"Removing an old, unused event",
+    gcal_step_scanning:"Checking the calendar for events the board lost track of",
     gcal_send_fail_t:"Send failed",
     gcal_timeout_msg:"Timed out waiting for a response from Google — try sending again.",
     gcal_created:"Created", gcal_updated:"Updated", gcal_removed:"Removed (Cancel)", gcal_invited:"Invited PIC as guest",
@@ -5730,9 +5732,14 @@ function gcalErrBox(info){
 }
 
 function gcalSyncScope(){ return gcal.scope === "board" ? [board()] : state.boards; }
-function gcalSyncTargets(){
+/* every valid target on every board — what cleanup must check against.
+   Sending can be limited to this board, but "is this event still wanted?"
+   can't be: with the narrower list, every other board's events looked
+   stale and the next this-board-only sync would have deleted them. */
+function gcalAllTargets(){ return gcalSyncTargets(state.boards); }
+function gcalSyncTargets(boards){
   var out = [];
-  gcalSyncScope().forEach(function(b){
+  (boards || gcalSyncScope()).forEach(function(b){
     b.sections.forEach(function(s){
       s.tasks.forEach(function(t){
         if(!isSyncStatus(t.status)) return;
@@ -5747,6 +5754,67 @@ function gcalSyncTargets(){
    cancelled, or its due date cleared. Their calendar events get removed on
    the next sync regardless of what's ticked in the picker; a deleted task
    was never going to show up in that list to tick in the first place. */
+/* Is this calendar event one the board made? Tagged ones say so outright;
+   older ones are recognised by the description the board writes, whose
+   first three lines are "<board> › <project>", "PIC: …", "Status: …". */
+function isBoardEvent(ev){
+  var pv = ev && ev.extendedProperties && ev.extendedProperties["private"];
+  if(pv && pv.sst === "1") return true;
+  return /^[^\n]+ › [^\n]+\nPIC: [^\n]*\nStatus: /.test(String((ev && ev.description) || ""));
+}
+function evStartKey(st){ return st ? (st.date || String(st.dateTime||"").slice(0,16)) : ""; }
+/* Lists the calendar and sorts out board events the ledger doesn't track.
+   Adopts (into gcal.map) the ones that are the only copy of a task still
+   wanted; returns the rest — cancelled, deleted, undated, or duplicates —
+   for deletion. Only events created or updated in the last ~13 months are
+   considered; nothing older could be an orphan of the current board. */
+async function gcalFindOrphans(calId, everyTarget){
+  var prefix = fbEscape(calId)+"|";
+  var tracked = {};
+  Object.keys(gcal.map).forEach(function(k){
+    if(k.indexOf(prefix) !== 0) return;
+    var e = gcal.map[k]; tracked[e && typeof e === "object" ? e.id : e] = true;
+  });
+  var byTask = {}, bySig = {};
+  everyTarget.forEach(function(x){
+    byTask[String(x.t.id)] = x;
+    var b = gcalEventBody(x);
+    var sig = b.summary+"|"+evStartKey(b.start);
+    (bySig[sig] = bySig[sig] || []).push(x);
+  });
+  var events = [], token = "";
+  var since = new Date(Date.now() - 400*86400000).toISOString();
+  do{
+    var res = await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events?maxResults=2500&singleEvents=true&showDeleted=false"+
+      "&updatedMin="+encodeURIComponent(since)+(token?"&pageToken="+encodeURIComponent(token):""));
+    events = events.concat((res && res.items) || []);
+    token = res && res.nextPageToken;
+  }while(token);
+
+  var orphans = [];
+  events.forEach(function(ev){
+    if(!ev || !ev.id || tracked[ev.id] || ev.status === "cancelled" || !isBoardEvent(ev)) return;
+    var pv = (ev.extendedProperties && ev.extendedProperties["private"]) || {};
+    var x = null;
+    if(pv.sstTask) x = byTask[String(pv.sstTask)] || null;
+    else{
+      var hits = bySig[(ev.summary||"")+"|"+evStartKey(ev.start)] || [];
+      if(hits.length === 1) x = hits[0];
+      else if(hits.length > 1) return;        /* ambiguous: leave it alone */
+    }
+    if(x){
+      var key = prefix + x.key;
+      if(!gcal.map[key]){
+        gcal.map[key] = {id: ev.id, hash: ""};   /* adopt: next send updates it */
+        tracked[ev.id] = true;
+        return;
+      }
+    }
+    orphans.push({id: ev.id, summary: ev.summary || ""});
+  });
+  saveGcal();
+  return {orphans: orphans};
+}
 function gcalStaleKeys(calId, allTargets){
   var prefix = fbEscape(calId)+"|";
   return Object.keys(gcal.map).filter(function(k){
@@ -5809,7 +5877,10 @@ function gcalEventBody(x){
     summary: eventTitle(x.t, x.s),
     description: taskDetails(x.t, x.s, x.b),
     transparency: sp.span ? "opaque" : "transparent",
-    colorId: x.t.gcalColor || (x.t.status === "D-DAY" ? "11" : x.t.status === "Leaving" ? "7" : sectionColorId(x.s))
+    colorId: x.t.gcalColor || (x.t.status === "D-DAY" ? "11" : x.t.status === "Leaving" ? "7" : sectionColorId(x.s)),
+    /* lets a later sync recognise this as the board's event for this task
+       straight from the calendar, even if the ledger lost track of it */
+    extendedProperties: {"private": {sst:"1", sstTask: String(x.t.id)}}
   };
   if(isHHMM(x.t.startTime) || isHHMM(x.t.dueTime)){
     var r = gcalTimedRange(ymd(sp.from), ymd(sp.to), x.t.startTime, x.t.dueTime);
@@ -5938,6 +6009,9 @@ async function gcalRoute(){
     return;
   }
   gcalSetBody('<p style="margin:0;color:var(--muted)">'+esc(tr("gcal_reading_cals"))+'</p>', '<div class="spacer"></div><button class="btn" data-x>'+esc(tr("close"))+'</button>');
+  /* a Done task over a month old lives in the archive; unless it's loaded
+     its event looks unwanted and the sync would delete it */
+  if(fbDb && !archiveLoaded) await ensureArchive();
   await loadGcalRemote();
   try{
     var res = await gcalFetch("/users/me/calendarList?maxResults=250");
@@ -5952,6 +6026,7 @@ async function gcalRoute(){
 }
 function gcalForm(cals, err){
   var targets = gcalSyncTargets();
+  var everyTarget = gcalAllTargets();
   if(!cals || !cals.length){
     gcalSetBody(
       (err?gcalErrBox(err):gcalErrBox({t:tr("gcal_no_cal_t"), d:tr("gcal_no_cal_d")}))+
@@ -5981,7 +6056,7 @@ function gcalForm(cals, err){
   var synced = Object.keys(gcal.map).length;
   var withMail = state.team.filter(function(m){ return (m.email||"").trim(); }).length;
   var selection = gcalDefaultSelection(targets, gcal.calendarId);
-  var staleCount = gcalStaleKeys(gcal.calendarId, targets).length;
+  var staleCount = gcalStaleKeys(gcal.calendarId, everyTarget).length;
 
   gcalSetBody(
     '<div style="border:1px solid var(--border);border-radius:8px;background:var(--surface-2);'+
@@ -6079,12 +6154,14 @@ function gcalForm(cals, err){
 
 async function gcalRunSync(cals, selectedKeys, silent){
   var allTargets = gcalSyncTargets();
+  var everyTarget = gcalAllTargets();
   var calId = gcal.calendarId;
-  /* stale-event cleanup always looks at every valid target, never just the
-     ones the user picked this round — otherwise simply not selecting a
-     still-valid task this time would get its calendar event deleted. */
-  var stale = gcalStaleKeys(calId, allTargets);
+  /* stale-event cleanup always looks at every valid target on every board,
+     never just the ones picked this round or on this board — otherwise not
+     selecting a still-valid task would get its calendar event deleted. */
+  var stale = gcalStaleKeys(calId, everyTarget);
   var targets = selectedKeys ? allTargets.filter(function(x){ return selectedKeys[x.key]; }) : allTargets;
+  var orphans = [];
   var total = targets.length + stale.length;
   var created=0, updated=0, removed=0, invited=0, failed=[];
   var done=0;
@@ -6106,6 +6183,21 @@ async function gcalRunSync(cals, selectedKeys, silent){
     );
   }
   progress();
+
+  /* events the board made but its ledger no longer points at — from the
+     weeks the shared ledger wasn't loading, when each browser tracked only
+     what it had sent itself. The stale cleanup above only ever sees ledger
+     entries, so a task cancelled since then kept its event forever. Read
+     the calendar itself: an untracked board event whose task still wants
+     one is adopted (so it's updated, not duplicated); anything else goes. */
+  try{
+    stepLabel = tr("gcal_step_scanning"); progress();
+    var sweep = await gcalFindOrphans(calId, everyTarget);
+    orphans = sweep.orphans;
+    total += orphans.length; progress();
+  }catch(eS){
+    failed.push({title:tr("gcal_step_scanning"), info:{t:tr("gcal_send_fail_t"), d:(eS&&eS.message)||tr("unknown_reason")}});
+  }
 
   for(var i=0;i<targets.length;i++){
     var x = targets[i];
@@ -6188,6 +6280,18 @@ async function gcalRunSync(cals, selectedKeys, silent){
       }
     }
     saveGcal();
+    done++; progress();
+  }
+
+  for(var o=0;o<orphans.length;o++){
+    try{
+      stepLabel = tr("gcal_step_removing")+": "+(orphans[o].summary||""); progress();
+      await gcalFetch("/calendars/"+encodeURIComponent(calId)+"/events/"+encodeURIComponent(orphans[o].id)+"?sendUpdates=none", {method:"DELETE"});
+      removed++;
+    }catch(e3){
+      if(!(e3 && (e3.status===404 || e3.status===410)))
+        failed.push({title:orphans[o].summary||orphans[o].id, info:{t:tr("gcal_send_fail_t"), d:(e3&&e3.message)||tr("unknown_reason")}});
+    }
     done++; progress();
   }
 
